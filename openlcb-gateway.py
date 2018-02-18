@@ -328,7 +328,7 @@ def convert_to_hex(buf): #return string
     return res
 
 def convert_to_hex_b(buf): #return string
-    res=b""
+    res=""
     for c in buf:
         res+=hexp(c,2)
     return res
@@ -364,7 +364,37 @@ def send_long_message(sock,MTI,text,dest): #text must be a byte array
         print("sent SNRI-->",msg)
         sock.send(msg.encode('utf-8'))
         pos+=6
-    
+
+def send_datagram_multi(s,src_id,reply,buf,first_payload):
+    #exaclty send the byte buffer buf: must be null terminated if it is a string
+
+    msg = ":X1"
+    if len(buf)<=first_payload:
+        msg+="A"
+    else:
+        msg+="B"
+    msg+=hexp(src_id,3)+"AAAN"+reply
+    msg+=convert_to_hex_b(buf[:first_payload])+";"
+    print("datagram sent >>",msg," = ",buf[:first_payload])
+    s.send(msg.encode('utf-8'))
+    #Now the rest of the data
+
+    pos = first_payload
+    while pos<len(buf) and pos<64:
+        if pos+8<len(buf) and pos+8<64: #more than enough remaining
+            msg=":X1C"
+            end=pos+8
+        else:
+            msg=":X1D"  #last frame
+            end = min(64,len(buf))
+                
+        msg+=hexp(src_id,3)+"AAAN"
+        msg+=convert_to_hex_b(buf[pos:end])+";"
+        msg2=buf[pos:end]
+        pos+=8
+        s.send(msg.encode('utf-8'))
+        print("datagram sent >>",msg," = ",msg2)
+        
 def send_CDI(s,src_id,address,acdi_xml):
     msg = ":X1"
     end = min(address+2,len(acdi_xml))
@@ -400,9 +430,6 @@ def send_CDI(s,src_id,address,acdi_xml):
 def memory_read(s,src_id,add,buf):   #buf is mem read msg as string
     global memory
 
-    s.send((":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
-    print("datagram received ok sent --->",":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";")
-
     if buf[13:15]=="40":
         mem_sp = int(float.fromhex(buf[23:25]))
         size = int(float.fromhex(buf[25:27]))
@@ -421,7 +448,7 @@ def memory_read(s,src_id,add,buf):   #buf is mem read msg as string
     if to_send is None:
         print("error memory unknown")
     else:
-        send_datagram_multi(s,src_id,("205"+buf[14]+hexp(add,8)+m).encode('utf-8'),
+        send_datagram_multi(s,src_id,("205"+buf[14]+hexp(add,8)+m),
                             to_send[:size],first_payload)
 
 def memory_write(s,src_id,add,buf):  #buf: write msg as string
@@ -536,6 +563,8 @@ def process_grid_connect(cli,msg):
                 print("datagram received ok sent --->",(":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
                 send_CDI(s,src_id,address,acdi_xml)
             elif msg[11:13]=="20": #read/write command
+                s.send((":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode('utf-8'))
+                print("datagram received ok sent --->",(":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
                 if msg[13]=="4":
                     memory_read(s,src_id,address,msg)
                 elif msg[13]=="0":
@@ -551,7 +580,9 @@ offset = 1
 for i in range(16):   #loop over 16 channels
     for j in info_sizes:
         channels_mem.create_mem(offset,j)
-        channels_mem.set_mem(offset,(b"\0")*j)
+        buf = bytearray()
+        buf.extend([i]*j)
+        channels_mem.set_mem(offset,buf)
         offset+=j
                              
 memory = {251:mem_space([(0,1),(1,63),(64,64)]),
