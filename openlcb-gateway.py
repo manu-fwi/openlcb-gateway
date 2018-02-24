@@ -147,21 +147,25 @@ class addressed_frame(frame):
         self.MTI = MTI
 
     def to_gridconnect(self):
-        res=b":X19"+(hexp(self.MTI,3)+hexp(self.src_node.aliasID,3)).encode('utf-8')+b"N"
-        if self.dest_node!=None and (self.MTI & 0x008)!=0: #address present is set
-            res+=hexp(self.pos,1).encode('utf-8')+hexp(self.dest_node.aliasID,3).encode('utf-8')
-        res+=convert_hex_b(self.data)+b";"
-        return res
+        res=":X19"+hexp(self.MTI,3)+hexp(self.src.aliasID,3)+"N"
+        if self.dest!=None and (self.MTI & 0x008)!=0: #address present is set
+            res+=hexp(self.pos,1)+hexp(self.dest.aliasID,3)
+        res+=convert_hex_b(self.data)+";"
+        return res.encode('utf-8')
     
 class datagram_content(frame):
+    ONE = 0
+    FIRST = 1
+    MIDDLE =2
+    LAST=3
     def __init__(self,src_node,dest_node,pos):
         super().__init__(src_node,dest_node,None)
         self.pos = pos    # pos = 0: one datagram alone, 1=first of several, 2=middle,3=last
 
     def to_gridconnect(self):
-        res=b":X1"+chr(ord(b"A")+pos)+(hexp(self.dest_node.aliasID,3)+hexp(self.src_node.aliasID,3)).encode('utf-8')+b"N"
-        res+=convert_hex_b(self.data)+b";"
-        return res
+        res=":X1"+chr(ord(b"A")+self.pos)+hexp(self.dest.aliasID,3)+hexp(self.src.aliasID,3)+b"N"
+        res+=convert_hex_b(self.data)+";"
+        return res.encode('utf-8')
         
 
 class datagram_rcv(frame):
@@ -191,18 +195,18 @@ class datagram_rcv(frame):
         
 def create_datagram_list(src,dest,data):  #data is the payload, no more than 64 bytes!
     if len(data)<=8:
-        l = [datagram_content(src,dest,0)]
+        l = [datagram_content(src,dest,datagram_content.ONE)]
         l[0].add_data(data)
         return l
     pos = 0
-    l=[datagram_content(src,dest,1)]
+    l=[datagram_content(src,dest,datagram_content.FIRST)]
     l[0].add_data(data[:8])
     pos = 8
     while pos < len(data):
         if pos+8 < len(data):
-            datagram_pos = 2
+            datagram_pos = datagram_content.MIDDLE
         else:
-            datagram_pos = 3
+            datagram_pos = datagram_content.LAST
         d = datagram_content(src,dest,datagram_pos)
         d.add_data(data[pos:pos+8])
         pos+=8
@@ -427,28 +431,37 @@ def send_CDI(s,src_id,address,acdi_xml):
         s.send(msg.encode('utf-8'))
         print("datagram sent >>",msg," = ",msg2)
 
-def memory_read(s,src_id,add,buf):   #buf is mem read msg as string
+def memory_read(s,src,add,msg):   #msg is mem read msg as string
     global memory
+    to_send=bytearray()
 
-    if buf[13:15]=="40":
-        mem_sp = int(float.fromhex(buf[23:25]))
-        size = int(float.fromhex(buf[25:27]))
+    if msg[13:15]=="40":
+        mem_sp = int(float.fromhex(msg[23:25]))
+        size = int(float.fromhex(msg[25:27]))
         m = hexp(mem_sp,2)
         first_payload=1
     else:
-        mem_sp = 0xFC+int(buf[14])
-        size=int(float.fromhex(buf[23:25]))
+        mem_sp = 0xFC+int(msg[14])
+        size=int(float.fromhex(msg[23:25]))
         m = ""
         first_payload=2
     print("memory read at",mem_sp,"offset",size)
     if mem_sp not in memory:
         print("memory unknown!!")
         return
-    to_send= memory[mem_sp].read_mem(add)
-    if to_send is None:
-        print("error memory unknown")
+    mem = memory[mem_sp].read_mem(add)
+    if mem is None:
+        print("memory error")
     else:
-        send_datagram_multi(s,src_id,("205"+buf[14]+hexp(add,8)+m),
+        to_send= bytearray("205"+msg[14]+hexp(add,8)+m,'utf-8')
+        to_send.extend(mem[:size])
+        print(to_send)
+        dgrams = create_datagram_list(gw_add,src,to_send)
+        print("mem read datagrams:",end="")
+        for d in dgrams:
+            print(d.to_gridconnect())
+            
+        send_datagram_multi(s,src,("205"+msg[14]+hexp(add,8)+m),
                             to_send[:size],first_payload)
 
 def memory_write(s,src_id,add,buf):  #buf: write msg as string
@@ -496,19 +509,21 @@ def process_grid_connect(cli,msg):
     can_prefix = (first_b & 0x18) >> 3
     var_field = int(float.fromhex(msg[4:7]))
     src_id = int(float.fromhex(msg[7:10]))
+    print("data pre=",data_present," first_b=",first_b," can_prefix=",can_prefix," var_field=",var_field," src_id=",src_id)
     
     if can_prefix % 2==0:
         #Can Control frame
         data_needed = False
         #fixme: process these frame properly
-        
+        #full_ID = var_field << 12*((first_b&0x7) -4)
         if first_b & 0x7>=4 and first_b & 0x7<=7:
             print("CID Frame n°",first_b & 0x7," * ",hex(var_field),end=" * 0x")
-            full_ID = var_field << 12*((first_b&0x7) -4)
+            #full_ID = var_field << 12*((first_b&0x7) -4)
         elif first_b&0x7==0:
             if var_field==0x700:
                 print("RID Frame * full ID=")#,hex(full_ID),end=" * ")
                 jmri_identified = True
+                #managed_nodes[node(full_ID,True,src_id)]=None #JMRI node only for now
             elif var_field==0x701:
                 print("AMD Frame",end=" * ")
                 data_needed = True
@@ -566,7 +581,7 @@ def process_grid_connect(cli,msg):
                 s.send((":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode('utf-8'))
                 print("datagram received ok sent --->",(":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
                 if msg[13]=="4":
-                    memory_read(s,src_id,address,msg)
+                    memory_read(s,get_lcb_node_from_alias(src_id),address,msg)
                 elif msg[13]=="0":
                     memory_write(s,src_id,address,msg)
 
@@ -593,7 +608,7 @@ memory[251].set_mem(64,b"gateway-1"+(b"\0")*(64-9))
 memory[251].dump()
 memory[253].dump()
 input("waiting")
-serv = openlcb_server.server("192.168.0.14",50000)
+serv = openlcb_server.server("127.0.0.1",50000)
 serv.start()
 
 done = False
