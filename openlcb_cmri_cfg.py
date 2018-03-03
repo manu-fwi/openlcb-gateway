@@ -29,29 +29,29 @@ class CMRI_message:
         return mess
         
     @staticmethod     
-    def from_raw_message(raw_mess):
-        mess = CMRI_message()
-        if raw_mess[:3]!=bytes((CMRI_message.SYN,CMRI_message.SYN,CMRI_message.STX)) or raw_mess[len(raw_mess)-1]!=CMRI_message.ETX:
+    def from_raw_message(raw_msg):
+        msg = CMRI_message()
+        if raw_msg[:3]!=bytes((CMRI_message.SYN,CMRI_message.SYN,CMRI_message.STX)) or raw_msg[len(raw_msg)-1]!=CMRI_message.ETX:
             return
-        if raw_mess[4]==ord("I"):
-            mess.type_m = CMRI_message.INIT_M
-        elif raw_mess[4]==ord("P"):
-            mess.type_m = CMRI_message.POLL_M
-        elif raw_mess[4]==ord("T"):
-            mess.type_m = CMRI_message.TRANSMIT_M
-        elif raw_mess[4]==ord("R"):
-            mess.type_m = CMRI_message.RECEIVE_M
-        print(mess.type_m)
-        if mess.type_m == None :
-            mess.type_m = None
+        if raw_msg[4]==ord("I"):
+            msg.type_m = CMRI_message.INIT_M
+        elif raw_msg[4]==ord("P"):
+            msg.type_m = CMRI_message.POLL_M
+        elif raw_msg[4]==ord("T"):
+            msg.type_m = CMRI_message.TRANSMIT_M
+        elif raw_msg[4]==ord("R"):
+            msg.type_m = CMRI_message.RECEIVE_M
+        print(msg.type_m)
+        if msg.type_m == None :
+            msg.type_m = None
             return
-        mess.address = CMRI_message.UA_to_add(raw_mess[3])
-        if mess.address < 0 or mess.address>127:
-            mess.type_m = None
+        msg.address = CMRI_message.UA_to_add(raw_msg[3])
+        if msg.address < 0 or msg.address>127:
+            msg.type_m = None
             return
         DLE_char = False
         message = b""
-        for b in raw_mess[5:len(raw_mess)-1]:
+        for b in raw_msg[5:len(raw_msg)-1]:
             if DLE_char:
                 message += bytes((b,))
                 DLE_char = False
@@ -60,14 +60,14 @@ class CMRI_message:
                     DLE_char = True
                 else:
                     if b==CMRI_message.ETX or b==CMRI_message.STX:
-                        mess.type_m = None
+                        msg.type_m = None
                         break
                     message += bytes((b,))
                    
-        if raw_mess[len(raw_mess)-1]!=CMRI_message.ETX:
-            mess.type_m = None
+        if raw_msg[len(raw_msg)-1]!=CMRI_message.ETX:
+            msg.type_m = None
         else:
-            mess.message = message
+            msg.message = message
         return mess
 
     def to_raw_message(self):
