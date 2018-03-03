@@ -62,19 +62,33 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </cdi>
 \0"""
 
+class buf_cb:
+    def __init__(self,buf,callback=None):
+        self.buf = buf
+        self.write_cback=callback
+        
+"""mem_space is a segment of memory you read from /write to using addresses
+It is made of triples: beginning address(offset), size and a write_callback function
+This function is called when the memory cell is written to with the following parameters:
+write_callback(offset,buf)
+where offset is the beginnon of the cell and buf is the buf which has just been written
+"""
 class mem_space:
     def __init__(self,list=None):
         self.mem = {}
         self.mem_chunks={}
         if list is not None:
-            for (offset,size) in list:
-                self.create_mem(offset,size)
+            for (offset,size,write_callback) in list:
+                self.create_mem(offset,size,write_callback)
                 print("created: ",offset,"-->",offset+size-1," size=",size)
 
-    def create_mem(self,offset,size):
-        self.mem[(offset,size)]=None
+    def create_mem(self,offset,size,write_callback):
+        self.mem[(offset,size)]=buf_cb(None,write_callback)
         
     def set_mem_partial(self,add,buf):
+        """returns the memory space (offset,size) if memory has been updated
+        or None if the write is incomplete: some writes are still expected for this memory space
+        """
         
         for (offset,size) in self.mem.keys():
             if add>=offset and add <offset+size:
@@ -86,26 +100,32 @@ class mem_space:
                     self.mem_chunks[offset]=buf
                 print("set_mem_partial:",offset,size,"=",buf)
                 if len(self.mem_chunks[offset])==size:
-                    self.mem[(offset,size)]=self.mem_chunks[offset]
+                    self.mem[(offset,size)].buf=self.mem_chunks[offset]
                     del self.mem_chunks[offset]
                     print("set_mem_partial done",self.mem_chunks)
+                    if self.mem[(offset,size)].write_cback is not None:
+                        self.mem[(offset,size)].write_cback(offset,self.mem[(offset,size)].buf)
+                    return (offset,size)
                 elif len(self.mem_chunks[offset])>size:
                     print("memory write error in set_mem_partial, chunk size is bigger than memory size at",offset)
-                    
+
+        return None
 
     def set_mem(self,offset,buf):
         if (offset,len(buf)) in self.mem:
-            self.mem[(offset,len(buf))]=buf
+            print("set_mem(",offset,")=",buf)
+            self.mem[(offset,len(buf))].buf=buf
+            self.mem[(offset,len(buf))].write_cback(offset,self.mem[(offset,len(buf))].buf)
             return True
-        else:
-            print("set_mem failed, off=",offset,"buf=",buf," fo length=",len(buf))
-            return False
+        
+        print("set_mem failed, off=",offset,"buf=",buf," fo length=",len(buf))
         return False
+
 
     def read_mem(self,add):
         for (offset,size) in self.mem.keys():
             if add>=offset and add <offset+size:
-                return self.mem[(offset,size)][add-offset:]
+                return self.mem[(offset,size)].buf[add-offset:]
         return None
 
     def mem_valid(self,offset):
@@ -115,7 +135,7 @@ class mem_space:
         return str(self.mem)
     def dump(self):
         for (off,size) in self.mem:
-            print("off=",off,"size=",size,"content=",self.mem[(off,size)])
+            print("off=",off,"size=",size,"content=",self.mem[(off,size)].buf)
 
 class frame:
     @staticmethod
@@ -137,7 +157,7 @@ class frame:
 
     def to_gridconnect(self):
         res=":X"+hexp(self.header,4)+hexp(self.src_node.aliasID,3)+"N"
-        res+=convert_hex_b(self.data)+";"
+        res+=convert_to_hex_b(self.data)+";"
         return res
     
 class addressed_frame(frame):
@@ -150,7 +170,7 @@ class addressed_frame(frame):
         res=":X19"+hexp(self.MTI,3)+hexp(self.src.aliasID,3)+"N"
         if self.dest!=None and (self.MTI & 0x008)!=0: #address present is set
             res+=hexp(self.pos,1)+hexp(self.dest.aliasID,3)
-        res+=convert_hex_b(self.data)+";"
+        res+=convert_to_hex_b(self.data)+";"
         return res.encode('utf-8')
     
 class datagram_content(frame):
@@ -163,8 +183,8 @@ class datagram_content(frame):
         self.pos = pos    # pos = 0: one datagram alone, 1=first of several, 2=middle,3=last
 
     def to_gridconnect(self):
-        res=":X1"+chr(ord(b"A")+self.pos)+hexp(self.dest.aliasID,3)+hexp(self.src.aliasID,3)+b"N"
-        res+=convert_hex_b(self.data)+";"
+        res=":X1"+chr(ord(b"A")+self.pos)+hexp(self.dest.aliasID,3)+hexp(self.src.aliasID,3)+"N"
+        res+=convert_to_hex_b(self.data)+";"
         return res.encode('utf-8')
         
 
@@ -244,15 +264,31 @@ class event:
     def automatically_routed(self):
         return self.id[0]==0 and self.id[1]==0
 
+class alias_negotiation:
+    def __init__(self,alias):
+        self.aliasID = alias
+        self.fullID=0
+        self.step=0
+    def next_step(self,fullID_part):
+        self.fullID <<= 12
+        self.fullID+=fullID_part
+        self.step+=1
+    def reserve(self):
+        if self.step<4:
+            print("Reserve alias=",self.aliasID," before all CID received (",self.step,")")
+            return False
+        return True
+
 class node:
-    def __init__(self,ID,permitted,aliasID=None):
+    def __init__(self,ID,permitted=False,aliasID=None):
         self.ID = ID
         self.aliasID = aliasID
         self.permitted=permitted
         self.produced_ev=[]
         self.consumed_ev=[]
         self.simple_info = []
-
+        self.mem_space = None
+        
     def add_consumed_ev(self,ev):
         self.consumed_ev.append(ev)
 
@@ -311,7 +347,18 @@ FUAP   = 0x000010 # Firmware Upgrade Active
 gw_add= node(0x020112AAAAAA,True,0xAAA)
 mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
 current_write = None
-managed_nodes = {}   #holds the correspondance LCB node <-> CMRI node
+managed_nodes = {}   #holds all active LCB nodes and correspondance <-> CMRI node if needed
+
+list_alias_neg=[]  #list of ongoing alias negotiations
+reserved_aliases = {}  #dict alias--> fullID of reserved aliases
+
+def get_alias_neg_from_alias(alias):
+    found = None
+    for n in list_alias_neg:
+        if n.aliasID == alias:
+            found = n
+            break
+    return found
 
 def get_lcb_node_from_alias(alias):
     found = None
@@ -319,6 +366,8 @@ def get_lcb_node_from_alias(alias):
         if n.aliasID == alias:
             found = n
             break
+    if found is None:
+        print("no node for alias=",alias)
     return found
 
 def hexp(i,width):
@@ -455,14 +504,14 @@ def memory_read(s,src,add,msg):   #msg is mem read msg as string
     else:
         to_send= bytearray("205"+msg[14]+hexp(add,8)+m,'utf-8')
         to_send.extend(mem[:size])
-        print(to_send)
+        print("to_send=",to_send," raccourci=",to_send[12+len(m):12+len(m)+size])
         dgrams = create_datagram_list(gw_add,src,to_send)
         print("mem read datagrams:",end="")
         for d in dgrams:
             print(d.to_gridconnect())
             
-        send_datagram_multi(s,src,("205"+msg[14]+hexp(add,8)+m),
-                            to_send[:size],first_payload)
+        send_datagram_multi(s,src.aliasID,("205"+msg[14]+hexp(add,8)+m),
+                            to_send[12+len(m):12+len(m)+size],first_payload)
 
 def memory_write(s,src_id,add,buf):  #buf: write msg as string
     global memory,current_write
@@ -496,6 +545,15 @@ def memory_write(s,src_id,add,buf):  #buf: write msg as string
     if buf[3]=="A" or buf[3]=="D":
         current_write = None
 
+def reserve_aliasID(src_id):
+    neg=get_alias_neg_from_alias(src_id)
+    if neg.reserve():
+        if neg.aliasID in reserved_aliases:
+            print("Error: trying to reserve alias ",neg.aliasID,"(",neg.fullID,") but its already reserved!")
+        else:
+            reserved_aliases[neg.aliasID]=neg.fullID
+            list_alias_neg.remove(neg)
+            
 def process_grid_connect(cli,msg):
     s=cli.sock
     if msg[:2]!=":X":
@@ -515,18 +573,31 @@ def process_grid_connect(cli,msg):
         #Can Control frame
         data_needed = False
         #fixme: process these frame properly
-        #full_ID = var_field << 12*((first_b&0x7) -4)
+
         if first_b & 0x7>=4 and first_b & 0x7<=7:
             print("CID Frame n°",first_b & 0x7," * ",hex(var_field),end=" * 0x")
             #full_ID = var_field << 12*((first_b&0x7) -4)
+            if first_b&0x7==7:
+                alias_neg = alias_negotiation(src_id)
+            else:
+                alias_neg = get_alias_neg_from_alias(src_id)
+            alias_neg.next_step(var_field)
+            list_alias_neg.append(alias_neg)
+                
         elif first_b&0x7==0:
             if var_field==0x700:
                 print("RID Frame * full ID=")#,hex(full_ID),end=" * ")
-                jmri_identified = True
-                #managed_nodes[node(full_ID,True,src_id)]=None #JMRI node only for now
+                jmri_identified = True   #FIXME
+                neg = get_alias_neg_from_alias(src_id)
+                reserve_aliasID(src_id)
+                managed_nodes[node(neg.fullID,True,neg.aliasID)]=None #JMRI node only for now
+                
             elif var_field==0x701:
                 print("AMD Frame",end=" * ")
-                data_needed = True
+                neg = get_alias_neg_from_alias(src_id)
+                managed_nodes[node(neg.fullID,True,neg.aliasID)]=None #JMRI node only for now
+                reserve_aliasID(src_id)
+                data_needed = True   #we could check the fullID
             elif var_field==0x702:
                 print("AME Frame",end=" * ")
                 data_nedded=True
@@ -585,22 +656,24 @@ def process_grid_connect(cli,msg):
                 elif msg[13]=="0":
                     memory_write(s,src_id,address,msg)
 
+def print_mem(offset,buf):
+    print("callback (",offset,") <-- ",buf)
 #for now: 1 can segment with all cmri nodes on it
 cmri_nodes = cmri.load_cmri_cfg("cmri_cfg_test.txt")
 #create mem segment for each channel
-channels_mem=mem_space([(0,1)])  #first: version
+channels_mem=mem_space([(0,1,print_mem)])  #first: version
 channels_mem.set_mem(0,b"\1")
 info_sizes = [1,8,8]         #one field for I or O and 4 events (2 for I and 2 for O)
 offset = 1
 for i in range(16):   #loop over 16 channels
     for j in info_sizes:
-        channels_mem.create_mem(offset,j)
+        channels_mem.create_mem(offset,j,print_mem)
         buf = bytearray()
         buf.extend([i]*j)
         channels_mem.set_mem(offset,buf)
         offset+=j
                              
-memory = {251:mem_space([(0,1),(1,63),(64,64)]),
+memory = {251:mem_space([(0,1,print_mem),(1,63,print_mem),(64,64,print_mem)]),
           253:channels_mem}
 memory[251].set_mem(0,b"\1")
 memory[251].set_mem(1,b"gw1"+(b"\0")*(63-3))
@@ -608,7 +681,7 @@ memory[251].set_mem(64,b"gateway-1"+(b"\0")*(64-9))
 memory[251].dump()
 memory[253].dump()
 input("waiting")
-serv = openlcb_server.server("127.0.0.1",50000)
+serv = openlcb_server.server("192.168.0.14",50000)
 serv.start()
 
 done = False
