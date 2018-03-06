@@ -2,13 +2,8 @@ import openlcb_cmri_cfg as cmri
 
 """This file defines a basic openlcb node (the gateway will handle several of these
 You derive your "real node class" from it and add the handling specific to your hardware
-Also contains the memory space management (as in CDI config), you also need to provide a callback to sync the node memory with the config of your hardware
+Also contains the memory space management (as in CDI config)
 """
-
-class buf_cb:
-    def __init__(self,buf,callback=None):
-        self.buf = buf
-        self.write_cback=callback
         
 """mem_space is a segment of memory you read from /write to using addresses
 It is made of triples: beginning address(offset), size and a write_callback function
@@ -21,12 +16,12 @@ class mem_space:
         self.mem = {}
         self.mem_chunks={}
         if list is not None:
-            for (offset,size,write_callback) in list:
-                self.create_mem(offset,size,write_callback)
+            for (offset,size) in list:
+                self.create_mem(offset,size)
                 print("created: ",offset,"-->",offset+size-1," size=",size)
 
-    def create_mem(self,offset,size,write_callback):
-        self.mem[(offset,size)]=buf_cb(None,write_callback)
+    def create_mem(self,offset,size):
+        self.mem[(offset,size)]=None
         
     def set_mem_partial(self,add,buf):
         """returns the memory space (offset,size) if memory has been updated
@@ -43,11 +38,9 @@ class mem_space:
                     self.mem_chunks[offset]=buf
                 print("set_mem_partial:",offset,size,"=",buf)
                 if len(self.mem_chunks[offset])==size:
-                    self.mem[(offset,size)].buf=self.mem_chunks[offset]
+                    self.mem[(offset,size)]=self.mem_chunks[offset]
                     del self.mem_chunks[offset]
                     print("set_mem_partial done",self.mem_chunks)
-                    if self.mem[(offset,size)].write_cback is not None:
-                        self.mem[(offset,size)].write_cback(offset,self.mem[(offset,size)].buf)
                     return (offset,size)
                 elif len(self.mem_chunks[offset])>size:
                     print("memory write error in set_mem_partial, chunk size is bigger than memory size at",offset)
@@ -57,8 +50,7 @@ class mem_space:
     def set_mem(self,offset,buf):
         if (offset,len(buf)) in self.mem:
             print("set_mem(",offset,")=",buf)
-            self.mem[(offset,len(buf))].buf=buf
-            self.mem[(offset,len(buf))].write_cback(offset,self.mem[(offset,len(buf))].buf)
+            self.mem[(offset,len(buf))]=buf
             return True
         
         print("set_mem failed, off=",offset,"buf=",buf," fo length=",len(buf))
@@ -68,7 +60,7 @@ class mem_space:
     def read_mem(self,add):
         for (offset,size) in self.mem.keys():
             if add>=offset and add <offset+size:
-                return self.mem[(offset,size)].buf[add-offset:]
+                return self.mem[(offset,size)][add-offset:]
         return None
 
     def mem_valid(self,offset):
@@ -78,7 +70,7 @@ class mem_space:
         return str(self.mem)
     def dump(self):
         for (off,size) in self.mem:
-            print("off=",off,"size=",size,"content=",self.mem[(off,size)].buf)
+            print("off=",off,"size=",size,"content=",self.mem[(off,size)])
 
 class node:
     def __init__(self,ID,permitted=False,aliasID=None):
@@ -88,8 +80,19 @@ class node:
         self.produced_ev=[]
         self.consumed_ev=[]
         self.simple_info = []
-        self.mem_space = None
+        self.memory = None    #this is the object representing the OpenLCB node memory
+                              #you need to create the memory spaces (see the mem_space class)
 
+    def set_mem(self,mem_sp,offset,buf): #extend this to sync the "real" node (cpNode or whatever)
+                                         #with the openlcb memory
+        return self.memory[mem_sp].set_mem(offset,buf)
+    
+    def set_mem_partial(self,add,buf):
+        return self.memory[mem_sp].set_mem_partial(offset,buf)
+        
+    def read_mem(self,add):
+        return self.memory[mem_sp].read_mem(offset)
+        
     def add_consumed_ev(self,ev):
         self.consumed_ev.append(ev)
 
@@ -101,4 +104,11 @@ class node:
 
     def build_simple_info_dgram(self): # return datagrams holding the simple info
         print("build_simple_info not implemented!") #fixme
+    
+class cpNode(node):
+    def __init__(self,CRMI_add,ID):
+        super().__init__(ID)
+        self.address = CMRI_add   #add on CMRI net
+        self.cp_node=cmri.CPNode(CMRI_add,None,0)  #"real" node
+
     

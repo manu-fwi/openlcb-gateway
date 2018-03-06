@@ -252,7 +252,7 @@ FUAP   = 0x000010 # Firmware Upgrade Active
 gw_add= node(0x020112AAAAAA,True,0xAAA)
 mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
 current_write = None
-managed_nodes = {}   #holds all active LCB nodes and correspondance <-> CMRI node if needed
+managed_nodes = []   #holds all active LCB nodes
 
 list_alias_neg=[]  #list of ongoing alias negotiations
 reserved_aliases = {}  #dict alias--> fullID of reserved aliases
@@ -561,24 +561,22 @@ def process_grid_connect(cli,msg):
                 elif msg[13]=="0":
                     memory_write(s,src_id,address,msg)
 
-def print_mem(offset,buf):
-    print("callback (",offset,") <-- ",buf)
 #for now: 1 can segment with all cmri nodes on it
 cmri_nodes = cmri.load_cmri_cfg("cmri_cfg_test.txt")
 #create mem segment for each channel
-channels_mem=mem_space([(0,1,print_mem)])  #first: version
+channels_mem=mem_space([(0,1)])  #first: version
 channels_mem.set_mem(0,b"\1")
 info_sizes = [1,8,8]         #one field for I or O and 4 events (2 for I and 2 for O)
 offset = 1
 for i in range(16):   #loop over 16 channels
     for j in info_sizes:
-        channels_mem.create_mem(offset,j,print_mem)
+        channels_mem.create_mem(offset,j)
         buf = bytearray()
         buf.extend([i]*j)
         channels_mem.set_mem(offset,buf)
         offset+=j
                              
-memory = {251:mem_space([(0,1,print_mem),(1,63,print_mem),(64,64,print_mem)]),
+memory = {251:mem_space([(0,1),(1,63),(64,64)]),
           253:channels_mem}
 memory[251].set_mem(0,b"\1")
 memory[251].set_mem(1,b"gw1"+(b"\0")*(63-3))
