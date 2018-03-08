@@ -252,7 +252,6 @@ FUAP   = 0x000010 # Firmware Upgrade Active
 gw_add= node(0x020112AAAAAA,True,0xAAA)
 mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
 current_write = None
-managed_nodes = []   #holds all active LCB nodes
 
 list_alias_neg=[]  #list of ongoing alias negotiations
 reserved_aliases = {}  #dict alias--> fullID of reserved aliases
@@ -353,14 +352,14 @@ def send_datagram_multi(s,src_id,reply,buf,first_payload):
         s.send(msg.encode('utf-8'))
         print("datagram sent >>",msg," = ",msg2)
         
-def send_CDI(s,src_id,address,acdi_xml):
+def send_CDI(s,src_node,dest_id,address,acdi_xml):
     msg = ":X1"
     end = min(address+2,len(acdi_xml))
     if len(acdi_xml)>end:   #check if one frame is enough
         msg+="B"
     else:
         msg+="A"
-    msg+=hexp(src_id,3)+hexp(gw_add.aliasID,3)+"N2053"
+    msg+=hexp(dest_id,3)+hexp(src_node.aliasID,3)+"N2053"
     msg+=hexp(address,8)
    
     msg+=convert_to_hex(acdi_xml[address:end])+";"
@@ -378,7 +377,7 @@ def send_CDI(s,src_id,address,acdi_xml):
             msg=":X1D"  #last frame
             end = min(address+64,len(acdi_xml))
                 
-        msg+=hexp(src_id,3)+hexp(gw_add.aliasID,3)+"N"
+        msg+=hexp(dest_id,3)+hexp(src_node.aliasID,3)+"N"
         msg+=convert_to_hex(acdi_xml[address+pos:end])+";"
         msg2=acdi_xml[address+pos:end]
         pos+=8
@@ -542,16 +541,18 @@ def process_grid_connect(cli,msg):
             address = int(float.fromhex(msg[15:23]))
             print("datagram!!")
             #for now we assume a one frame datagram
-            if var_field!=gw_add.aliasID: #not for us
+            dest_node = find_node(aliasID)
+            if dest_node is None:   #not for us
                 print("Frame is not for us!!")
+                #FIXME: we have to transmit it ??
                 return
             print(msg[11:13])
             if current_write is not None: #Fixme
                 memory_write(s,src_id,address,msg)
             elif msg[11:15]=="2043": #read command for CDI
                 print("read command, address=",int(float.fromhex(msg[15:23])))
-                s.send((":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode('utf-8'))
-                print("datagram received ok sent --->",(":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
+                s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N8"+hexp(src_id,3)+";").encode('utf-8'))
+                print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
                 send_CDI(s,src_id,address,acdi_xml)
             elif msg[11:13]=="20": #read/write command
                 s.send((":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode('utf-8'))

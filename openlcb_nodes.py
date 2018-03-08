@@ -111,4 +111,10 @@ class cpNode(node):
         self.address = CMRI_add   #add on CMRI net
         self.cp_node=cmri.CPNode(CMRI_add,None,0)  #"real" node
 
-    
+def find_node(aliasID):
+    for node in managed_nodes:
+        if node.aliasID == aliasID:
+            return node
+    return None
+#globals
+managed_nodes = []   #holds all active LCB nodes
