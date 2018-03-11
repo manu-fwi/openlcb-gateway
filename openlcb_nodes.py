@@ -72,6 +72,12 @@ class mem_space:
         for (off,size) in self.mem:
             print("off=",off,"size=",size,"content=",self.mem[(off,size)])
 
+"""
+Base class for all node types
+You must implement get_cdi() so that the gateway can retrieve the CDI describing your node
+You also most probablu want to extend set_mem and maybe read_mem to sync the node's memory with the
+real node's mem
+"""
 class node:
     def __init__(self,ID,permitted=False,aliasID=None):
         self.ID = ID
@@ -82,16 +88,18 @@ class node:
         self.simple_info = []
         self.memory = None    #this is the object representing the OpenLCB node memory
                               #you need to create the memory spaces (see the mem_space class)
+        self.current_write = None  #this is a pair (memory space, address) that holds
+                                   #the current writing process
 
     def set_mem(self,mem_sp,offset,buf): #extend this to sync the "real" node (cpNode or whatever)
                                          #with the openlcb memory
         return self.memory[mem_sp].set_mem(offset,buf)
     
     def set_mem_partial(self,add,buf):
-        return self.memory[mem_sp].set_mem_partial(offset,buf)
+        return self.memory[mem_sp].set_mem_partial(add,buf)
         
-    def read_mem(self,add):
-        return self.memory[mem_sp].read_mem(offset)
+    def read_mem(self,mem_sp,add):
+        return self.memory[mem_sp].read_mem(add)
         
     def add_consumed_ev(self,ev):
         self.consumed_ev.append(ev)
@@ -106,15 +114,81 @@ class node:
         print("build_simple_info not implemented!") #fixme
     
 class cpNode(node):
-    def __init__(self,CRMI_add,ID):
+    CDI="""<?xml version="1.0"?>
+<cdi xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
+
+<identification>
+<manufacturer>cpNode-OLCB-GW</manufacturer>
+<model>Test</model>
+<hardwareVersion>0.1</hardwareVersion>
+</identification>
+<acdi/>
+
+<segment space='251'>
+<name>User Identification</name>
+<description>Lets the user add his own description</description>
+<int size='1'>
+<name>Version</name>
+</int>
+<string size='63'>
+<name>Node Name</name>
+</string>
+<string size='64'>
+<name>Node Description</name>
+</string>
+</segment>
+
+<segment space="253">
+<int size="1">
+<name>Address</name>
+<description>The cpNode address.</description>
+<min>0</min><max>127</max>
+</int>
+<group replication="16">
+<name>Channels</name>
+<description>Each channel is an I/O line.</description>
+<repname>Channel</repname>
+<group>
+<name>I/O selection</name>
+<int size="1">
+<default>0</default>
+<map>
+<relation><property>0</property><value>Output</value></relation>
+<relation><property>1</property><value>Input</value></relation>
+</map>
+</int>
+</group>
+<group>
+<name>Input/Output</name>
+<eventid>
+<name>Input/Output LOW</name>
+<description>When this event arrives, the output will be switched to LOW or if it is an Input this event is generated when it is LOW</description>
+</eventid>
+<eventid>
+<name>Input/Output HIGH</name>
+<description>When this event arrives, the output will be switched to HIGH or if it is an Input this event is generated when it is HIGH.</description>
+</eventid>
+</group>
+</group>
+</segment>
+</cdi>
+\0"""
+    
+    def __init__(self,CMRI_add,ID):
         super().__init__(ID)
+        print(cpNode.CDI)
         self.address = CMRI_add   #add on CMRI net
         self.cp_node=cmri.CPNode(CMRI_add,None,0)  #"real" node
+
+    def get_CDI(self):
+        return cpNode.CDI
 
 def find_node(aliasID):
     for node in managed_nodes:
         if node.aliasID == aliasID:
             return node
     return None
+
 #globals
 managed_nodes = []   #holds all active LCB nodes

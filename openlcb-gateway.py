@@ -2,67 +2,6 @@ import openlcb_cmri_cfg as cmri
 import openlcb_server
 from openlcb_nodes import *
 
-acdi_xml = """<?xml version="1.0"?>
-<cdi xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
-
-<identification>
-<manufacturer>cpNode-OLCB-GW</manufacturer>
-<model>Test</model>
-<hardwareVersion>0.1</hardwareVersion>
-</identification>
-<acdi/>
-
-<segment space='251'>
-<name>User Identification</name>
-<description>Lets the user add his own description</description>
-<int size='1'>
-<name>Version</name>
-</int>
-<string size='63'>
-<name>Node Name</name>
-</string>
-<string size='64'>
-<name>Node Description</name>
-</string>
-</segment>
-
-<segment space="253">
-<int size="1">
-<name>Address</name>
-<description>The cpNode address.</description>
-<min>0</min><max>127</max>
-</int>
-<group replication="16">
-<name>Channels</name>
-<description>Each channel is an I/O line.</description>
-<repname>Channel</repname>
-<group>
-<name>I/O selection</name>
-<int size="1">
-<default>0</default>
-<map>
-<relation><property>0</property><value>Output</value></relation>
-<relation><property>1</property><value>Input</value></relation>
-</map>
-</int>
-</group>
-<group>
-<name>Input/Output</name>
-<eventid>
-<name>Input/Output LOW</name>
-<description>When this event arrives, the output will be switched to LOW or if it is an Input this event is generated when it is LOW</description>
-</eventid>
-<eventid>
-<name>Input/Output HIGH</name>
-<description>When this event arrives, the output will be switched to HIGH or if it is an Input this event is generated when it is HIGH.</description>
-</eventid>
-</group>
-</group>
-</segment>
-</cdi>
-\0"""
-
 class frame:
     @staticmethod
     def build_verified_nID(src_node,simple_proto):
@@ -248,30 +187,12 @@ FCP    = 0x000040 # Function Configuration
 FUP    = 0x000020 # Firmware Upgrade Protocol
 FUAP   = 0x000010 # Firmware Upgrade Active
 
-#globals: fixme
-gw_add= node(0x020112AAAAAA,True,0xAAA)
-mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
-current_write = None
-
-list_alias_neg=[]  #list of ongoing alias negotiations
-reserved_aliases = {}  #dict alias--> fullID of reserved aliases
-
 def get_alias_neg_from_alias(alias):
     found = None
     for n in list_alias_neg:
         if n.aliasID == alias:
             found = n
             break
-    return found
-
-def get_lcb_node_from_alias(alias):
-    found = None
-    for n in managed_nodes.keys():
-        if n.aliasID == alias:
-            found = n
-            break
-    if found is None:
-        print("no node for alias=",alias)
     return found
 
 def hexp(i,width):
@@ -290,15 +211,15 @@ def convert_to_hex_b(buf): #return string
         res+=hexp(c,2)
     return res
 
-def send_fields(sock,MTI,fields,dest):
-    send_long_message(sock,MTI,("\0".join(fields)).encode('utf-8'),dest)
+def send_fields(sock,src_node,MTI,fields,dest):
+    send_long_message(sock,src_node,MTI,("\0".join(fields)).encode('utf-8'),dest)
 
-def send_long_message(sock,MTI,text,dest): #text must be a byte array
+def send_long_message(sock,src_node,MTI,text,dest): #text must be a byte array
     pos = 0
     last=False
     first=True
     while not last:
-        msg = ":X19A08"+hexp(gw_add.aliasID,3)+"N"
+        msg = ":X19A08"+hexp(src_node.aliasID,3)+"N"
         if pos+6>len(text):
             last=True
             if not first:
@@ -352,9 +273,11 @@ def send_datagram_multi(s,src_id,reply,buf,first_payload):
         s.send(msg.encode('utf-8'))
         print("datagram sent >>",msg," = ",msg2)
         
-def send_CDI(s,src_node,dest_id,address,acdi_xml):
+def send_CDI(s,src_node,dest_id,address):
+    acdi_xml = src_node.get_CDI()
     msg = ":X1"
     end = min(address+2,len(acdi_xml))
+    acdi_xml = src_node.get_CDI()
     if len(acdi_xml)>end:   #check if one frame is enough
         msg+="B"
     else:
@@ -384,7 +307,7 @@ def send_CDI(s,src_node,dest_id,address,acdi_xml):
         s.send(msg.encode('utf-8'))
         print("datagram sent >>",msg," = ",msg2)
 
-def memory_read(s,src,add,msg):   #msg is mem read msg as string
+def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
     global memory
     to_send=bytearray()
 
@@ -399,17 +322,17 @@ def memory_read(s,src,add,msg):   #msg is mem read msg as string
         m = ""
         first_payload=2
     print("memory read at",mem_sp,"offset",size)
-    if mem_sp not in memory:
+    if mem_sp not in src.memory:
         print("memory unknown!!")
         return
-    mem = memory[mem_sp].read_mem(add)
+    mem = src.read_mem(mem_sp,add)
     if mem is None:
         print("memory error")
     else:
         to_send= bytearray("205"+msg[14]+hexp(add,8)+m,'utf-8')
         to_send.extend(mem[:size])
         print("to_send=",to_send," raccourci=",to_send[12+len(m):12+len(m)+size])
-        dgrams = create_datagram_list(gw_add,src,to_send)
+        dgrams = create_datagram_list(src,dest,to_send)
         print("mem read datagrams:",end="")
         for d in dgrams:
             print(d.to_gridconnect())
@@ -417,8 +340,7 @@ def memory_read(s,src,add,msg):   #msg is mem read msg as string
         send_datagram_multi(s,src.aliasID,("205"+msg[14]+hexp(add,8)+m),
                             to_send[12+len(m):12+len(m)+size],first_payload)
 
-def memory_write(s,src_id,add,buf):  #buf: write msg as string
-    global memory,current_write
+def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
 
     print("memory write")
     if buf[3]=="A" or buf[3]=="B":
@@ -428,12 +350,12 @@ def memory_write(s,src_id,add,buf):  #buf: write msg as string
         else:
             mem_sp = 0xFC+int(buf[14])
             data_beg=23
-        current_write=(mem_sp,add)
-        s.send((":X19A28"+hexp(gw_add.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
-        print("datagram received ok sent --->",":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";")
+        src_node.current_write=(mem_sp,add)
+        s.send((":X19A28"+hexp(src_node.aliasID,3)+"N0"+hexp(dest_node.aliasID,3)+";").encode("utf-8"))
+        print("datagram received ok sent --->",":X19A28"+hexp(src_node.aliasID,3)+"N8"+hexp(dest_node.aliasID,3)+";")
     else:
         data_beg=11
-    if current_write is None:
+    if src_node.current_write is None:
         print("write error: trying to write but current_write is none!!")
     else:
         res=b""
@@ -441,13 +363,13 @@ def memory_write(s,src_id,add,buf):  #buf: write msg as string
             print(buf[pos:pos+2])
             res+=bytes([int(float.fromhex(buf[pos:pos+2]))])
         print("written:",res)
-        print("memory write",current_write[0],"offset",current_write[1])
-        if current_write[0] not in memory:
+        print("node:",src_node.ID,"memory write",src_node.current_write[0],"offset",src_node.current_write[1])
+        if src_node.current_write[0] not in src_node.memory:
             print("memory unknown!")
             return
-        memory[current_write[0]].set_mem_partial(current_write[1],res)
+        src_node.memory[src_node.current_write[0]].set_mem_partial(src_node.current_write[1],res)
     if buf[3]=="A" or buf[3]=="D":
-        current_write = None
+        src_node.current_write = None
 
 def reserve_aliasID(src_id):
     neg=get_alias_neg_from_alias(src_id)
@@ -494,14 +416,15 @@ def process_grid_connect(cli,msg):
                 jmri_identified = True   #FIXME
                 neg = get_alias_neg_from_alias(src_id)
                 reserve_aliasID(src_id)
-                managed_nodes[node(neg.fullID,True,neg.aliasID)]=None #JMRI node only for now
+                managed_nodes.append(node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
                 
             elif var_field==0x701:
                 print("AMD Frame",end=" * ")
                 neg = get_alias_neg_from_alias(src_id)
-                managed_nodes[node(neg.fullID,True,neg.aliasID)]=None #JMRI node only for now
+                managed_nodes.append(node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
                 reserve_aliasID(src_id)
                 data_needed = True   #we could check the fullID
+                
             elif var_field==0x702:
                 print("AME Frame",end=" * ")
                 data_nedded=True
@@ -517,22 +440,28 @@ def process_grid_connect(cli,msg):
     else:
         if (first_b & 0x7)==1:  #global or addressed frame msg
             
-            if var_field==0x490:  #Verify node ID
-                s.send((":X19170"+hexp(gw_add.aliasID,3)+"N"+hexp(gw_add.ID,12)+";").encode('utf-8'))
-                print("Sent---> :X19170"+hexp(gw_add.aliasID,3)+"N"+hexp(gw_add.ID,12)+";")
+            if var_field==0x490:  #Verify node ID (global) FIXME
+                s.send((":X19170"+hexp(managed_nodes[0].aliasID,3)+"N"+hexp(managed_nodes[0].ID,12)+";").encode('utf-8'))
+                print("Sent---> :X19170"+hexp(managed_nodes[0].aliasID,3)+"N"+hexp(managed_nodes[0].ID,12)+";")
+                pass
             elif var_field==0x828:#Protocol Support Inquiry
-                dest_node = int(float.fromhex(msg[12:15]))
-                if dest_node==gw_add.aliasID:
-                    s.send((":X19668"+hexp(gw_add.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;").encode("utf-8"))
-                    print("sent--->:X19668"+hexp(gw_add.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;")
+                dest_node_alias = int(float.fromhex(msg[12:15]))
+                dest_node = find_node(dest_node_alias)
+                
+                if dest_node is not None:
+                    #FIXME: set correct bits
+                    s.send((":X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;").encode("utf-8"))
+                    print("sent--->:X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;")
             elif var_field == 0xDE8:#Simple Node Information Request
 
-                dest_node = int(float.fromhex(msg[12:15]))
-                if dest_node==gw_add.aliasID:
+                dest_node_alias = int(float.fromhex(msg[12:15]))
+                dest_node = find_node(dest_node_alias)
+                if dest_node is not None:
                     print("sent SNIR Reply")
                     #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;").encode("utf-8"))#SNIR header
                     #print(":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;")
-                    send_fields(s,0xA08,mfg_name_hw_sw_version,src_id)
+                    #FIXME:
+                    send_fields(s,dest_node,0xA08,mfg_name_hw_sw_version,src_id)
 
                     #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N3"+hexp(src_id,3)+"02;").encode("utf-8"))#SNIR header
                     #print(":X19A08"+hexp(gw_add.aliasID,3)+"AAAN3"+hexp(src_id,3)+"02;")
@@ -541,29 +470,33 @@ def process_grid_connect(cli,msg):
             address = int(float.fromhex(msg[15:23]))
             print("datagram!!")
             #for now we assume a one frame datagram
-            dest_node = find_node(aliasID)
+            dest_node_alias = int(float.fromhex(msg[4:7]))
+            dest_node = find_node(dest_node_alias)
             if dest_node is None:   #not for us
                 print("Frame is not for us!!")
                 #FIXME: we have to transmit it ??
                 return
-            print(msg[11:13])
-            if current_write is not None: #Fixme
-                memory_write(s,src_id,address,msg)
+            src_node = find_node(src_id)
+
+            if dest_node.current_write is not None:
+                #if there is a write in progress then this datagram is part of it
+                memory_write(s,dest_node,src_node,address,msg)
             elif msg[11:15]=="2043": #read command for CDI
                 print("read command, address=",int(float.fromhex(msg[15:23])))
                 s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N8"+hexp(src_id,3)+";").encode('utf-8'))
                 print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
-                send_CDI(s,src_id,address,acdi_xml)
+                send_CDI(s,dest_node,src_id,address)
             elif msg[11:13]=="20": #read/write command
-                s.send((":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode('utf-8'))
-                print("datagram received ok sent --->",(":X19A28"+hexp(gw_add.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
+                s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N8"+hexp(src_id,3)+";").encode('utf-8'))
+                print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
                 if msg[13]=="4":
-                    memory_read(s,get_lcb_node_from_alias(src_id),address,msg)
+                    memory_read(s,dest_node,src_node,address,msg)
                 elif msg[13]=="0":
-                    memory_write(s,src_id,address,msg)
+                    memory_write(s,dest_node,src_node,address,msg)
 
-#for now: 1 can segment with all cmri nodes on it
-cmri_nodes = cmri.load_cmri_cfg("cmri_cfg_test.txt")
+#globals: fixme
+cp_node=cpNode(1,0x020112AAAAAA)
+cp_node.aliasID = 0xAAA    #FIXME negotiation not done yet
 #create mem segment for each channel
 channels_mem=mem_space([(0,1)])  #first: version
 channels_mem.set_mem(0,b"\1")
@@ -577,13 +510,23 @@ for i in range(16):   #loop over 16 channels
         channels_mem.set_mem(offset,buf)
         offset+=j
                              
-memory = {251:mem_space([(0,1),(1,63),(64,64)]),
+cp_node.memory = {251:mem_space([(0,1),(1,63),(64,64)]),
           253:channels_mem}
-memory[251].set_mem(0,b"\1")
-memory[251].set_mem(1,b"gw1"+(b"\0")*(63-3))
-memory[251].set_mem(64,b"gateway-1"+(b"\0")*(64-9))
-memory[251].dump()
-memory[253].dump()
+cp_node.memory[251].set_mem(0,b"\1")
+cp_node.memory[251].set_mem(1,b"gw1"+(b"\0")*(63-3))
+cp_node.memory[251].set_mem(64,b"gateway-1"+(b"\0")*(64-9))
+cp_node.memory[251].dump()
+cp_node.memory[253].dump()
+
+managed_nodes.append(cp_node)
+mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
+
+list_alias_neg=[]  #list of ongoing alias negotiations
+reserved_aliases = {}  #dict alias--> fullID of reserved aliases
+
+#for now: 1 can segment with all cmri nodes on it
+cmri_nodes = cmri.load_cmri_cfg("cmri_cfg_test.txt")
+
 input("waiting")
 serv = openlcb_server.server("192.168.0.14",50000)
 serv.start()
@@ -596,3 +539,4 @@ while not done:
         msg = c.next_msg(";")
         if msg and msg != ";":
             process_grid_connect(c,msg)
+    #FIXME: take care of the non openlcb messages here
