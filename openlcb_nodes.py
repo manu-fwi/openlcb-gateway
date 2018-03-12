@@ -68,9 +68,16 @@ class mem_space:
     
     def __str__(self):
         return str(self.mem)
+    
     def dump(self):
         for (off,size) in self.mem:
             print("off=",off,"size=",size,"content=",self.mem[(off,size)])
+
+    def get_size(self,offset):
+        for (off,size) in self.mem.keys():
+            if off==offset:
+                return size
+        return None #offset not found
 
 """
 Base class for all node types
@@ -100,6 +107,9 @@ class node:
         
     def read_mem(self,mem_sp,add):
         return self.memory[mem_sp].read_mem(add)
+
+    def get_mem_size(self,mem_sp,offset):
+        return self.memory[mem_sp].get_size()
         
     def add_consumed_ev(self,ev):
         self.consumed_ev.append(ev)

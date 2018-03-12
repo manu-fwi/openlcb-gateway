@@ -243,7 +243,7 @@ def send_long_message(sock,src_node,MTI,text,dest): #text must be a byte array
         sock.send(msg.encode('utf-8'))
         pos+=6
 
-def send_datagram_multi(s,src_id,reply,buf,first_payload):
+def send_datagram_multi(s,src_id,dest_id,reply,buf,first_payload):
     #exaclty send the byte buffer buf: must be null terminated if it is a string
 
     msg = ":X1"
@@ -251,7 +251,7 @@ def send_datagram_multi(s,src_id,reply,buf,first_payload):
         msg+="A"
     else:
         msg+="B"
-    msg+=hexp(src_id,3)+"AAAN"+reply
+    msg+=hexp(dest_id,3)+hexp(src_id,3)+"N"+reply
     msg+=convert_to_hex_b(buf[:first_payload])+";"
     print("datagram sent >>",msg," = ",buf[:first_payload])
     s.send(msg.encode('utf-8'))
@@ -266,7 +266,7 @@ def send_datagram_multi(s,src_id,reply,buf,first_payload):
             msg=":X1D"  #last frame
             end = min(64,len(buf))
                 
-        msg+=hexp(src_id,3)+"AAAN"
+        msg+=hexp(dest_id,3)+hexp(src_id,3)+"N"
         msg+=convert_to_hex_b(buf[pos:end])+";"
         msg2=buf[pos:end]
         pos+=8
@@ -321,11 +321,12 @@ def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
         size=int(float.fromhex(msg[23:25]))
         m = ""
         first_payload=2
-    print("memory read at",mem_sp,"offset",size)
+    print("memory read at",mem_sp,"offset",add,"size",size)
     if mem_sp not in src.memory:
         print("memory unknown!!")
         return
     mem = src.read_mem(mem_sp,add)
+    print("memory read sends:",mem)
     if mem is None:
         print("memory error")
     else:
@@ -334,10 +335,10 @@ def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
         print("to_send=",to_send," raccourci=",to_send[12+len(m):12+len(m)+size])
         dgrams = create_datagram_list(src,dest,to_send)
         print("mem read datagrams:",end="")
-        for d in dgrams:
-            print(d.to_gridconnect())
+        #for d in dgrams:
+        #    print(d.to_gridconnect())
             
-        send_datagram_multi(s,src.aliasID,("205"+msg[14]+hexp(add,8)+m),
+        send_datagram_multi(s,src.aliasID,dest.aliasID,("205"+msg[14]+hexp(add,8)+m),
                             to_send[12+len(m):12+len(m)+size],first_payload)
 
 def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
@@ -352,7 +353,7 @@ def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
             data_beg=23
         src_node.current_write=(mem_sp,add)
         s.send((":X19A28"+hexp(src_node.aliasID,3)+"N0"+hexp(dest_node.aliasID,3)+";").encode("utf-8"))
-        print("datagram received ok sent --->",":X19A28"+hexp(src_node.aliasID,3)+"N8"+hexp(dest_node.aliasID,3)+";")
+        print("datagram received ok sent --->",":X19A28"+hexp(src_node.aliasID,3)+"N0"+hexp(dest_node.aliasID,3)+";")
     else:
         data_beg=11
     if src_node.current_write is None:
@@ -421,7 +422,7 @@ def process_grid_connect(cli,msg):
             elif var_field==0x701:
                 print("AMD Frame",end=" * ")
                 neg = get_alias_neg_from_alias(src_id)
-                managed_nodes.append(node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
+                #managed_nodes.append(node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
                 reserve_aliasID(src_id)
                 data_needed = True   #we could check the fullID
                 
@@ -441,9 +442,11 @@ def process_grid_connect(cli,msg):
         if (first_b & 0x7)==1:  #global or addressed frame msg
             
             if var_field==0x490:  #Verify node ID (global) FIXME
-                s.send((":X19170"+hexp(managed_nodes[0].aliasID,3)+"N"+hexp(managed_nodes[0].ID,12)+";").encode('utf-8'))
-                print("Sent---> :X19170"+hexp(managed_nodes[0].aliasID,3)+"N"+hexp(managed_nodes[0].ID,12)+";")
-                pass
+                for i in range(2):
+                    n=managed_nodes[i] #FIXME
+                    s.send((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
+                    print("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
+    
             elif var_field==0x828:#Protocol Support Inquiry
                 dest_node_alias = int(float.fromhex(msg[12:15]))
                 dest_node = find_node(dest_node_alias)
@@ -483,12 +486,12 @@ def process_grid_connect(cli,msg):
                 memory_write(s,dest_node,src_node,address,msg)
             elif msg[11:15]=="2043": #read command for CDI
                 print("read command, address=",int(float.fromhex(msg[15:23])))
-                s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N8"+hexp(src_id,3)+";").encode('utf-8'))
-                print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
+                s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
+                print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
                 send_CDI(s,dest_node,src_id,address)
             elif msg[11:13]=="20": #read/write command
-                s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N8"+hexp(src_id,3)+";").encode('utf-8'))
-                print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N8"+hexp(src_id,3)+";").encode("utf-8"))
+                s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
+                print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
                 if msg[13]=="4":
                     memory_read(s,dest_node,src_node,address,msg)
                 elif msg[13]=="0":
@@ -515,6 +518,31 @@ cp_node.memory = {251:mem_space([(0,1),(1,63),(64,64)]),
 cp_node.memory[251].set_mem(0,b"\1")
 cp_node.memory[251].set_mem(1,b"gw1"+(b"\0")*(63-3))
 cp_node.memory[251].set_mem(64,b"gateway-1"+(b"\0")*(64-9))
+cp_node.memory[251].dump()
+cp_node.memory[253].dump()
+
+managed_nodes.append(cp_node)
+
+cp_node=cpNode(1,0x020112AAABBB)
+cp_node.aliasID = 0xBBB    #FIXME negotiation not done yet
+#create mem segment for each channel
+channels_mem=mem_space([(0,1)])  #first: version
+channels_mem.set_mem(0,b"\1")
+info_sizes = [1,8,8]         #one field for I or O and 4 events (2 for I and 2 for O)
+offset = 1
+for i in range(16):   #loop over 16 channels
+    for j in info_sizes:
+        channels_mem.create_mem(offset,j)
+        buf = bytearray()
+        buf.extend([i]*j)
+        channels_mem.set_mem(offset,buf)
+        offset+=j
+                             
+cp_node.memory = {251:mem_space([(0,1),(1,63),(64,64)]),
+          253:channels_mem}
+cp_node.memory[251].set_mem(0,b"\2")
+cp_node.memory[251].set_mem(1,b"gw2"+(b"\0")*(63-3))
+cp_node.memory[251].set_mem(64,b"gateway-2"+(b"\0")*(64-9))
 cp_node.memory[251].dump()
 cp_node.memory[253].dump()
 
