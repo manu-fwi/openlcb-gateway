@@ -195,10 +195,28 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         return cpNode.CDI
 
 def find_node(aliasID):
-    for node in managed_nodes:
+    for node in all_nodes:
         if node.aliasID == aliasID:
             return node
     return None
 
+def find_managed_node(aliasID):
+    for node in managed_nodes:
+        if node.aliasID == aliasID:
+            return node
+    return None
+   
+
+"""
+append the new node if it was not known before (return True)
+or does nothing if it was (return False)
+"""
+def new_node(new_n):
+    for n in all_nodes:
+        if n.ID == new_n.ID:
+            return False
+    all_nodes.append(new_n)
+    return True
 #globals
-managed_nodes = []   #holds all active LCB nodes
+managed_nodes = []   #holds all nodes that the gateway manages
+all_nodes = []       #list of all known nodes

@@ -417,12 +417,12 @@ def process_grid_connect(cli,msg):
                 jmri_identified = True   #FIXME
                 neg = get_alias_neg_from_alias(src_id)
                 reserve_aliasID(src_id)
-                managed_nodes.append(node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
+                new_node(node(neg.fullID,True,neg.aliasID))
                 
             elif var_field==0x701:
                 print("AMD Frame",end=" * ")
                 neg = get_alias_neg_from_alias(src_id)
-                #managed_nodes.append(node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
+                new_node(node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
                 reserve_aliasID(src_id)
                 data_needed = True   #we could check the fullID
                 
@@ -442,14 +442,13 @@ def process_grid_connect(cli,msg):
         if (first_b & 0x7)==1:  #global or addressed frame msg
             
             if var_field==0x490:  #Verify node ID (global) FIXME
-                for i in range(2):
-                    n=managed_nodes[i] #FIXME
+                for n in managed_nodes:
                     s.send((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
                     print("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
     
             elif var_field==0x828:#Protocol Support Inquiry
                 dest_node_alias = int(float.fromhex(msg[12:15]))
-                dest_node = find_node(dest_node_alias)
+                dest_node = find_managed_node(dest_node_alias)
                 
                 if dest_node is not None:
                     #FIXME: set correct bits
@@ -458,7 +457,7 @@ def process_grid_connect(cli,msg):
             elif var_field == 0xDE8:#Simple Node Information Request
 
                 dest_node_alias = int(float.fromhex(msg[12:15]))
-                dest_node = find_node(dest_node_alias)
+                dest_node = find_managed_node(dest_node_alias)
                 if dest_node is not None:
                     print("sent SNIR Reply")
                     #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;").encode("utf-8"))#SNIR header
@@ -474,7 +473,7 @@ def process_grid_connect(cli,msg):
             print("datagram!!")
             #for now we assume a one frame datagram
             dest_node_alias = int(float.fromhex(msg[4:7]))
-            dest_node = find_node(dest_node_alias)
+            dest_node = find_managed_node(dest_node_alias)
             if dest_node is None:   #not for us
                 print("Frame is not for us!!")
                 #FIXME: we have to transmit it ??
@@ -522,6 +521,7 @@ cp_node.memory[251].dump()
 cp_node.memory[253].dump()
 
 managed_nodes.append(cp_node)
+new_node(cp_node)
 
 cp_node=cpNode(1,0x020112AAABBB)
 cp_node.aliasID = 0xBBB    #FIXME negotiation not done yet
@@ -547,6 +547,7 @@ cp_node.memory[251].dump()
 cp_node.memory[253].dump()
 
 managed_nodes.append(cp_node)
+new_node(cp_node)
 mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
 
 list_alias_neg=[]  #list of ongoing alias negotiations
@@ -556,7 +557,7 @@ reserved_aliases = {}  #dict alias--> fullID of reserved aliases
 cmri_nodes = cmri.load_cmri_cfg("cmri_cfg_test.txt")
 
 input("waiting")
-serv = openlcb_server.server("192.168.0.14",50000)
+serv = openlcb_server.server("127.0.0.1",50000)
 serv.start()
 
 done = False
