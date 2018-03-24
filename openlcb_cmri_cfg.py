@@ -30,11 +30,11 @@ class CMRI_message:
             return
         if raw_msg[4]==b"I":
             msg.type_m = CMRI_message.INIT_M
-        elif raw_msg[4]==ord("P"):
+        elif raw_msg[4]==b"P":
             msg.type_m = CMRI_message.POLL_M
-        elif raw_msg[4]==ord("T"):
+        elif raw_msg[4]==b"T":
             msg.type_m = CMRI_message.TRANSMIT_M
-        elif raw_msg[4]==ord("R"):
+        elif raw_msg[4]==b"R":
             msg.type_m = CMRI_message.RECEIVE_M
         print(msg.type_m)
         if msg.type_m == None :
@@ -69,10 +69,7 @@ class CMRI_message:
         raw_message += CMRI_message.type_char[self.type_m]
         for b in self.message:
             raw_message += CMRI_message.encode_byte(b)
-        res = raw_message + bytes((CMRI_message.ETX,))
-        print("to_raw_message=",res)
-        return res
-
+        return raw_message + bytes((CMRI_message.ETX,))
             
     @staticmethod        
     def encode_byte(b):
