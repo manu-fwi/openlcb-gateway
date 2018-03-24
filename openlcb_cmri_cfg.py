@@ -28,13 +28,13 @@ class CMRI_message:
         if raw_msg[:3]!=bytes((CMRI_message.SYN,CMRI_message.SYN,CMRI_message.STX)) or raw_msg[len(raw_msg)-1]!=CMRI_message.ETX:
             print("malformed CMRI message!!")
             return
-        if raw_msg[4]==b"I":
+        if raw_msg[4]==ord("I"):
             msg.type_m = CMRI_message.INIT_M
-        elif raw_msg[4]==b"P":
+        elif raw_msg[4]==ord("P"):
             msg.type_m = CMRI_message.POLL_M
-        elif raw_msg[4]==b"T":
+        elif raw_msg[4]==ord("T"):
             msg.type_m = CMRI_message.TRANSMIT_M
-        elif raw_msg[4]==b"R":
+        elif raw_msg[4]==ord("R"):
             msg.type_m = CMRI_message.RECEIVE_M
         print(msg.type_m)
         if msg.type_m == None :

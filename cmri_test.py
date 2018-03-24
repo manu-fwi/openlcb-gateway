@@ -18,7 +18,7 @@ while True:
         inputs_state=input("binary state of the inputs?")
         inputs=int(inputs_state,2)
         msg.type_m = cmri.CMRI_message.RECEIVE_M
-        msg.message = b"\x01"+cmri.CMRI_message.encode_byte(inputs)
+        msg.message = b"\x01"+bytes((inputs,))
         s.send(msg.to_raw_message())
     elif msg.type_m==cmri.CMRI_message.TRANSMIT_M:
         for b in msg.message:
