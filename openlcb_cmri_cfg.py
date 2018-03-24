@@ -12,28 +12,23 @@ class CMRI_message:
     RECEIVE_M = 3
     add_offset=65
     
-    def __init__(self):
-        self.type_m = None
+    def __init__(self,type_m=None,address=None,message=None):
+        self.type_m = type_m
+        self.address = address
+        self.message = message
 
     def __str__(self):
         if self.type_m !=None:
             return "add="+str(self.address)+" type="+str(CMRI_message.type_char[self.type_m])+" mess="+self.message.decode('utf-8')
         return "invalid message"
-
-    @staticmethod
-    def from_message(type_m,address,message):
-        mess = CMRI_message()
-        mess.type_m = type_m
-        mess.address = address
-        mess.message = message
-        return mess
         
     @staticmethod     
     def from_raw_message(raw_msg):
         msg = CMRI_message()
         if raw_msg[:3]!=bytes((CMRI_message.SYN,CMRI_message.SYN,CMRI_message.STX)) or raw_msg[len(raw_msg)-1]!=CMRI_message.ETX:
+            print("malformed CMRI message!!")
             return
-        if raw_msg[4]==ord("I"):
+        if raw_msg[4]==b"I":
             msg.type_m = CMRI_message.INIT_M
         elif raw_msg[4]==ord("P"):
             msg.type_m = CMRI_message.POLL_M
@@ -64,11 +59,8 @@ class CMRI_message:
                         break
                     message += bytes((b,))
                    
-        if raw_msg[len(raw_msg)-1]!=CMRI_message.ETX:
-            msg.type_m = None
-        else:
-            msg.message = message
-        return mess
+        msg.message = message
+        return msg
 
     def to_raw_message(self):
         if self.type_m == None:
@@ -77,7 +69,9 @@ class CMRI_message:
         raw_message += CMRI_message.type_char[self.type_m]
         for b in self.message:
             raw_message += CMRI_message.encode_byte(b)
-        return raw_message + bytes((CMRI_message.ETX,))
+        res = raw_message + bytes((CMRI_message.ETX,))
+        print("to_raw_message=",res)
+        return res
 
             
     @staticmethod        
@@ -164,7 +158,7 @@ class CPNode (CMRI_node):
     def read_inputs(self):
         #send poll to cpNode
         print("sending poll to cpNode (add=",self.address,")")
-        cmd = CMRI_message.from_message(CMRI_message.POLL_M,self.address,b"")
+        cmd = CMRI_message(CMRI_message.POLL_M,self.address,b"")
         raw_cmd = cmd.to_raw_message()
         if self.bus!=None:
             self.bus.send(raw_cmd)
@@ -208,7 +202,7 @@ class CPNode (CMRI_node):
                 bits = [io[0] for io in self.outputs_IOX[first_bit:first_bit+8]]
                 bytes+=CPNode.pack_bits(bits)
                 print(i," bytes=",bytes)
-        cmd = CMRI_message.from_message(CMRI_message.TRANSMIT_M,self.address,bytes)
+        cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes)
         raw_cmd = cmd.to_raw_message()
         if self.bus!=None:
             self.bus.send(raw_cmd)

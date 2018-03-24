@@ -1,6 +1,7 @@
 import openlcb_cmri_cfg as cmri
 import openlcb_server
 from openlcb_nodes import *
+import socket,select,time
 
 class frame:
     @staticmethod
@@ -312,13 +313,13 @@ def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
     to_send=bytearray()
 
     if msg[13:15]=="40":
-        mem_sp = int(float.fromhex(msg[23:25]))
-        size = int(float.fromhex(msg[25:27]))
+        mem_sp = int(msg[23:25],16)
+        size = int(msg[25:27],16)
         m = hexp(mem_sp,2)
         first_payload=1
     else:
         mem_sp = 0xFC+int(msg[14])
-        size=int(float.fromhex(msg[23:25]))
+        size=int(msg[23:25],16)
         m = ""
         first_payload=2
     print("memory read at",mem_sp,"offset",add,"size",size)
@@ -346,7 +347,7 @@ def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
     print("memory write")
     if buf[3]=="A" or buf[3]=="B":
         if buf[14]=="0":
-            mem_sp = int(float.fromhex(buf[23:25]))
+            mem_sp = int(buf[23:25],16)
             data_beg=25
         else:
             mem_sp = 0xFC+int(buf[14])
@@ -362,7 +363,7 @@ def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
         res=b""
         for pos in range(data_beg,len(buf)-1,2):
             print(buf[pos:pos+2])
-            res+=bytes([int(float.fromhex(buf[pos:pos+2]))])
+            res+=bytes([int(buf[pos:pos+2],16)])
         print("written:",res)
         print("node:",src_node.ID,"memory write",src_node.current_write[0],"offset",src_node.current_write[1])
         if src_node.current_write[0] not in src_node.memory:
@@ -390,10 +391,10 @@ def process_grid_connect(cli,msg):
         print("Error: not a normal frame!!")
         return
     data_present = msg[11]!=";"
-    first_b = int(float.fromhex(msg[2:4]))
+    first_b = int(msg[2:4],16)
     can_prefix = (first_b & 0x18) >> 3
-    var_field = int(float.fromhex(msg[4:7]))
-    src_id = int(float.fromhex(msg[7:10]))
+    var_field = int(msg[4:7],16)
+    src_id = int(msg[7:10],16)
     print("data pre=",data_present," first_b=",first_b," can_prefix=",can_prefix," var_field=",var_field," src_id=",src_id)
     
     if can_prefix % 2==0:
@@ -447,7 +448,7 @@ def process_grid_connect(cli,msg):
                     print("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
     
             elif var_field==0x828:#Protocol Support Inquiry
-                dest_node_alias = int(float.fromhex(msg[12:15]))
+                dest_node_alias = int(msg[12:15],16)
                 dest_node = find_managed_node(dest_node_alias)
                 
                 if dest_node is not None:
@@ -456,7 +457,7 @@ def process_grid_connect(cli,msg):
                     print("sent--->:X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;")
             elif var_field == 0xDE8:#Simple Node Information Request
 
-                dest_node_alias = int(float.fromhex(msg[12:15]))
+                dest_node_alias = int(msg[12:15],16)
                 dest_node = find_managed_node(dest_node_alias)
                 if dest_node is not None:
                     print("sent SNIR Reply")
@@ -469,10 +470,10 @@ def process_grid_connect(cli,msg):
                     #print(":X19A08"+hexp(gw_add.aliasID,3)+"AAAN3"+hexp(src_id,3)+"02;")
                     #send_fields(0xA08,username_desc,src_id,True)
         elif (first_b & 0x7)>=2 and (first_b & 0x7)<=5: #Datagram
-            address = int(float.fromhex(msg[15:23]))
+            address = int(msg[15:23],16)
             print("datagram!!")
             #for now we assume a one frame datagram
-            dest_node_alias = int(float.fromhex(msg[4:7]))
+            dest_node_alias = int(msg[4:7],16)
             dest_node = find_managed_node(dest_node_alias)
             if dest_node is None:   #not for us
                 print("Frame is not for us!!")
@@ -484,7 +485,7 @@ def process_grid_connect(cli,msg):
                 #if there is a write in progress then this datagram is part of it
                 memory_write(s,dest_node,src_node,address,msg)
             elif msg[11:15]=="2043": #read command for CDI
-                print("read command, address=",int(float.fromhex(msg[15:23])))
+                print("read command, address=",int(msg[15:23],16))
                 s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
                 print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
                 send_CDI(s,dest_node,src_id,address)
@@ -496,6 +497,18 @@ def process_grid_connect(cli,msg):
                 elif msg[13]=="0":
                     memory_write(s,dest_node,src_node,address,msg)
 
+def process_cmri():
+    global cmri_test_client,last_poll
+
+    if time.time()<last_time+20:
+        #poll every 20 seconds FIXME
+        return
+    msg = cmri.CMRI_message(cmri.CMRI_message.POLL_M,1,b"")
+    print("polling cmri test",msg.to_raw_message())
+    cmri_test_client.send(msg.to_raw_message())
+    received = cmri_test_client.recv(200)
+    print("cmri answer:",received)
+    
 #globals: fixme
 cp_node=cpNode(1,0x020112AAAAAA)
 cp_node.aliasID = 0xAAA    #FIXME negotiation not done yet
@@ -560,6 +573,17 @@ input("waiting")
 serv = openlcb_server.server("127.0.0.1",50000)
 serv.start()
 
+#cmri test server
+cmri_test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+cmri_test_socket.bind(("127.0.0.1",50010))
+cmri_test_socket.listen(5)
+print("gateway-test-cmri listening on 127.0.0.1 at port ",50010,"waiting until connected to test prog")
+print(select.select([cmri_test_socket],[],[]))
+cmri_test_client,addr= cmri_test_socket.accept()
+print("connected to cmri test!")
+last_time = 0
+# queue up to 5 requests
+
 done = False
 while not done:
     reads = serv.wait_for_clients()
@@ -568,4 +592,5 @@ while not done:
         msg = c.next_msg(";")
         if msg and msg != ";":
             process_grid_connect(c,msg)
+    process_cmri()
     #FIXME: take care of the non openlcb messages here
