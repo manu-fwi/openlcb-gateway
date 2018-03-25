@@ -194,16 +194,29 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     def get_CDI(self):
         return cpNode.CDI
 
+    def set_outputs(self,outputs):
+        changes=self.outputs ^ outputs
+        self.outputs=outputs
+        for i in range(8):
+            pass
+    
+
+def find_cmri_node_from_add(add):
+    for n in managed_nodes:
+        if n.address == add:
+            return n
+    return None
+
 def find_node(aliasID):
-    for node in all_nodes:
-        if node.aliasID == aliasID:
-            return node
+    for n in all_nodes:
+        if n.aliasID == aliasID:
+            return n
     return None
 
 def find_managed_node(aliasID):
-    for node in managed_nodes:
-        if node.aliasID == aliasID:
-            return node
+    for n in managed_nodes:
+        if n.aliasID == aliasID:
+            return n
     return None
    
 

@@ -497,7 +497,7 @@ def process_grid_connect(cli,msg):
                 elif msg[13]=="0":
                     memory_write(s,dest_node,src_node,address,msg)
 
-def process_cmri():
+def poll_cmri():
     global cmri_test_client,last_poll
 
     if time.time()<last_time+20:
@@ -506,8 +506,20 @@ def process_cmri():
     msg = cmri.CMRI_message(cmri.CMRI_message.POLL_M,1,b"")
     print("polling cmri test",msg.to_raw_message())
     cmri_test_client.send(msg.to_raw_message())
-    received = cmri_test_client.recv(200)
-    print("cmri answer:",received)
+
+def process_cmri():
+    global cmri_test_client
+
+    #check if there is something to read FIXME
+    ready_to_read = select.select([cmri_test_client],[],[],0)
+    if ready_to_read:
+        received = cmri_test_client.recv(200)
+        print("cmri answer:",received)
+        msg = cmri.CMRI_message.from_raw_message(received)
+        print("msg=",msg.type_m,msg.address,msg.message)
+        cmri_n = find_cmri_node_from_add(msg.address)
+        cmri_n.set_outputs(msg.message[1])
+        
     
 #globals: fixme
 cp_node=cpNode(1,0x020112AAAAAA)
