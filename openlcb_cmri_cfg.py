@@ -36,7 +36,7 @@ class CMRI_message:
             msg.type_m = CMRI_message.TRANSMIT_M
         elif raw_msg[4]==ord("R"):
             msg.type_m = CMRI_message.RECEIVE_M
-        print(msg.type_m)
+        print("message received",msg.type_m)
         if msg.type_m == None :
             msg.type_m = None
             return
@@ -70,7 +70,20 @@ class CMRI_message:
         for b in self.message:
             raw_message += CMRI_message.encode_byte(b)
         return raw_message + bytes((CMRI_message.ETX,))
-            
+
+    @staticmethod
+    def find_ETX(msg):  #find the ETX char pos in the message, point right after the end of msg if not found
+        DLE_char = False
+        for pos in range(len(msg)):
+            if DLE_char:
+                DLE_char = False
+            else:
+                if msg[pos]==CMRI_message.ETX:
+                    return pos
+                if msg[pos]==CMRI_message.DLE:
+                    DLE_char = True
+        return -1
+    
     @staticmethod        
     def encode_byte(b):
         if b==CMRI_message.STX or b == CMRI_message.ETX or b == CMRI_message.DLE:
@@ -88,13 +101,13 @@ class CMRI_message:
     
 class CMRI_node:
     
-    def __init__(self,address,bus):
+    def __init__(self,address,bus=None):
         self.address = address
-        self.bus = None
+        self.bus = bus
 
 class CPNode (CMRI_node):
     total_IO = 16
-    read_period = 500 #in ms
+    read_period = 10 #in seconds
     def __init__(self,address,bus,nb_I):
         super().__init__(address,bus)
         self.nb_I = nb_I
@@ -108,6 +121,8 @@ class CPNode (CMRI_node):
         #state=-1: never been set
         self.outputs=[[-1,-1] for i in range(CPNode.total_IO-nb_I)]
         self.outputs_IOX=[]
+        self.last_poll = time.time()-CPNode.read_period
+        self.last_receive = time.time()-CPNode.read_period
 
     def __str__(self):
         res = "CPNode,bus="+str(self.bus)+",add="+str(self.address)+",NB I="+str(self.nb_I)
@@ -152,17 +167,19 @@ class CPNode (CMRI_node):
             else:
                 self.add_IOX(a)
 
-    def read_inputs(self):
+    def read_inputs(self):  #returns True if poll has been sent or False otherwise
         #send poll to cpNode
+        if time.time()<self.last_poll+CPNode.read_period:
+            return False
+        self.last_poll=time.time()
         print("sending poll to cpNode (add=",self.address,")")
         cmd = CMRI_message(CMRI_message.POLL_M,self.address,b"")
-        raw_cmd = cmd.to_raw_message()
         if self.bus!=None:
-            self.bus.send(raw_cmd)
-        else:
-            print("send to bus ",raw_cmd)
+            self.bus.queue(cmd)
+        return True
 
-    def process_receive(self,message): #message must have been cleaned up (no SYN STX/ETX or DLE)
+    def process_receive(self,msg):
+        message=msg.message
         index = 0
         n = 0
         while n < self.nb_I and index <2:
@@ -197,15 +214,11 @@ class CPNode (CMRI_node):
                 bytes += b"\0"
             elif i==0:
                 bits = [io[0] for io in self.outputs_IOX[first_bit:first_bit+8]]
-                bytes+=CPNode.pack_bits(bits)
-                print(i," bytes=",bytes)
-        cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes)
-        raw_cmd = cmd.to_raw_message()
+                bits_packs+=CPNode.pack_bits(bits)
+                print(i," bytes=",bits_packs)
+        cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bits_packs)
         if self.bus!=None:
-            self.bus.send(raw_cmd)
-        else:
-            print("send to bus ",raw_cmd)
-        
+            self.bus.queue(raw_cmd)        
 
     def set_output(self,index_out,value):
         if index_out<CPNode.total_IO - self.nb_I:
@@ -264,34 +277,36 @@ def load_cmri_cfg(filename):
         line = f.readline()
         while line!='':
             print("line=",line)
-            if line == '':
-                return
-            args = line.split(' ')
-            if args[2]=='C':
-                if int(args[3])==0:
-                    new = CPNode(int(args[1]),int(args[0]),6)
-                elif int(args[3])==1:
-                    new = CPNode(int(args[1]),int(args[0]),8)
-                elif int(args[3])==2:
-                    new = CPNode(int(args[1]),int(args[0]),8)
-                elif int(args[3])==3:
-                    new = CPNode(int(args[1]),int(args[0]),4)
-                elif int(args[3])==4:
-                    new = CPNode(int(args[1]),int(args[0]),16)
-                elif int(args[3])==5:
-                    new = CPNode(int(args[1]),int(args[0]),0)
-                elif int(args[3])==6:
-                    new = CPNode(int(args[1]),int(args[0]),5)
-                elif int(args[3])==7:
-                    new = CPNode(int(args[1]),int(args[0]),4)
-                else:
-                    print("Unknown pin config!")
-                    #fixme: error handling
+            if (line.lstrip())[0]!="#":  #only process uncommented line
+                if line == '':
                     return
-                for i in range(4,len(args)):
-                    new.decode_IOX(args[i])
-                cmri_nodes.append(new)
-            else:
-                print("Node type not managed")
+
+                args = line.split(' ')
+                if args[2]=='C':
+                    if int(args[3])==0:
+                        new = CPNode(int(args[1]),int(args[0]),6)
+                    elif int(args[3])==1:
+                        new = CPNode(int(args[1]),int(args[0]),8)
+                    elif int(args[3])==2:
+                        new = CPNode(int(args[1]),int(args[0]),8)
+                    elif int(args[3])==3:
+                        new = CPNode(int(args[1]),int(args[0]),4)
+                    elif int(args[3])==4:
+                        new = CPNode(int(args[1]),int(args[0]),16)
+                    elif int(args[3])==5:
+                        new = CPNode(int(args[1]),int(args[0]),0)
+                    elif int(args[3])==6:
+                        new = CPNode(int(args[1]),int(args[0]),5)
+                    elif int(args[3])==7:
+                        new = CPNode(int(args[1]),int(args[0]),4)
+                    else:
+                        print("Unknown pin config!")
+                        #fixme: error handling
+                        return
+                    for i in range(4,len(args)):
+                        new.decode_IOX(args[i])
+                        cmri_nodes.append(new)
+                else:
+                    print("Node type not managed")
             line = f.readline()
     return cmri_nodes

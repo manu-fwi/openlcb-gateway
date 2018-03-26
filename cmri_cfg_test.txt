@@ -1,2 +1,21 @@
-0 1 C 0 1,0
-0 2 C 4 0,0 0,1 1,0 1,1 0,1 1,1 1,1 1,1
+#cmri node descriptions:
+#!!!Empty line means end of config
+#Format (space separated):
+# CMRI node's bus number (FIXME: need to be more precise)
+# CMRI node's address followed by the node type (N,X,C)
+# (FIXME):for now only C is allowed
+#   For C type:
+#      next is the I/O config:
+#            0 -> 10 O / 6 I(BASE_NODE)
+#            1 -> 8 I/8 O (BASE_NODE_8IN8OUT)
+#            2 -> 8 O/8 I (BASE_NODE_8OUT8IN)
+#            3-> 12 O/4 I (BASE_NODE_12OUT4IN)
+#            4 -> 16I     (BASE_NODE_16IN)
+#            5 -> 16 O    (BASE_NODE_16OUT)
+#            6 -> 11 O / 5 I (BASE_NODE_RSMC)
+#            7 -> 12 O / 4 I (BASE_NODE_RSMC_LOCK)
+#      next is the IOX config: a list of space separated pairs of numbers (0=OUTPUT, 1=INPUT, -1=Not assigned)
+#                          ex: 0,0 0,1 0,-1
+#0 1 C 0 1,0
+#0 2 C 4 0,0 0,1 1,0 1,1 0,1 1,1 1,1 1,1
+0 1 C 2

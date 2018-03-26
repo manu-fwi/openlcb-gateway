@@ -123,7 +123,7 @@ class node:
     def build_simple_info_dgram(self): # return datagrams holding the simple info
         print("build_simple_info not implemented!") #fixme
     
-class cpNode(node):
+class node_CPNode(node):
     CDI="""<?xml version="1.0"?>
 <cdi xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
@@ -185,25 +185,30 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </cdi>
 \0"""
     
-    def __init__(self,CMRI_add,ID):
+    def __init__(self,CMRI_add,ID,bus=None):
         super().__init__(ID)
-        print(cpNode.CDI)
-        self.address = CMRI_add   #add on CMRI net
-        self.cp_node=cmri.CPNode(CMRI_add,None,0)  #"real" node
+        print(node_CPNode.CDI)
+        self.cp_node=cmri.CPNode(CMRI_add,bus,0)  #"real" node
 
     def get_CDI(self):
-        return cpNode.CDI
+        return node_CPNode.CDI
 
-    def set_outputs(self,outputs):
-        changes=self.outputs ^ outputs
-        self.outputs=outputs
-        for i in range(8):
-            pass
-    
+    def set_bus(self,bus):
+        if self.cp_node.bus is not None:
+            self.cp_node.bus.stop()
+        self.cp_node.bus = bus
+        
+    def poll(self):
+        self.cp_node.read_inputs()
+        
+    def send_event(self,output_n):
+        pass
+        
+        
 
-def find_cmri_node_from_add(add):
+def find_node_from_cmri_add(add):
     for n in managed_nodes:
-        if n.address == add:
+        if n.cp_node.address == add:
             return n
     return None
 

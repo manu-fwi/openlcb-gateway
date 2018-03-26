@@ -1,4 +1,5 @@
 import openlcb_cmri_cfg as cmri
+import openlcb_buses as buses
 import openlcb_server
 from openlcb_nodes import *
 import socket,select,time
@@ -497,32 +498,25 @@ def process_grid_connect(cli,msg):
                 elif msg[13]=="0":
                     memory_write(s,dest_node,src_node,address,msg)
 
-def poll_cmri():
-    global cmri_test_client,last_poll
-
-    if time.time()<last_time+20:
-        #poll every 20 seconds FIXME
-        return
-    msg = cmri.CMRI_message(cmri.CMRI_message.POLL_M,1,b"")
-    print("polling cmri test",msg.to_raw_message())
-    cmri_test_client.send(msg.to_raw_message())
-
 def process_cmri():
-    global cmri_test_client
-
-    #check if there is something to read FIXME
-    ready_to_read = select.select([cmri_test_client],[],[],0)
-    if ready_to_read:
-        received = cmri_test_client.recv(200)
-        print("cmri answer:",received)
-        msg = cmri.CMRI_message.from_raw_message(received)
-        print("msg=",msg.type_m,msg.address,msg.message)
-        cmri_n = find_cmri_node_from_add(msg.address)
-        cmri_n.set_outputs(msg.message[1])
-        
+    global cmri_test
+    
+    for n in managed_nodes:
+        n.poll()
+    cmri_test.process_answer()
+    msg=cmri_test.pop_next_msg()
+    if msg is not None:
+        n = find_node_from_cmri_add(msg.address)
+        n.cp_node.process_receive(msg) #only msg type we can get from cmri nodes        
     
 #globals: fixme
-cp_node=cpNode(1,0x020112AAAAAA)
+#cmri test server
+cmri_test = buses.cmri_test_bus("127.0.0.1",50010)
+print("gateway-test-cmri listening on 127.0.0.1 at port ",50010,"waiting until connected to test prog")
+cmri_test.start()
+print("connected to cmri test!")
+
+cp_node=node_CPNode(1,0x020112AAAAAA,cmri_test)
 cp_node.aliasID = 0xAAA    #FIXME negotiation not done yet
 #create mem segment for each channel
 channels_mem=mem_space([(0,1)])  #first: version
@@ -548,7 +542,7 @@ cp_node.memory[253].dump()
 managed_nodes.append(cp_node)
 new_node(cp_node)
 
-cp_node=cpNode(1,0x020112AAABBB)
+cp_node=node_CPNode(2,0x020112AAABBB,cmri_test)
 cp_node.aliasID = 0xBBB    #FIXME negotiation not done yet
 #create mem segment for each channel
 channels_mem=mem_space([(0,1)])  #first: version
@@ -585,15 +579,6 @@ input("waiting")
 serv = openlcb_server.server("127.0.0.1",50000)
 serv.start()
 
-#cmri test server
-cmri_test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-cmri_test_socket.bind(("127.0.0.1",50010))
-cmri_test_socket.listen(5)
-print("gateway-test-cmri listening on 127.0.0.1 at port ",50010,"waiting until connected to test prog")
-print(select.select([cmri_test_socket],[],[]))
-cmri_test_client,addr= cmri_test_socket.accept()
-print("connected to cmri test!")
-last_time = 0
 # queue up to 5 requests
 
 done = False
@@ -605,4 +590,5 @@ while not done:
         if msg and msg != ";":
             process_grid_connect(c,msg)
     process_cmri()
+
     #FIXME: take care of the non openlcb messages here
