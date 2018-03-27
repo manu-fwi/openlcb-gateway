@@ -201,10 +201,11 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     def poll(self):
         self.cp_node.read_inputs()
         
-    def send_event(self,output_n):
-        pass
-        
-        
+    def generate_events(self):
+        cpn = self.cp_node
+        for i in range(cpn.nb_I):
+            if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
+                
 
 def find_node_from_cmri_add(add):
     for n in managed_nodes:

@@ -507,7 +507,8 @@ def process_cmri():
     msg=cmri_test.pop_next_msg()
     if msg is not None:
         n = find_node_from_cmri_add(msg.address)
-        n.cp_node.process_receive(msg) #only msg type we can get from cmri nodes        
+        n.cp_node.process_receive(msg) #only msg type we can get from cmri nodes
+        n.send_events()
     
 #globals: fixme
 #cmri test server
