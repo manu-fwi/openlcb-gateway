@@ -58,7 +58,9 @@ class cmri_test_bus:
         """
         if not self.wait_answer:
             return
-        if select.select([self.client],[],[],0):
+
+        ready_to_read,dummy,dummy = select.select([self.client],[],[],0)
+        if self.client in ready_to_read:
             #if ready to read, read msgs and add them to the msgs list (cut them using ETX)
             msg = self.client.recv(200)
             if len(msg)==0:
@@ -67,7 +69,6 @@ class cmri_test_bus:
             curr_pos = 0
             while curr_pos<len(msg):
                 ETX_pos = cmri.CMRI_message.find_ETX(msg[curr_pos:])
-                print("curr",curr_pos,"ETX_pos",ETX_pos)
 
                 if self.last_recv_complete:  #last msg complete, so add new msg (up to ETX)
                     self.recv_msgs.append(cmri.CMRI_message.from_raw_message(msg[curr_pos:ETX_pos+1]))
@@ -82,7 +83,6 @@ class cmri_test_bus:
         print("queued",len(self.msg_queue))
         if not self.wait_answer:
             msg = self.msg_queue.pop(0)
-            print("pop next master msg")
             self.client.send(msg.to_raw_message())
             print("test-cmri-bus sending to client:",msg.to_raw_message())
             self.wait_answer = True

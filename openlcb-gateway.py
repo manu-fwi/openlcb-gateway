@@ -380,7 +380,6 @@ reserved_aliases = {}  #dict alias--> fullID of reserved aliases
 #for now: 1 can segment with all cmri nodes on it
 cmri_nodes = cmri.load_cmri_cfg("cmri_cfg_test.txt")
 
-input("waiting")
 serv = openlcb_server.server("127.0.0.1",50000)
 serv.start()
 

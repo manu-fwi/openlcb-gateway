@@ -91,7 +91,7 @@ class server:
             m=""
             c = get_client_from_socket(self.clients,s)
             try:
-                m = s.recv(200).decode('utf+8')
+                m = s.recv(200).decode('utf-8')
             except socket.error:
                 print("recv error")
             print(len(m)," => ",m)
