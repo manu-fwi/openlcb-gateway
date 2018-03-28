@@ -1,4 +1,5 @@
 import socket,select
+from openlcb_protocol import *
 
 class client:
     def __init__(self,sock,add):

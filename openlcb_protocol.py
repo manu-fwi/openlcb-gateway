@@ -32,7 +32,8 @@ class frame:
     @staticmethod
     def build_PCER(src_node,ev):
         res = frame(src_node,None,0x195B4)
-        res.data = ev.ID
+        res.data = ev.id
+        return res
                     
     def __init__(self,src_node,dest_node,header):
         self.src = src_node
@@ -43,9 +44,9 @@ class frame:
         self.data = bytes_arr   #data is a byte array, no more than 8 bytes!
 
     def to_gridconnect(self):
-        res=":X"+hexp(self.header,4)+hexp(self.src_node.aliasID,3)+"N"
+        res=":X"+hexp(self.header,5)+hexp(self.src.aliasID,3)+"N"
         res+=convert_to_hex_b(self.data)+";"
-        return res
+        return res.encode('utf-8')
     
 class addressed_frame(frame):
     def __init__(self,src,dest,pos,MTI):
