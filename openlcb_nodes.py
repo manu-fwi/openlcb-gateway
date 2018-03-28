@@ -19,7 +19,6 @@ class mem_space:
         if list is not None:
             for (offset,size) in list:
                 self.create_mem(offset,size)
-                print("created: ",offset,"-->",offset+size-1," size=",size)
 
     def create_mem(self,offset,size):
         self.mem[(offset,size)]=None
@@ -61,7 +60,10 @@ class mem_space:
     def read_mem(self,add):
         for (offset,size) in self.mem.keys():
             if add>=offset and add <offset+size:
-                return self.mem[(offset,size)][add-offset:]
+                if self.mem[(offset,size)] is not None:
+                    return self.mem[(offset,size)][add-offset:]
+                else:
+                    return None
         return None
 
     def mem_valid(self,offset):
@@ -83,7 +85,7 @@ class mem_space:
 """
 Base class for all node types
 You must implement get_cdi() so that the gateway can retrieve the CDI describing your node
-You also most probablu want to extend set_mem and maybe read_mem to sync the node's memory with the
+You also most probably want to extend set_mem and maybe read_mem to sync the node's memory with the
 real node's mem
 """
 class node:
@@ -190,6 +192,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         super().__init__(ID)
         print(node_CPNode.CDI)
         self.cp_node=cmri.CPNode(CMRI_add,bus,8)  #"real" node
+        self.ev_list=[None]*16  #event list
 
     def get_CDI(self):
         return node_CPNode.CDI
@@ -198,7 +201,20 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         if self.cp_node.bus is not None:
             self.cp_node.bus.stop()
         self.cp_node.bus = bus
-        
+
+    def set_mem(self,mem_sp,offset,buf):
+        super().set_mem(mem_sp,offset,buf)
+        #rebuild the events if they have changed
+        if mem_sp == 253 and offset > 1:
+            entry = (offset-1)%17
+            if entry>0: #this means it is an event id
+                #we have to set the pair of events, first get the offset of the first event in memory
+                if entry == 1:
+                    offset_0 = offset
+                else:
+                    offset_0 = offset - 8
+                self.ev_list[(offset-1)//17]=(self.read_mem(mem_sp,offset_0),self.read_mem(mem_sp,offset_0+8))
+                    
     def poll(self):
         self.cp_node.read_inputs()
         
@@ -209,11 +225,23 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         for i in range(cpn.nb_I):
             print(i,end=" ")
             if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
-                ev = event(self.read_mem(253,1+17*i+1+8*cpn.inputs[i][0])) #FIXME
-                print(self.read_mem(253,1+17*i+1+8*cpn.inputs[i][0]),end="/")
-                ev_lst.append(ev)
+                #ev = event(self.read_mem(253,1+17*i+1+8*cpn.inputs[i][0])) #FIXME
+                #print(self.read_mem(253,1+17*i+1+8*cpn.inputs[i][0]),end="/")
+                ev_lst.append(self.ev_list[i][cpn.inputs[i][0]])
         return ev_lst
 
+    def consume_event(self,ev):
+        val = -1
+        for ev_pair in self.ev_list:
+            if ev == ev_pair[0]:
+                val = 0
+                break
+            elif ev == ev_pair[1]:
+                val = 1
+                break
+        if val>=0:
+            print("consume_ev",ev.id,val) #FIXME
+        
 def find_node_from_cmri_add(add):
     for n in managed_nodes:
         if n.cp_node.address == add:

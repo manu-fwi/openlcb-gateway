@@ -257,8 +257,8 @@ def process_grid_connect(cli,msg):
                     #FIXME: set correct bits
                     s.send((":X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;").encode("utf-8"))
                     print("sent--->:X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;")
+                    
             elif var_field == 0xDE8:#Simple Node Information Request
-
                 dest_node_alias = int(msg[12:15],16)
                 dest_node = find_managed_node(dest_node_alias)
                 if dest_node is not None:
@@ -271,6 +271,13 @@ def process_grid_connect(cli,msg):
                     #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N3"+hexp(src_id,3)+"02;").encode("utf-8"))#SNIR header
                     #print(":X19A08"+hexp(gw_add.aliasID,3)+"AAAN3"+hexp(src_id,3)+"02;")
                     #send_fields(0xA08,username_desc,src_id,True)
+                    
+            elif var_field == 0x5B4: #PCER (event)
+                ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
+                print("received event:",ev_id)
+                for n in managed_nodes:
+                    n.consume_event(event(ev_id))
+                
         elif (first_b & 0x7)>=2 and (first_b & 0x7)<=5: #Datagram
             address = int(msg[15:23],16)
             print("datagram!!")
@@ -331,13 +338,19 @@ offset = 1
 for i in range(16):   #loop over 16 channels
     for j in info_sizes:
         channels_mem.create_mem(offset,j)
-        buf = bytearray()
-        buf.extend([i]*j)
-        channels_mem.set_mem(offset,buf)
         offset+=j
                              
 cp_node.memory = {251:mem_space([(0,1),(1,63),(64,64)]),
           253:channels_mem}
+offset = 2
+for i in range(16):
+    buf = bytearray()
+    buf.extend([i]*j)
+    cp_node.set_mem(253,offset,buf)
+    buf.extend([i]*(j-1))
+    buf.append(i+1)
+    cp_node.set_mem(253,offset+8,buf)
+    offset+=17
 cp_node.memory[251].set_mem(0,b"\1")
 cp_node.memory[251].set_mem(1,b"gw1"+(b"\0")*(63-3))
 cp_node.memory[251].set_mem(64,b"gateway-1"+(b"\0")*(64-9))
@@ -346,7 +359,8 @@ cp_node.memory[253].dump()
 
 managed_nodes.append(cp_node)
 new_node(cp_node)
-
+for i in range(16):
+    print("ev ",i,"=",cp_node.ev_list[i])
 cp_node=node_CPNode(2,0x020112AAABBB,cmri_test)
 cp_node.aliasID = 0xBBB    #FIXME negotiation not done yet
 #create mem segment for each channel
@@ -357,9 +371,6 @@ offset = 1
 for i in range(16):   #loop over 16 channels
     for j in info_sizes:
         channels_mem.create_mem(offset,j)
-        buf = bytearray()
-        buf.extend([i]*j)
-        channels_mem.set_mem(offset,buf)
         offset+=j
                              
 cp_node.memory = {251:mem_space([(0,1),(1,63),(64,64)]),
@@ -367,6 +378,16 @@ cp_node.memory = {251:mem_space([(0,1),(1,63),(64,64)]),
 cp_node.memory[251].set_mem(0,b"\2")
 cp_node.memory[251].set_mem(1,b"gw2"+(b"\0")*(63-3))
 cp_node.memory[251].set_mem(64,b"gateway-2"+(b"\0")*(64-9))
+offset = 2
+for i in range(8):
+    buf = bytearray()
+    buf.extend([i]*j)
+    cp_node.set_mem(253,offset,buf)
+    buf = bytearray()
+    buf.extend([i]*(j-1))
+    buf.append(i+1)
+    cp_node.set_mem(253,offset+8,buf)
+    offset+=17
 cp_node.memory[251].dump()
 cp_node.memory[253].dump()
 

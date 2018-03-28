@@ -204,21 +204,26 @@ class CPNode (CMRI_node):
     def write_outputs(self):
         #send outputs to node
         bits = [io[0] for io in self.outputs]
-        bytes = CPNode.pack_bits(bits)
-        if len(bytes)==1:
-            bytes+=b"\0"
+        bytes_value = CPNode.pack_bits(bits)
+        if len(bytes_value)==1:
+            bytes_value+=b"\0"
         first_bit = 0
-        print(self.IOX)
         for i in self.IOX:
             if i==-1:
-                bytes += b"\0"
+                bytes_value += b"\0"
             elif i==0:
                 bits = [io[0] for io in self.outputs_IOX[first_bit:first_bit+8]]
-                bits_packs+=CPNode.pack_bits(bits)
-                print(i," bytes=",bits_packs)
-        cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bits_packs)
+                bytes_value+=CPNode.pack_bits(bits)
+                print(i," bytes=",bytes_value)
+        cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
         if self.bus!=None:
-            self.bus.queue(raw_cmd)        
+            self.bus.queue(raw_cmd)
+        for io in self.outputs:
+            io[1]=io[0]  #value has been sent so sync last known value to that
+        for i in self.IOX:
+            if i==0:
+                for io in self.outputs_IOX[first_bit:first_bit+8]:
+                    io[1]=io[0]
 
     def set_output(self,index_out,value):
         if index_out<CPNode.total_IO - self.nb_I:
