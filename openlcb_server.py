@@ -100,3 +100,8 @@ class server:
             else:
                 print("new msg=",m)
                 c.new_msg(m)
+
+    def send_event(self,n,ev):
+        for c in self.clients:   #FIXME
+            c.sock.send(frame.build_PCER(n,ev).to_gridconnect())
+            print("event sent by server = ",frame.build_PCER(n,ev).to_gridconnect())

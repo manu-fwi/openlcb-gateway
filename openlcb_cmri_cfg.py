@@ -180,7 +180,7 @@ class CPNode (CMRI_node):
 
     def process_receive(self,msg):
         message=msg.message
-        index = 0
+        index = 1
         n = 0
         while n < self.nb_I and index <2:
             print("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
@@ -189,7 +189,7 @@ class CPNode (CMRI_node):
             n+=1
             if n % 8==0:
                 index +=1 #next byte
-        index = 2
+        index = 3
         n=0
         while n<self.nb_IOX_inputs() and index < len(message):
             #print("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)

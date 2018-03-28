@@ -1,4 +1,5 @@
 import openlcb_cmri_cfg as cmri
+from openlcb_protocol import *
 
 """This file defines a basic openlcb node (the gateway will handle several of these
 You derive your "real node class" from it and add the handling specific to your hardware
@@ -188,7 +189,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     def __init__(self,CMRI_add,ID,bus=None):
         super().__init__(ID)
         print(node_CPNode.CDI)
-        self.cp_node=cmri.CPNode(CMRI_add,bus,0)  #"real" node
+        self.cp_node=cmri.CPNode(CMRI_add,bus,8)  #"real" node
 
     def get_CDI(self):
         return node_CPNode.CDI
@@ -202,10 +203,16 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.cp_node.read_inputs()
         
     def generate_events(self):
+        ev_lst = []
         cpn = self.cp_node
+        print("generate_events,nb_I=",cpn.nb_I)
         for i in range(cpn.nb_I):
+            print(i,end=" ")
             if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
-                
+                ev = event(self.read_mem(253,1+17*i+1+8*cpn.inputs[i][0])) #FIXME
+                print(self.read_mem(253,1+17*i+1+8*cpn.inputs[i][0]),end="/")
+                ev_lst.append(ev)
+        return ev_lst
 
 def find_node_from_cmri_add(add):
     for n in managed_nodes:

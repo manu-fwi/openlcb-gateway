@@ -1,6 +1,25 @@
 import socket,select
 import openlcb_cmri_cfg as cmri
 
+class can_segment:
+    def __init__(self,name):
+        self.name = name
+        self.nodes = []
+
+    def push_datagram(self,dgram):
+        if dgram.dest_node is None and dgram.dest_node in self.nodes:
+            self.send_frame(dgram.to_can())
+
+    def push_event(self,ev):
+        for n in self.nodes:
+            if ev in n.consumed_ev:
+                self.send_frame(ev.to_can())
+                return
+            
+    def send_frame(self,can_frame):
+        #fixme to do!
+        print("sending can frame",can_frame)
+        
 class cmri_test_bus:
     def __init__(self,ip,port):
         self.ip = ip
@@ -30,7 +49,7 @@ class cmri_test_bus:
             return None
         msg = self.recv_msgs.pop(0)
         self.wait_answer = (len(self.recv_msgs)>0)   #FIXME: crude but should work for cmri as it is one answer per request
-        print("pop next recv msg",len(self.recv_msgs))
+        print("pop next recv msg=",msg.message,len(self.recv_msgs))
         return msg
     
     def process_answer(self):
