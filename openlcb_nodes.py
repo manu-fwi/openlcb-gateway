@@ -238,7 +238,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 val = 1
                 break
             index+=1
-        if val>=0:
+        if val>=0 and index>=self.cp_node.nb_I:  #we only consume event for outputs
             print("consume_ev",ev.id,index,val)
             self.cp_node.set_output(index-self.cp_node.nb_I,val)
             self.cp_node.write_outputs()
