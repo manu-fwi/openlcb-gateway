@@ -342,14 +342,16 @@ for i in range(16):   #loop over 16 channels
                              
 cp_node.memory = {251:mem_space([(0,1),(1,63),(64,64)]),
           253:channels_mem}
-offset = 2
+offset = 1
 for i in range(16):
+    cp_node.set_mem(253,offset,b"\0")
     buf = bytearray()
     buf.extend([i]*j)
-    cp_node.set_mem(253,offset,buf)
+    cp_node.set_mem(253,offset+1,buf)
+    buf = bytearray()
     buf.extend([i]*(j-1))
     buf.append(i+1)
-    cp_node.set_mem(253,offset+8,buf)
+    cp_node.set_mem(253,offset+9,buf)
     offset+=17
 cp_node.memory[251].set_mem(0,b"\1")
 cp_node.memory[251].set_mem(1,b"gw1"+(b"\0")*(63-3))
@@ -378,15 +380,16 @@ cp_node.memory = {251:mem_space([(0,1),(1,63),(64,64)]),
 cp_node.memory[251].set_mem(0,b"\2")
 cp_node.memory[251].set_mem(1,b"gw2"+(b"\0")*(63-3))
 cp_node.memory[251].set_mem(64,b"gateway-2"+(b"\0")*(64-9))
-offset = 2
-for i in range(8):
+offset = 1
+for i in range(16):
+    cp_node.set_mem(253,offset,b"\0")
     buf = bytearray()
     buf.extend([i]*j)
-    cp_node.set_mem(253,offset,buf)
+    cp_node.set_mem(253,offset+1,buf)
     buf = bytearray()
     buf.extend([i]*(j-1))
     buf.append(i+1)
-    cp_node.set_mem(253,offset+8,buf)
+    cp_node.set_mem(253,offset+9,buf)
     offset+=17
 cp_node.memory[251].dump()
 cp_node.memory[253].dump()

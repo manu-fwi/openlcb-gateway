@@ -119,7 +119,7 @@ class CPNode (CMRI_node):
         self.inputs_IOX = []
         #outputs states (first is desired state, second is last known state)
         #state=-1: never been set
-        self.outputs=[[-1,-1] for i in range(CPNode.total_IO-nb_I)]
+        self.outputs=[[0,-1] for i in range(CPNode.total_IO-nb_I)]
         self.outputs_IOX=[]
         self.last_poll = time.time()-CPNode.read_period
         self.last_receive = time.time()-CPNode.read_period
@@ -152,7 +152,7 @@ class CPNode (CMRI_node):
                 if IO[i]>0:
                     self.inputs_IOX.extend([[-1,-1] for i in range(8)])  #extend bits array
                 else:
-                    self.outputs_IOX.extend([[-1,-1] for i in range(8)])
+                    self.outputs_IOX.extend([[0,-1] for i in range(8)])
         self.IOX.extend(IO)
         
     def decode_IOX(self,IO):
@@ -175,7 +175,7 @@ class CPNode (CMRI_node):
         print("sending poll to cpNode (add=",self.address,")")
         cmd = CMRI_message(CMRI_message.POLL_M,self.address,b"")
         if self.bus!=None:
-            self.bus.queue(cmd)
+            self.bus.queue(cmd,True)
         return True
 
     def process_receive(self,msg):
@@ -217,7 +217,7 @@ class CPNode (CMRI_node):
                 print(i," bytes=",bytes_value)
         cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
         if self.bus!=None:
-            self.bus.queue(raw_cmd)
+            self.bus.queue(cmd,False)
         for io in self.outputs:
             io[1]=io[0]  #value has been sent so sync last known value to that
         for i in self.IOX:
@@ -251,8 +251,9 @@ class CPNode (CMRI_node):
         for i in bits_list:
             if j%8 == 0:
                 res += b"\0"
+            print("aavant j=",j,"i=",i,"res=",res)            
             res[j//8] = (res[j//8] << 1) | i
-            print("j=",j,"i=",i,"res=",res)
+            print("apres j=",j,"i=",i,"res=",res)
             j+=1
         return res
 

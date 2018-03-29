@@ -78,12 +78,12 @@ class cmri_test_bus:
                 self.last_recv_complete= (ETX_pos < len(msg))
                 curr_pos=ETX_pos+1
         
-    def queue(self,msg):   #msg: cmri msg to queue to send
-        self.msg_queue.append(msg)
+    def queue(self,msg,wait_answer):   #msg: cmri msg to queue to send
+        self.msg_queue.append((msg,wait_answer))
         print("queued",len(self.msg_queue))
         if not self.wait_answer:
-            msg = self.msg_queue.pop(0)
+            msg,must_wait = self.msg_queue.pop(0)
             self.client.send(msg.to_raw_message())
             print("test-cmri-bus sending to client:",msg.to_raw_message())
-            self.wait_answer = True
+            self.wait_answer = must_wait
         

@@ -109,6 +109,7 @@ class node:
         return self.memory[mem_sp].set_mem_partial(add,buf)
         
     def read_mem(self,mem_sp,add):
+        print("read_mem",mem_sp,add)
         return self.memory[mem_sp].read_mem(add)
 
     def get_mem_size(self,mem_sp,offset):
@@ -213,7 +214,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     offset_0 = offset
                 else:
                     offset_0 = offset - 8
-                self.ev_list[(offset-1)//17]=(self.read_mem(mem_sp,offset_0),self.read_mem(mem_sp,offset_0+8))
+                self.ev_list[(offset-1)//17]=(event(self.read_mem(mem_sp,offset_0)),event(self.read_mem(mem_sp,offset_0+8)))
                     
     def poll(self):
         self.cp_node.read_inputs()
@@ -221,26 +222,26 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     def generate_events(self):
         ev_lst = []
         cpn = self.cp_node
-        print("generate_events,nb_I=",cpn.nb_I)
         for i in range(cpn.nb_I):
-            print(i,end=" ")
             if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
-                #ev = event(self.read_mem(253,1+17*i+1+8*cpn.inputs[i][0])) #FIXME
-                #print(self.read_mem(253,1+17*i+1+8*cpn.inputs[i][0]),end="/")
                 ev_lst.append(self.ev_list[i][cpn.inputs[i][0]])
         return ev_lst
 
     def consume_event(self,ev):
         val = -1
+        index = 0
         for ev_pair in self.ev_list:
-            if ev == ev_pair[0]:
+            if ev.id == ev_pair[0].id:
                 val = 0
                 break
-            elif ev == ev_pair[1]:
+            elif ev.id == ev_pair[1].id:
                 val = 1
                 break
+            index+=1
         if val>=0:
-            print("consume_ev",ev.id,val) #FIXME
+            print("consume_ev",ev.id,index,val)
+            self.cp_node.set_output(index-self.cp_node.nb_I,val)
+            self.cp_node.write_outputs()
         
 def find_node_from_cmri_add(add):
     for n in managed_nodes:

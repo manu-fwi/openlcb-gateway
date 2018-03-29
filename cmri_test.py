@@ -9,6 +9,7 @@ s.connect((gateway_ip,gateway_port))
 print("connected to gateway!")
 
 while True:
+    print("Waiting to receive...")
     buf=s.recv(200) #byte array: the raw cmri message    
     print("raw message=",buf)
     msg = cmri.CMRI_message.from_raw_message(buf)
