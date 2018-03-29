@@ -183,129 +183,140 @@ def reserve_aliasID(src_id):
         else:
             reserved_aliases[neg.aliasID]=neg.fullID
             list_alias_neg.remove(neg)
-            
+
+def can_control_frame(cli,msg):
+    first_b=int(msg[2:4],16)
+    var_field = int(msg[4:7],16)
+    src_id = int(msg[7:10],16)
+    data_needed = False
+    if first_b & 0x7>=4 and first_b & 0x7<=7:
+        print("CID Frame n°",first_b & 0x7," * ",hex(var_field),end=" * 0x")
+        #full_ID = var_field << 12*((first_b&0x7) -4)
+        if first_b&0x7==7:
+            alias_neg = alias_negotiation(src_id)
+        else:
+            alias_neg = get_alias_neg_from_alias(src_id)
+        alias_neg.next_step(var_field)
+        list_alias_neg.append(alias_neg)
+
+    elif first_b&0x7==0:
+        if var_field==0x700:
+            print("RID Frame * full ID=")#,hex(full_ID),end=" * ")
+            jmri_identified = True   #FIXME
+            neg = get_alias_neg_from_alias(src_id)
+            reserve_aliasID(src_id)
+            new_node(node(neg.fullID,True,neg.aliasID))
+
+        elif var_field==0x701:
+            print("AMD Frame",end=" * ")
+            neg = get_alias_neg_from_alias(src_id)
+            new_node(node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
+            reserve_aliasID(src_id)
+            data_needed = True   #we could check the fullID
+
+        elif var_field==0x702:
+            print("AME Frame",end=" * ")
+            data_nedded=True
+        elif var_field==0x703:
+            print("AMR Frame",end=" * ")
+            data_nedded=True
+        elif var_field>=0x710 and var_field<=0x713:
+            print("Unknown Frame",end=" * ")
+    print(hexp(src_id,3))
+    if data_needed and not data_present:
+        print("Data needed but none is present!")
+        return
+
+def global_frame(cli,msg):
+    first_b=int(msg[2:4],16)
+    var_field = int(msg[4:7],16)
+    src_id = int(msg[7:10],16)
+    s = cli.sock
+    
+    if var_field==0x490:  #Verify node ID (global) FIXME
+        for n in managed_nodes:
+            s.send((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
+            print("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
+
+    elif var_field==0x828:#Protocol Support Inquiry
+        dest_node_alias = int(msg[12:15],16)
+        dest_node = find_managed_node(dest_node_alias)
+
+        if dest_node is not None:
+            #FIXME: set correct bits
+            s.send((":X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;").encode("utf-8"))
+            print("sent--->:X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;")
+
+    elif var_field == 0xDE8:#Simple Node Information Request
+        dest_node_alias = int(msg[12:15],16)
+        dest_node = find_managed_node(dest_node_alias)
+        if dest_node is not None:
+            print("sent SNIR Reply")
+            #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;").encode("utf-8"))#SNIR header
+            #print(":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;")
+            #FIXME:
+            send_fields(s,dest_node,0xA08,mfg_name_hw_sw_version,src_id)
+
+            #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N3"+hexp(src_id,3)+"02;").encode("utf-8"))#SNIR header
+            #print(":X19A08"+hexp(gw_add.aliasID,3)+"AAAN3"+hexp(src_id,3)+"02;")
+            #send_fields(0xA08,username_desc,src_id,True)
+
+    elif var_field == 0x5B4: #PCER (event)
+        ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
+        print("received event:",ev_id)
+        for n in managed_nodes:
+            n.consume_event(event(ev_id))
+
+def process_datagram(cli,msg):
+    src_id = int(msg[7:10],16)
+    s = cli.sock
+    address = int(msg[15:23],16)
+    print("datagram!!")
+    #for now we assume a one frame datagram
+    dest_node_alias = int(msg[4:7],16)
+    dest_node = find_managed_node(dest_node_alias)
+    if dest_node is None:   #not for us
+        print("Frame is not for us!!")
+        #FIXME: we have to transmit it ??
+        return
+    src_node = find_node(src_id)
+
+    if dest_node.current_write is not None:
+        #if there is a write in progress then this datagram is part of it
+        memory_write(s,dest_node,src_node,address,msg)
+    elif msg[11:15]=="2043": #read command for CDI
+        print("read command, address=",int(msg[15:23],16))
+        s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
+        print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
+        send_CDI(s,dest_node,src_id,address)
+    elif msg[11:13]=="20": #read/write command
+        s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
+        print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
+        if msg[13]=="4":
+            memory_read(s,dest_node,src_node,address,msg)
+        elif msg[13]=="0":
+            memory_write(s,dest_node,src_node,address,msg)
+    
 def process_grid_connect(cli,msg):
-    s=cli.sock
     if msg[:2]!=":X":
         print("Error: not an extended frame!!")
         return
     if msg[10]!="N":
         print("Error: not a normal frame!!")
         return
-    data_present = msg[11]!=";"
     first_b = int(msg[2:4],16)
     can_prefix = (first_b & 0x18) >> 3
-    var_field = int(msg[4:7],16)
-    src_id = int(msg[7:10],16)
-    print("data pre=",data_present," first_b=",first_b," can_prefix=",can_prefix," var_field=",var_field," src_id=",src_id)
-    
     if can_prefix % 2==0:
         #Can Control frame
-        data_needed = False
-        #fixme: process these frame properly
+        can_control_frame(cli,msg)
 
-        if first_b & 0x7>=4 and first_b & 0x7<=7:
-            print("CID Frame n°",first_b & 0x7," * ",hex(var_field),end=" * 0x")
-            #full_ID = var_field << 12*((first_b&0x7) -4)
-            if first_b&0x7==7:
-                alias_neg = alias_negotiation(src_id)
-            else:
-                alias_neg = get_alias_neg_from_alias(src_id)
-            alias_neg.next_step(var_field)
-            list_alias_neg.append(alias_neg)
-                
-        elif first_b&0x7==0:
-            if var_field==0x700:
-                print("RID Frame * full ID=")#,hex(full_ID),end=" * ")
-                jmri_identified = True   #FIXME
-                neg = get_alias_neg_from_alias(src_id)
-                reserve_aliasID(src_id)
-                new_node(node(neg.fullID,True,neg.aliasID))
-                
-            elif var_field==0x701:
-                print("AMD Frame",end=" * ")
-                neg = get_alias_neg_from_alias(src_id)
-                new_node(node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
-                reserve_aliasID(src_id)
-                data_needed = True   #we could check the fullID
-                
-            elif var_field==0x702:
-                print("AME Frame",end=" * ")
-                data_nedded=True
-            elif var_field==0x703:
-                print("AMR Frame",end=" * ")
-                data_nedded=True
-            elif var_field>=0x710 and var_field<=0x713:
-                print("Unknown Frame",end=" * ")
-        print(hexp(src_id,3))
-        if data_needed and not data_present:
-            print("Data needed but none is present!")
-            return
     else:
         if (first_b & 0x7)==1:  #global or addressed frame msg
-            
-            if var_field==0x490:  #Verify node ID (global) FIXME
-                for n in managed_nodes:
-                    s.send((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
-                    print("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
-    
-            elif var_field==0x828:#Protocol Support Inquiry
-                dest_node_alias = int(msg[12:15],16)
-                dest_node = find_managed_node(dest_node_alias)
-                
-                if dest_node is not None:
-                    #FIXME: set correct bits
-                    s.send((":X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;").encode("utf-8"))
-                    print("sent--->:X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;")
-                    
-            elif var_field == 0xDE8:#Simple Node Information Request
-                dest_node_alias = int(msg[12:15],16)
-                dest_node = find_managed_node(dest_node_alias)
-                if dest_node is not None:
-                    print("sent SNIR Reply")
-                    #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;").encode("utf-8"))#SNIR header
-                    #print(":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;")
-                    #FIXME:
-                    send_fields(s,dest_node,0xA08,mfg_name_hw_sw_version,src_id)
-
-                    #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N3"+hexp(src_id,3)+"02;").encode("utf-8"))#SNIR header
-                    #print(":X19A08"+hexp(gw_add.aliasID,3)+"AAAN3"+hexp(src_id,3)+"02;")
-                    #send_fields(0xA08,username_desc,src_id,True)
-                    
-            elif var_field == 0x5B4: #PCER (event)
-                ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
-                print("received event:",ev_id)
-                for n in managed_nodes:
-                    n.consume_event(event(ev_id))
-                
+            global_frame(cli,msg)
+                            
         elif (first_b & 0x7)>=2 and (first_b & 0x7)<=5: #Datagram
-            address = int(msg[15:23],16)
-            print("datagram!!")
-            #for now we assume a one frame datagram
-            dest_node_alias = int(msg[4:7],16)
-            dest_node = find_managed_node(dest_node_alias)
-            if dest_node is None:   #not for us
-                print("Frame is not for us!!")
-                #FIXME: we have to transmit it ??
-                return
-            src_node = find_node(src_id)
-
-            if dest_node.current_write is not None:
-                #if there is a write in progress then this datagram is part of it
-                memory_write(s,dest_node,src_node,address,msg)
-            elif msg[11:15]=="2043": #read command for CDI
-                print("read command, address=",int(msg[15:23],16))
-                s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
-                print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
-                send_CDI(s,dest_node,src_id,address)
-            elif msg[11:13]=="20": #read/write command
-                s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
-                print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
-                if msg[13]=="4":
-                    memory_read(s,dest_node,src_node,address,msg)
-                elif msg[13]=="0":
-                    memory_write(s,dest_node,src_node,address,msg)
-
+            process_datagram(cli,msg)
+            
 def process_cmri():
     global cmri_test
     
