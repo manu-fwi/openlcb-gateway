@@ -1,5 +1,6 @@
 import socket,select
 import openlcb_cmri_cfg as cmri
+import serial
 
 class can_segment:
     def __init__(self,name):
@@ -27,20 +28,29 @@ class cmri_bus:
         self.wait_answer = False
         self.recv_msgs = []
         self.last_recv_complete=True
-    def start(self):
-        pass #FIXME: set baude rate and open serial port
+        self.ser_port = serial.Serial()
+        self.ser_port.baudrate=9600
+        self.write_timeout = None
+
+    def start(self,baudrate):
+        self.ser_port.baudrate=baudrate
+        if not self.ser_port.is_open:
+            self.ser_port.open()
 
     def __str__(self):
         return "CMRI bus on port"+self.port
 
     def stop(self):
-        pass #FIXME: release serial port
+        if self.ser_port.is_open:
+            self.ser_port.close()
 
     def send(self,msg):
-        print("CMRI bus: sending",msg) #FIXME
+        self.ser_port.write(msg)
+        print("Written to serial port(",self.port,"):",msg)
 
     def recv(self): #return the msg of None if nothing is ready
-        pass  #FIXME
+        pass
+        
     def pop_next_msg(self):
         if not self.recv_msgs:
             return None
@@ -62,8 +72,6 @@ class cmri_bus:
         """
         Process incoming messages
         """
-        if not self.wait_answer:
-            return
 
         msg = self.recv()
         if msg is not None:
