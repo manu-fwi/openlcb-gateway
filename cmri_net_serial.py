@@ -2,7 +2,58 @@ import openlcb_cmri_cfg as cmri
 import socket,time
 import serial
 
+class serial_bus:
+    def __init__(self,port,baudrate):
+        self.ser_port = serial.Serial()
+        self.ser_port.port = port
+        self.ser_port.bnaudrate = baudrate
+        self.ser_port.timeout=0
+        self.ser_port.write_timeout = 0
+        self.to_send=b""
+        self.to_send_pos=0
+        self.rcv_buffer = b""
+
+    def start(self):
+        if not self.ser_port.is_open:
+            self.ser_port.open()
+    def stop(self):
+        if self.ser_port.is_open:
+            self.ser_port.close()
+
+    def send(self,msg): #msg must be bytes array
+        if len(self.to_send)>0:
+            print("overrun of the sending buffer")
+        self.to_send=msg
+
+    def read(self):
+        if len(self.rcv_buffer)>0:
+            res = self.rcv_buff
+            self.rcv_buffer = b""
+            return res
+
+    def available(self):
+        return len(self.rcv_buffer)
+    
+    def process_IO(self):
+        if self.to_send:  #still sending
+            print("sending msg=",self.to_send[self.to_send_pos:])
+            if self.to_send_pos < len(self.to_send):
+                try:
+                    nb = self.ser_port.write(self.to_send[self.to_send_pos:])
+                    self.to_send_pos += nb
+                except BaseException:
+                    pass
+            else:
+                self.to_send = b""
+                self.to_send_pos = 0
+        else:   #see if we have received something
+            try:
+                self.rcv_buffer += self.ser_port.read()
+            except BaseException:
+                pass
 #connection to the gateway
+ser = serial_bus("/dev/ttyUSB0",19200)
+ser.start()
 gateway_ip = "127.0.0.1"
 gateway_port = 50010
 s =socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -15,22 +66,18 @@ while not connected:
         print("connection error, retrying in 1 sec")
         time.sleep(1)
 print("connected to gateway!")
-
+s.settimeout(0)
 while True:
-    print("Waiting to receive...")
-    buf=s.recv(200) #byte array: the raw cmri message    
-    print("raw message=",buf)
-    msg = cmri.CMRI_message.from_raw_message(buf)
-    print("address=",msg.address)
-    if msg.type_m == cmri.CMRI_message.POLL_M:
-        #ask an answer to the user
-        inputs_state=input("binary state of the inputs?")
-        inputs=int(inputs_state,2)
-        msg.type_m = cmri.CMRI_message.RECEIVE_M
-        msg.message = b"\x01"+bytes((inputs,))
-        s.send(msg.to_raw_message())
-    elif msg.type_m==cmri.CMRI_message.TRANSMIT_M:
-        for b in msg.message:
-            print("output set to ",b,end=" ")
-        print()
-    
+    buf=b""
+    try:
+        buf=s.recv(200) #byte array: the raw cmri message
+    except BlockingIOError:
+        pass
+    if len(buf)>0:
+        print("raw message=",buf)
+        ser.send(buf)
+    ser.process_IO()
+    if ser.available():
+        s.send(ser.read())
+        
+ser.close()

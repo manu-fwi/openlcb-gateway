@@ -29,6 +29,7 @@ class cmri_bus:
         self.recv_msgs = []
         self.last_recv_complete=True
         self.ser_port = serial.Serial()
+        #self.ser_port.port = port
         self.ser_port.baudrate=9600
         self.write_timeout = None
 
