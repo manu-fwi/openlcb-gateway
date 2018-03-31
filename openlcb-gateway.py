@@ -319,7 +319,7 @@ def process_grid_connect(cli,msg):
             
 def process_cmri():
     global cmri_test
-    
+
     for n in managed_nodes:
         n.poll()
     cmri_test.process_answer()
@@ -328,7 +328,7 @@ def process_cmri():
         n = find_node_from_cmri_add(msg.address)
         n.cp_node.process_receive(msg) #only msg type we can get from cmri nodes
         for ev in n.generate_events(): #FIXME: for now we send all events to JMRI basically
-            print("sending ev",ev.id)
+            #print("sending ev",ev.id)
             serv.send_event(n,ev)
         
     

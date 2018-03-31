@@ -27,14 +27,17 @@ class serial_bus:
 
     def read(self):
         if len(self.rcv_buffer)>0:
-            res = self.rcv_buff
+            res = self.rcv_buffer
             self.rcv_buffer = b""
             return res
+        else:
+            return None
 
     def available(self):
         return len(self.rcv_buffer)
     
     def process_IO(self):
+        global count
         if self.to_send:  #still sending
             print("sending msg=",self.to_send[self.to_send_pos:])
             if self.to_send_pos < len(self.to_send):
@@ -48,11 +51,11 @@ class serial_bus:
                 self.to_send_pos = 0
         else:   #see if we have received something
             try:
-                self.rcv_buffer += self.ser_port.read()
+                self.rcv_buffer +=  self.ser_port.read()
             except BaseException:
                 pass
 #connection to the gateway
-ser = serial_bus("/dev/ttyUSB0",19200)
+ser = serial_bus("/dev/ttyUSB0",9600)
 ser.start()
 gateway_ip = "127.0.0.1"
 gateway_port = 50010
@@ -67,6 +70,7 @@ while not connected:
         time.sleep(1)
 print("connected to gateway!")
 s.settimeout(0)
+
 while True:
     buf=b""
     try:
@@ -78,6 +82,8 @@ while True:
         ser.send(buf)
     ser.process_IO()
     if ser.available():
-        s.send(ser.read())
+        m = ser.read()
+        print("back=",m)
+        s.send(m)
         
 ser.close()

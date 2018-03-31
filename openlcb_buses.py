@@ -27,13 +27,13 @@ class cmri_bus:
         self.msg_queue =  []
         self.wait_answer = False
         self.recv_msgs = []
-        self.last_recv_complete=True
         self.ser_port = serial.Serial()
-        #self.ser_port.port = port
         self.ser_port.baudrate=9600
         self.write_timeout = None
+        self.recv_buffer = b""
 
     def start(self,baudrate):
+        self.ser_port.port = self.port
         self.ser_port.baudrate=baudrate
         if not self.ser_port.is_open:
             self.ser_port.open()
@@ -56,15 +56,16 @@ class cmri_bus:
         if not self.recv_msgs:
             return None
         msg = self.recv_msgs.pop(0)
-        self.wait_answer = (len(self.recv_msgs)>0)   #FIXME: crude but should work for cmri as it is one answer per request
-        print("pop next recv msg=",msg.message,len(self.recv_msgs))
-        return msg
+        self.wait_answer = False   #FIXME
+        print("pop next recv msg=",msg,len(self.recv_msgs))
+        return cmri.CMRI_message.from_raw_message(msg)
     
     def queue(self,msg,wait_answer):   #msg: cmri msg to queue to send
         self.msg_queue.append((msg,wait_answer))
-        print("queued",len(self.msg_queue))
+        print("queued=",msg.to_raw_message(),wait_answer,len(self.msg_queue))
         if not self.wait_answer:
             msg,must_wait = self.msg_queue.pop(0)
+            print("unqueued=",msg.message,must_wait,len(self.msg_queue))
             self.send(msg.to_raw_message())
             print("test-cmri-bus sending to client:",msg.to_raw_message())
             self.wait_answer = must_wait
@@ -77,16 +78,16 @@ class cmri_bus:
         msg = self.recv()
         if msg is not None:
             curr_pos = 0
-            while curr_pos<len(msg):
-                ETX_pos = cmri.CMRI_message.find_ETX(msg[curr_pos:])
-
-                if self.last_recv_complete:  #last msg complete, so add new msg (up to ETX)
-                    self.recv_msgs.append(cmri.CMRI_message.from_raw_message(msg[curr_pos:ETX_pos+1]))
-                else:  #last msg incomplete so complete it
-                    self.msgs[len(self.msgs)-1]+=msg[curr_pos:ETX_pos]
-
-                self.last_recv_complete= (ETX_pos < len(msg))
-                curr_pos=ETX_pos+1
+            #print("msg=",msg,len(msg),end=" ")
+            self.recv_buffer+=msg
+            ETX_pos = cmri.CMRI_message.find_ETX(self.recv_buffer)
+            while ETX_pos<len(self.recv_buffer):
+                print(curr_pos,"ETX=",ETX_pos,end="/")
+                self.recv_msgs.append(self.recv_buffer[:ETX_pos+1])
+                print("appended new msg",self.recv_buffer)
+                self.recv_buffer = self.recv_buffer[ETX_pos+1:]  #remove part already used
+                ETX_pos = cmri.CMRI_message.find_ETX(self.recv_buffer)
+            #print("after",self.recv_buffer,self.recv_msgs)
         
         
 class cmri_test_bus(cmri_bus):
@@ -117,6 +118,7 @@ class cmri_test_bus(cmri_bus):
         if self.client in ready_to_read:
             #if ready to read, read msgs and add them to the msgs list (cut them using ETX)
             msg = self.client.recv(200)
+            print("cmri_test_rcv=",msg)
             if len(msg)==0:
                 print("empty msg, deconnection")
                 self.client.close()

@@ -17,10 +17,10 @@ class CMRI_message:
         self.address = address
         self.message = message
 
-    def __str__(self):
-        if self.type_m !=None:
-            return "add="+str(self.address)+" type="+str(CMRI_message.type_char[self.type_m])+" mess="+self.message.decode('utf-8')
-        return "invalid message"
+#    def __str__(self):
+#        if self.type_m !=None:
+#            return "add="+str(self.address)+" type="+str(CMRI_message.type_char[self.type_m])+" mess="+self.message.decode('utf-8')
+#        return "invalid message"
         
     @staticmethod     
     def from_raw_message(raw_msg):
@@ -82,7 +82,7 @@ class CMRI_message:
                     return pos
                 if msg[pos]==CMRI_message.DLE:
                     DLE_char = True
-        return -1
+        return len(msg)
     
     @staticmethod        
     def encode_byte(b):
