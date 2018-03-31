@@ -320,6 +320,7 @@ def process_grid_connect(cli,msg):
 def process_cmri():
     global cmri_test
 
+    cmri_test.process_queue()
     for n in managed_nodes:
         n.poll()
     cmri_test.process_answer()

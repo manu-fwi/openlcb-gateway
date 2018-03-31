@@ -57,18 +57,22 @@ class cmri_bus:
             return None
         msg = self.recv_msgs.pop(0)
         self.wait_answer = False   #FIXME
+        self.process_queue()
         print("pop next recv msg=",msg,len(self.recv_msgs))
         return cmri.CMRI_message.from_raw_message(msg)
-    
-    def queue(self,msg,wait_answer):   #msg: cmri msg to queue to send
-        self.msg_queue.append((msg,wait_answer))
-        print("queued=",msg.to_raw_message(),wait_answer,len(self.msg_queue))
-        if not self.wait_answer:
+
+    def process_queue(self):
+        if not self.wait_answer and self.msg_queue:
             msg,must_wait = self.msg_queue.pop(0)
-            print("unqueued=",msg.message,must_wait,len(self.msg_queue))
+            print("unqueued=",msg.message,must_wait,self.msg_queue)
             self.send(msg.to_raw_message())
             print("test-cmri-bus sending to client:",msg.to_raw_message())
             self.wait_answer = must_wait
+        
+    def queue(self,msg,wait_answer):   #msg: cmri msg to queue to send
+        self.msg_queue.append((msg,wait_answer))
+        print("queued=",msg.to_raw_message(),wait_answer,self.msg_queue)
+        self.process_queue()
         
     def process_answer(self):
         """
