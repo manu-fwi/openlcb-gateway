@@ -118,6 +118,7 @@ def create_datagram_list(src,dest,data):  #data is the payload, no more than 64 
         d = datagram_content(src,dest,datagram_pos)
         d.add_data(data[pos:pos+8])
         pos+=8
+        l.append(d)
     return l
 
 def create_addressed_frame_list(src,dest,MTI,data):  #data is the payload, no more than 64 bytes!
@@ -137,6 +138,7 @@ def create_addressed_frame_list(src,dest,MTI,data):  #data is the payload, no mo
         d = datagram_content(src,dest,frame_pos,MTI)
         d.add_data(data[pos:pos+6])
         pos+=6
+        l.append(d)
     return l
 
 def data_from_dgram_list(dgram_l):

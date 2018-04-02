@@ -22,7 +22,7 @@ def send_long_message(sock,src_node,MTI,text,dest): #text must be a byte array
     last=False
     first=True
     while not last:
-        msg = ":X19A08"+hexp(src_node.aliasID,3)+"N"
+        msg = ":X19"+hexp(MTI,3)+hexp(src_node.aliasID,3)+"N"
         if pos+6>len(text):
             last=True
             if not first:
@@ -36,7 +36,6 @@ def send_long_message(sock,src_node,MTI,text,dest): #text must be a byte array
                 msg+="1"  #first frame
             first = False
         msg+=hexp(dest,3)
-        #print("pos=",pos,"len=",len(text),"txt=",text[pos:min(pos+6,len(text))])
         for c in text[pos:min(pos+6,len(text))]:
             msg+=hexp(c,2)
         if last:
@@ -47,7 +46,11 @@ def send_long_message(sock,src_node,MTI,text,dest): #text must be a byte array
         pos+=6
 
 def send_datagram_multi(s,src_id,dest_id,reply,buf,first_payload):
-    #exaclty send the byte buffer buf: must be null terminated if it is a string
+    """
+    Exaclty send the byte buffer buf
+    reply is an optional code to add as the first data bytes of the first/only datagram
+    first_payload is the nb of data bytes available for the first datagram
+    """
 
     msg = ":X1"
     if len(buf)<=first_payload:
@@ -117,13 +120,11 @@ def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
     if msg[13:15]=="40":
         mem_sp = int(msg[23:25],16)
         size = int(msg[25:27],16)
-        m = hexp(mem_sp,2)
-        first_payload=1
+        mem_sp_separated = True
     else:
         mem_sp = 0xFC+int(msg[14])
         size=int(msg[23:25],16)
-        m = ""
-        first_payload=2
+        mem_sp_separated = False
     print("memory read at",mem_sp,"offset",add,"size",size)
     if mem_sp not in src.memory:
         print("memory unknown!!")
@@ -133,17 +134,18 @@ def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
     if mem is None:
         print("memory error")
     else:
-        to_send= bytearray("205"+msg[14]+hexp(add,8)+m,'utf-8')
-        to_send.extend(mem[:size])
-        print("to_send=",to_send," raccourci=",to_send[12+len(m):12+len(m)+size])
-        dgrams = create_datagram_list(src,dest,to_send)
-        print("mem read datagrams:",end="")
-        #for d in dgrams:
-        #    print(d.to_gridconnect())
+        to_send2= bytearray((0x20,int("5"+msg[14],16)))
+        to_send2.extend(add.to_bytes(4,'big'))
+        if mem_sp_separated:
+            to_send2.extend((mem_sp,))
+        to_send2.extend(mem[:size])
+        print("to_send=",to_send)
+        print("to_send2=",to_send2)
+        dgrams = create_datagram_list(src,dest,to_send2)
+        for d in dgrams:
+            s.send(d.to_gridconnect())
+            print("sending",d.data,"=",d.to_gridconnect())
             
-        send_datagram_multi(s,src.aliasID,dest.aliasID,("205"+msg[14]+hexp(add,8)+m),
-                            to_send[12+len(m):12+len(m)+size],first_payload)
-
 def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
 
     print("memory write")
@@ -306,7 +308,7 @@ def process_grid_connect(cli,msg):
         return
     first_b = int(msg[2:4],16)
     can_prefix = (first_b & 0x18) >> 3
-    if can_prefix % 2==0:
+    if can_prefix & 0x1==0:
         #Can Control frame
         can_control_frame(cli,msg)
 
