@@ -182,7 +182,7 @@ class CPNode (CMRI_node):
         message=msg.message
         index = 1
         n = 0
-        while n < self.nb_I and index <2:
+        while n < self.nb_I and index <=2:
             print("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
             self.inputs[n][1] = self.inputs[n][0]  #current value becomes last value
             self.inputs[n][0] = (message[index] >> (n%8))&0x01
@@ -192,7 +192,7 @@ class CPNode (CMRI_node):
         index = 3
         n=0
         while n<self.nb_IOX_inputs() and index < len(message):
-            #print("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
+            print("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
             self.inputs_IOX[n][1] = self.inputs_IOX[n][0]  #current value becomes last value
             self.inputs_IOX[n][0] = (message[index] >> (n%8))&0x01
             n+=1
@@ -246,11 +246,9 @@ class CPNode (CMRI_node):
 
     @staticmethod
     def pack_bits(bits_list): #will pack a list of bit values as a list of bytes, MSB is first bit and so on
-        res = bytearray(b"")
+        res = bytearray(b"\0\0")
         j = 0
         for i in bits_list:
-            if j%8 == 0:
-                res += b"\0"
             print("aavant j=",j,"i=",i,"res=",res)            
             res[j//8] = (res[j//8] << 1) | i
             print("apres j=",j,"i=",i,"res=",res)

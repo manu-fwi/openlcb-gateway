@@ -55,9 +55,9 @@ class serial_bus:
             except BaseException:
                 pass
 #connection to the gateway
-ser = serial_bus("/dev/ttyUSB0",9600)
+ser = serial_bus("/dev/ttyUSB1",9600)
 ser.start()
-time.sleep(1)
+time.sleep(1) #time for arduino serial port to settle down
 gateway_ip = "127.0.0.1"
 gateway_port = 50010
 s =socket.socket(socket.AF_INET,socket.SOCK_STREAM)

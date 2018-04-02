@@ -406,8 +406,8 @@ for i in range(16):
 cp_node.memory[251].dump()
 cp_node.memory[253].dump()
 
-managed_nodes.append(cp_node)
-new_node(cp_node)
+#managed_nodes.append(cp_node)
+#new_node(cp_node)
 mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
 
 list_alias_neg=[]  #list of ongoing alias negotiations
