@@ -44,77 +44,16 @@ def send_long_message(sock,src_node,MTI,text,dest): #text must be a byte array
         print("sent SNRI-->",msg)
         sock.send(msg.encode('utf-8'))
         pos+=6
-
-def send_datagram_multi(s,src_id,dest_id,reply,buf,first_payload):
-    """
-    Exaclty send the byte buffer buf
-    reply is an optional code to add as the first data bytes of the first/only datagram
-    first_payload is the nb of data bytes available for the first datagram
-    """
-
-    msg = ":X1"
-    if len(buf)<=first_payload:
-        msg+="A"
-    else:
-        msg+="B"
-    msg+=hexp(dest_id,3)+hexp(src_id,3)+"N"+reply
-    msg+=convert_to_hex_b(buf[:first_payload])+";"
-    print("datagram sent >>",msg," = ",buf[:first_payload])
-    s.send(msg.encode('utf-8'))
-    #Now the rest of the data
-
-    pos = first_payload
-    while pos<len(buf) and pos<64:
-        if pos+8<len(buf) and pos+8<64: #more than enough remaining
-            msg=":X1C"
-            end=pos+8
-        else:
-            msg=":X1D"  #last frame
-            end = min(64,len(buf))
-                
-        msg+=hexp(dest_id,3)+hexp(src_id,3)+"N"
-        msg+=convert_to_hex_b(buf[pos:end])+";"
-        msg2=buf[pos:end]
-        pos+=8
-        s.send(msg.encode('utf-8'))
-        print("datagram sent >>",msg," = ",msg2)
-        
-def send_CDI(s,src_node,dest_id,address):
-    acdi_xml = src_node.get_CDI()
-    msg = ":X1"
-    end = min(address+2,len(acdi_xml))
-    acdi_xml = src_node.get_CDI()
-    if len(acdi_xml)>end:   #check if one frame is enough
-        msg+="B"
-    else:
-        msg+="A"
-    msg+=hexp(dest_id,3)+hexp(src_node.aliasID,3)+"N2053"
-    msg+=hexp(address,8)
-   
-    msg+=convert_to_hex(acdi_xml[address:end])+";"
-    print("datagram sent >>",msg," = ",acdi_xml[address:address+2])
-    s.send(msg.encode('utf-8'))
-    if len(acdi_xml)<=end:  #we are done already
-        return
-    #Now the rest of the data
-    pos = 2
-    while address+pos<len(acdi_xml) and pos<64:
-        if address+pos+8<len(acdi_xml) and pos+8<64: #more than enough remaining
-            msg=":X1C"
-            end=address+pos+8
-        else:
-            msg=":X1D"  #last frame
-            end = min(address+64,len(acdi_xml))
-                
-        msg+=hexp(dest_id,3)+hexp(src_node.aliasID,3)+"N"
-        msg+=convert_to_hex(acdi_xml[address+pos:end])+";"
-        msg2=acdi_xml[address+pos:end]
-        pos+=8
-        s.send(msg.encode('utf-8'))
-        print("datagram sent >>",msg," = ",msg2)
+    
+def send_CDI(s,src_node,dest_node,address,size):
+    data = bytearray((0x20,0x53))
+    data.extend(address.to_bytes(4,'big'))
+    data.extend(bytearray(src_node.get_CDI()[address:address+size],'utf-8'))
+    dgrams=create_datagram_list(src_node,dest_node,data)
+    for d in dgrams:
+        s.send(d.to_gridconnect())
 
 def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
-    global memory
     to_send=bytearray()
 
     if msg[13:15]=="40":
@@ -290,7 +229,7 @@ def process_datagram(cli,msg):
         print("read command, address=",int(msg[15:23],16))
         s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
         print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
-        send_CDI(s,dest_node,src_id,address)
+        send_CDI(s,dest_node,src_node,address,int(msg[23:25],16))
     elif msg[11:13]=="20": #read/write command
         s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
         print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))

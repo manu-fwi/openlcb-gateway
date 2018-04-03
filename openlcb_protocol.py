@@ -126,10 +126,9 @@ def create_addressed_frame_list(src,dest,MTI,data):  #data is the payload, no mo
         l = [addressed_frame(src,dest,0,MTI)]
         l[0].add_data(data)
         return l
-    pos = 0
     l=[addressed_frame(src,dest,1,MTI)]
     l[0].add_data(data[:6])
-    pos = 8
+    pos = 6
     while pos < len(data):
         if pos+6 < len(data):
             frame_pos = 2
