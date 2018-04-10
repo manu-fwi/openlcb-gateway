@@ -121,7 +121,7 @@ def create_datagram_list(src,dest,data):  #data is the payload, no more than 64 
         l.append(d)
     return l
 
-def create_addressed_frame_list(src,dest,MTI,data):  #data is the payload, no more than 64 bytes!
+def create_addressed_frame_list(src,dest,MTI,data,pad_last=False):  #data is the payload, no more than 64 bytes!
     if len(data)<=6:
         l = [addressed_frame(src,dest,0,MTI)]
         l[0].add_data(data)
@@ -134,8 +134,11 @@ def create_addressed_frame_list(src,dest,MTI,data):  #data is the payload, no mo
             frame_pos = 2
         else:
             frame_pos = 3
-        d = datagram_content(src,dest,frame_pos,MTI)
-        d.add_data(data[pos:pos+6])
+        d = addressed_frame(src,dest,frame_pos,MTI)
+        if frame_pos==3 and pos+6>len(data) and pad_last:
+            d.add_data(data[pos:len(data)]+bytearray([0]*(pos+6-len(data))))
+        else:
+            d.add_data(data[pos:pos+6])
         pos+=6
         l.append(d)
     return l

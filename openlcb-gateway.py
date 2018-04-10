@@ -14,8 +14,12 @@ def get_alias_neg_from_alias(alias):
             break
     return found
 
-def send_fields(sock,src_node,MTI,fields,dest):
-    send_long_message(sock,src_node,MTI,("\0".join(fields)).encode('utf-8'),dest)
+def send_fields(sock,src_node,MTI,fields,dest_node):
+    #send_long_message(sock,src_node,MTI,("\0".join(fields)).encode('utf-8'),dest_node.aliasID)
+    frames = create_addressed_frame_list(src_node,dest_node,MTI,("\0".join(fields)).encode('utf-8'),True)
+    for f in frames:
+        sock.send(f.to_gridconnect())
+        print("--->",f.to_gridconnect().decode('utf-8'))
 
 def send_long_message(sock,src_node,MTI,text,dest): #text must be a byte array
     pos = 0
@@ -196,7 +200,8 @@ def global_frame(cli,msg):
             #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;").encode("utf-8"))#SNIR header
             #print(":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;")
             #FIXME:
-            send_fields(s,dest_node,0xA08,mfg_name_hw_sw_version,src_id)
+            src_node = find_node(src_id)
+            send_fields(s,dest_node,0xA08,mfg_name_hw_sw_version,src_node)
 
             #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N3"+hexp(src_id,3)+"02;").encode("utf-8"))#SNIR header
             #print(":X19A08"+hexp(gw_add.aliasID,3)+"AAAN3"+hexp(src_id,3)+"02;")
