@@ -49,6 +49,10 @@ class frame:
         return res.encode('utf-8')
     
 class addressed_frame(frame):
+    ONE = 0
+    FIRST = 1
+    MIDDLE = 3
+    LAST = 2
     def __init__(self,src,dest,pos,MTI):
         super().__init__(src,dest,0x19)
         self.pos = pos   # pos = 0: one datagram alone, 1=first of several, 2=middle,3=last
@@ -123,22 +127,23 @@ def create_datagram_list(src,dest,data):  #data is the payload, no more than 64 
 
 def create_addressed_frame_list(src,dest,MTI,data,pad_last=False):  #data is the payload, no more than 64 bytes!
     if len(data)<=6:
-        l = [addressed_frame(src,dest,0,MTI)]
+        l = [addressed_frame(src,dest,addressed_frame.ONE,MTI)]
         l[0].add_data(data)
         return l
-    l=[addressed_frame(src,dest,1,MTI)]
+    l=[addressed_frame(src,dest,addressed_frame.FIRST,MTI)]
     l[0].add_data(data[:6])
     pos = 6
     while pos < len(data):
         if pos+6 < len(data):
-            frame_pos = 2
+            frame_pos = addressed_frame.MIDDLE
         else:
-            frame_pos = 3
+            frame_pos = addressed_frame.LAST
         d = addressed_frame(src,dest,frame_pos,MTI)
         if frame_pos==3 and pos+6>len(data) and pad_last:
             d.add_data(data[pos:len(data)]+bytearray([0]*(pos+6-len(data))))
         else:
             d.add_data(data[pos:pos+6])
+        print("data=",d.data)
         pos+=6
         l.append(d)
     return l

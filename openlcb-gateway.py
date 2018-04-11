@@ -15,40 +15,11 @@ def get_alias_neg_from_alias(alias):
     return found
 
 def send_fields(sock,src_node,MTI,fields,dest_node):
-    #send_long_message(sock,src_node,MTI,("\0".join(fields)).encode('utf-8'),dest_node.aliasID)
     frames = create_addressed_frame_list(src_node,dest_node,MTI,("\0".join(fields)).encode('utf-8'),True)
     for f in frames:
         sock.send(f.to_gridconnect())
         print("--->",f.to_gridconnect().decode('utf-8'))
 
-def send_long_message(sock,src_node,MTI,text,dest): #text must be a byte array
-    pos = 0
-    last=False
-    first=True
-    while not last:
-        msg = ":X19"+hexp(MTI,3)+hexp(src_node.aliasID,3)+"N"
-        if pos+6>len(text):
-            last=True
-            if not first:
-                msg+="2"  #last frame
-            else:
-                msg+="0"  #only one frame
-        else:
-            if not first:
-                msg+="3"  #middle frame
-            else:
-                msg+="1"  #first frame
-            first = False
-        msg+=hexp(dest,3)
-        for c in text[pos:min(pos+6,len(text))]:
-            msg+=hexp(c,2)
-        if last:
-            msg+=hexp(0,2*(pos+6-len(text))) #pad with zero bytes
-        msg+=";"
-        print("sent SNRI-->",msg)
-        sock.send(msg.encode('utf-8'))
-        pos+=6
-    
 def send_CDI(s,src_node,dest_node,address,size):
     data = bytearray((0x20,0x53))
     data.extend(address.to_bytes(4,'big'))
