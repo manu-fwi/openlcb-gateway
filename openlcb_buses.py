@@ -94,7 +94,7 @@ class cmri_bus:
             #print("after",self.recv_buffer,self.recv_msgs)
         
         
-class cmri_test_bus(cmri_bus):
+class cmri_net_bus(cmri_bus):
     def __init__(self,ip,port):
         super().__init__(port)
         self.ip = ip
@@ -108,7 +108,7 @@ class cmri_test_bus(cmri_bus):
         print("client (",addr,") connected to cmri_test_bus")
 
     def __str__(self):
-        return "test-cmri-bus ("+str(self.ip)+","+str(self.port)+")"
+        return "cmri_net_bus ("+str(self.ip)+","+str(self.port)+")"
     
     def stop(self):
         if self.server is not None:
@@ -122,7 +122,7 @@ class cmri_test_bus(cmri_bus):
         if self.client in ready_to_read:
             #if ready to read, read msgs and add them to the msgs list (cut them using ETX)
             msg = self.client.recv(200)
-            print("cmri_test_rcv=",msg)
+            print("cmri_net_bus rcv=",msg)
             if len(msg)==0:
                 print("empty msg, deconnection")
                 self.client.close()

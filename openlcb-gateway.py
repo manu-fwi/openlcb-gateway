@@ -252,7 +252,7 @@ def process_cmri():
     
 #globals: fixme
 #cmri test server
-cmri_test = buses.cmri_test_bus("127.0.0.1",50010)
+cmri_test = buses.cmri_net_bus("127.0.0.1",50010)
 print("gateway-test-cmri listening on 127.0.0.1 at port ",50010,"waiting until connected to test prog")
 cmri_test.start()
 print("connected to cmri test!")
