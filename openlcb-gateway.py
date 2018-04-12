@@ -126,7 +126,7 @@ def can_control_frame(cli,msg):
         elif var_field==0x701:
             print("AMD Frame",end=" * ")
             neg = get_alias_neg_from_alias(src_id)
-            new_node(node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
+            new_node(Node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
             reserve_aliasID(src_id)
             data_needed = True   #we could check the fullID
 
@@ -182,7 +182,7 @@ def global_frame(cli,msg):
         ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
         print("received event:",ev_id)
         for n in managed_nodes:
-            n.consume_event(event(ev_id))
+            n.consume_event(Event(ev_id))
 
 def process_datagram(cli,msg):
     src_id = int(msg[7:10],16)
@@ -252,15 +252,15 @@ def process_cmri():
     
 #globals: fixme
 #cmri test server
-cmri_test = buses.cmri_net_bus("127.0.0.1",50010)
+cmri_test = buses.Cmri_net_bus("127.0.0.1",50010)
 print("gateway-test-cmri listening on 127.0.0.1 at port ",50010,"waiting until connected to test prog")
 cmri_test.start()
 print("connected to cmri test!")
 
-cp_node=node_CPNode(1,0x020112AAAAAA,cmri_test)
+cp_node=Node_cpnode(1,0x020112AAAAAA,cmri_test)
 cp_node.aliasID = 0xAAA    #FIXME negotiation not done yet
 #create mem segment for each channel
-channels_mem=mem_space([(0,1)])  #first: version
+channels_mem=Mem_space([(0,1)])  #first: version
 channels_mem.set_mem(0,b"\1")
 info_sizes = [1,8,8]         #one field for I or O and 4 events (2 for I and 2 for O)
 offset = 1
@@ -269,7 +269,7 @@ for i in range(16):   #loop over 16 channels
         channels_mem.create_mem(offset,j)
         offset+=j
                              
-cp_node.memory = {251:mem_space([(0,1),(1,63),(64,64)]),
+cp_node.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
           253:channels_mem}
 offset = 1
 for i in range(16):
@@ -290,12 +290,11 @@ cp_node.memory[253].dump()
 
 managed_nodes.append(cp_node)
 new_node(cp_node)
-for i in range(16):
-    print("ev ",i,"=",cp_node.ev_list[i])
-cp_node=node_CPNode(2,0x020112AAABBB,cmri_test)
+
+cp_node=Node_cpnode(2,0x020112AAABBB,cmri_test)
 cp_node.aliasID = 0xBBB    #FIXME negotiation not done yet
 #create mem segment for each channel
-channels_mem=mem_space([(0,1)])  #first: version
+channels_mem=Mem_space([(0,1)])  #first: version
 channels_mem.set_mem(0,b"\1")
 info_sizes = [1,8,8]         #one field for I or O and 4 events (2 for I and 2 for O)
 offset = 1
@@ -304,7 +303,7 @@ for i in range(16):   #loop over 16 channels
         channels_mem.create_mem(offset,j)
         offset+=j
                              
-cp_node.memory = {251:mem_space([(0,1),(1,63),(64,64)]),
+cp_node.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
           253:channels_mem}
 cp_node.memory[251].set_mem(0,b"\2")
 cp_node.memory[251].set_mem(1,b"gw2"+(b"\0")*(63-3))
@@ -333,7 +332,7 @@ reserved_aliases = {}  #dict alias--> fullID of reserved aliases
 #for now: 1 can segment with all cmri nodes on it
 cmri_nodes = cmri.load_cmri_cfg("cmri_cfg_test.txt")
 
-serv = openlcb_server.server("127.0.0.1",50000)
+serv = openlcb_server.Openlcb_server("127.0.0.1",50000)
 serv.start()
 
 # queue up to 5 requests

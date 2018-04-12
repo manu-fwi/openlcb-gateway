@@ -12,7 +12,7 @@ This function is called when the memory cell is written to with the following pa
 write_callback(offset,buf)
 where offset is the beginnon of the cell and buf is the buf which has just been written
 """
-class mem_space:
+class Mem_space:
     def __init__(self,list=None):
         self.mem = {}
         self.mem_chunks={}
@@ -88,7 +88,7 @@ You must implement get_cdi() so that the gateway can retrieve the CDI describing
 You also most probably want to extend set_mem and maybe read_mem to sync the node's memory with the
 real node's mem
 """
-class node:
+class Node:
     def __init__(self,ID,permitted=False,aliasID=None):
         self.ID = ID
         self.aliasID = aliasID
@@ -127,7 +127,7 @@ class node:
     def build_simple_info_dgram(self): # return datagrams holding the simple info
         print("build_simple_info not implemented!") #fixme
     
-class node_CPNode(node):
+class Node_cpnode(Node):
     CDI="""<?xml version="1.0"?>
 <cdi xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
@@ -191,12 +191,12 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     
     def __init__(self,CMRI_add,ID,bus=None):
         super().__init__(ID)
-        print(node_CPNode.CDI)
-        self.cp_node=cmri.CPNode(CMRI_add,bus,8)  #"real" node
+        print(Node_cpnode.CDI)
+        self.cp_node=cmri.Cpnode(CMRI_add,bus,8)  #"real" node
         self.ev_list=[None]*16  #event list
 
     def get_CDI(self):
-        return node_CPNode.CDI
+        return Node_cpnode.CDI
 
     def set_bus(self,bus):
         if self.cp_node.bus is not None:

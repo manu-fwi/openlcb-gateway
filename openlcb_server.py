@@ -1,19 +1,25 @@
 import socket,select
 from openlcb_protocol import *
+import openlcb_server
 
-class client:
-    def __init__(self,sock,add):
+class Client:
+    """
+    Basic client class: receives the msg from the server and "cut" them using the provided msg_separator
+    """
+    def __init__(self,sock,add,msg_separator):
         self.sock = sock
         self.address = add
-        self.msgs = "" 
+        self.msgs = ""
+        self.msg_separator = msg_separator
+        
     def new_msg(self,msg):
         print("add ",msg," to client at ",self.address)
         self.msgs += msg
 
     #return the next msg (with the separator)
     #and erase it from the buffer
-    def next_msg(self,separator):
-        msg,sep,end = self.msgs.partition(separator)
+    def next_msg(self):
+        msg,sep,end = self.msgs.partition(self.msg_separator)
         #print(msg, "/",sep,"/",end)
         if not sep:
             #print("sep!!")
@@ -22,13 +28,36 @@ class client:
         self.msgs = end
         return msg+sep
 
+class Client_bus(Client):
+    """
+    Same as Client plus the fact that the first 20 characters must be a "bus" descriptor (padded with # if necessary)
+    "CMRI_NET_BUS#######"
+    """
+    BUS_NAME_LEN = 20
+    BUS_NAME_PAD='#'
+
+    def __init__(self,sock,add):
+        super().__init__(sock,add,None) #initialize separator to None
+
+    def next_msg(self):   #redefine to take the bus name
+        if self.msg_separator is not None:
+            return super().next_msg()
+        if len(self.msgs)>=Client_bus.BUS_NAME_LEN:
+            openlcb_buses.Bus_manager.create(self.msgs[:Client_bus.BUS_NAME_LEN])
+            self.msgs = self.msgs[Client_bus.BUS_NAME_LEN:]
+        return ""
+        
 def get_client_from_socket(clients,sock):
     for c in clients:
         if c.sock == sock:
             return c
     return None
         
-class server:
+class Openlcb_server:
+    """
+    This class gives all the tools to handle openlcb connections to the gateway
+    """
+
     def __init__(self, address, port):
         self.address = address
         self.port = port
@@ -56,7 +85,8 @@ class server:
         clientsocket,addr = self.serversocket.accept()
         address = (str(addr).split("'"))[1]
         print("Got a connection from", address)
-        self.clients.append(client(clientsocket,address))
+        self.clients.append(client(clientsocket,address,";"))
+        
     def deconnect_client(self,c):
         """
         deconnects the client
@@ -106,3 +136,5 @@ class server:
         for c in self.clients:   #FIXME
             c.sock.send(frame.build_PCER(n,ev).to_gridconnect())
             print("event sent by server = ",frame.build_PCER(n,ev).to_gridconnect())
+
+ 

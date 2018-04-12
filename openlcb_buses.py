@@ -2,7 +2,7 @@ import socket,select
 import openlcb_cmri_cfg as cmri
 import serial
 
-class can_segment:
+class Can_segment:
     def __init__(self,name):
         self.name = name
         self.nodes = []
@@ -21,7 +21,7 @@ class can_segment:
         #fixme to do!
         print("sending can frame",can_frame)
 
-class cmri_bus:
+class Cmri_bus:
     def __init__(self,port):
         self.port = port
         self.msg_queue =  []
@@ -94,7 +94,7 @@ class cmri_bus:
             #print("after",self.recv_buffer,self.recv_msgs)
         
         
-class cmri_net_bus(cmri_bus):
+class Cmri_net_bus(Cmri_bus):
     def __init__(self,ip,port):
         super().__init__(port)
         self.ip = ip
@@ -130,3 +130,5 @@ class cmri_net_bus(cmri_bus):
             else:
                 return msg
         
+class Bus_manager:
+    pass

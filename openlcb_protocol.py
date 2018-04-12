@@ -20,18 +20,18 @@ FCP    = 0x000040 # Function Configuration
 FUP    = 0x000020 # Firmware Upgrade Protocol
 FUAP   = 0x000010 # Firmware Upgrade Active
 
-class frame:
+class Frame:
     @staticmethod
     def build_verified_nID(src_node,simple_proto):
         if simple_proto:
-            res = frame(src_node,None,0x19171)
+            res = Frame(src_node,None,0x19171)
         else:
-            res = frame(src_node,None,0x19170)
+            res = Frame(src_node,None,0x19170)
         res.data=src_node.ID.to_bytes(6,byteorder='big')
         return res
     @staticmethod
     def build_PCER(src_node,ev):
-        res = frame(src_node,None,0x195B4)
+        res = Frame(src_node,None,0x195B4)
         res.data = ev.id
         return res
                     
@@ -48,7 +48,7 @@ class frame:
         res+=convert_to_hex_b(self.data)+";"
         return res.encode('utf-8')
     
-class addressed_frame(frame):
+class Addressed_frame(Frame):
     ONE = 0
     FIRST = 1
     MIDDLE = 3
@@ -65,7 +65,7 @@ class addressed_frame(frame):
         res+=convert_to_hex_b(self.data)+";"
         return res.encode('utf-8')
     
-class datagram_content(frame):
+class Datagram_content(Frame):
     ONE = 0
     FIRST = 1
     MIDDLE =2
@@ -80,7 +80,7 @@ class datagram_content(frame):
         return res.encode('utf-8')
         
 
-class datagram_rcv(frame):
+class Datagram_rcv(Frame):
     def __init__(self,src_node,dest_node,OK,reply_pending = False):
         super().__init__(src_node,dest_node,None)
         self.OK = OK
@@ -107,19 +107,19 @@ class datagram_rcv(frame):
         
 def create_datagram_list(src,dest,data):  #data is the payload, no more than 64 bytes!
     if len(data)<=8:
-        l = [datagram_content(src,dest,datagram_content.ONE)]
+        l = [Datagram_content(src,dest,Datagram_content.ONE)]
         l[0].add_data(data)
         return l
     pos = 0
-    l=[datagram_content(src,dest,datagram_content.FIRST)]
+    l=[Datagram_content(src,dest,Datagram_content.FIRST)]
     l[0].add_data(data[:8])
     pos = 8
     while pos < len(data):
         if pos+8 < len(data):
-            datagram_pos = datagram_content.MIDDLE
+            datagram_pos = Datagram_content.MIDDLE
         else:
-            datagram_pos = datagram_content.LAST
-        d = datagram_content(src,dest,datagram_pos)
+            datagram_pos = Datagram_content.LAST
+        d = Datagram_content(src,dest,datagram_pos)
         d.add_data(data[pos:pos+8])
         pos+=8
         l.append(d)
@@ -127,18 +127,18 @@ def create_datagram_list(src,dest,data):  #data is the payload, no more than 64 
 
 def create_addressed_frame_list(src,dest,MTI,data,pad_last=False):  #data is the payload, no more than 64 bytes!
     if len(data)<=6:
-        l = [addressed_frame(src,dest,addressed_frame.ONE,MTI)]
+        l = [Addressed_frame(src,dest,Addressed_frame.ONE,MTI)]
         l[0].add_data(data)
         return l
-    l=[addressed_frame(src,dest,addressed_frame.FIRST,MTI)]
+    l=[Addressed_frame(src,dest,Addressed_frame.FIRST,MTI)]
     l[0].add_data(data[:6])
     pos = 6
     while pos < len(data):
         if pos+6 < len(data):
-            frame_pos = addressed_frame.MIDDLE
+            frame_pos = Addressed_frame.MIDDLE
         else:
-            frame_pos = addressed_frame.LAST
-        d = addressed_frame(src,dest,frame_pos,MTI)
+            frame_pos = Addressed_frame.LAST
+        d = Addressed_frame(src,dest,frame_pos,MTI)
         if frame_pos==3 and pos+6>len(data) and pad_last:
             d.add_data(data[pos:len(data)]+bytearray([0]*(pos+6-len(data))))
         else:
@@ -154,14 +154,14 @@ def data_from_dgram_list(dgram_l):
         l += d.data
     return l
 
-class event:
+class Event:
     def __init__(self,id):  #id is a 8 bytes array
         self.id = id
 
     def automatically_routed(self):
         return self.id[0]==0 and self.id[1]==0
 
-class alias_negotiation:
+class Alias_negotiation:
     def __init__(self,alias):
         self.aliasID = alias
         self.fullID=0
