@@ -31,20 +31,21 @@ class Client:
 class Client_bus(Client):
     """
     Same as Client plus the fact that the first 20 characters must be a "bus" descriptor (padded with # if necessary)
-    "CMRI_NET_BUS#######"
+    for example:"CMRI_NET_BUS#######"
     """
     BUS_NAME_LEN = 20
     BUS_NAME_PAD='#'
 
     def __init__(self,sock,add):
         super().__init__(sock,add,None) #initialize separator to None
+        self.bus = None
 
     def next_msg(self):   #redefine to take the bus name
         if self.msg_separator is not None:
             return super().next_msg()
         if len(self.msgs)>=Client_bus.BUS_NAME_LEN:
-            openlcb_buses.Bus_manager.create(self.msgs[:Client_bus.BUS_NAME_LEN])
-            self.msgs = self.msgs[Client_bus.BUS_NAME_LEN:]
+            self.bus=openlcb_buses.Bus_manager.create(self)  #create a bus corresponding to the received bus name
+            #the bus object is responsible for deleting the bus name from the client msgs field
         return ""
         
 def get_client_from_socket(clients,sock):
@@ -137,4 +138,21 @@ class Openlcb_server:
             c.sock.send(frame.build_PCER(n,ev).to_gridconnect())
             print("event sent by server = ",frame.build_PCER(n,ev).to_gridconnect())
 
- 
+
+class Buses_server(Openlcb_server):
+    """
+    buses server are registering the buses when a connection is made and the bus name is sent
+    """
+    def __init__(self,ip,port):
+        super().__init__(ip,port)
+        self.buses=[]
+    
+    def add_new_client(self):
+        """
+        A new client is connecting to the server
+        """
+
+        clientsocket,addr = self.serversocket.accept()
+        address = (str(addr).split("'"))[1]
+        print("Got a connection from", address)
+        self.clients.append(client_bus(clientsocket,address))

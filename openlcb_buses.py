@@ -23,7 +23,7 @@ class Can_segment:
 
 class Cmri_bus:
     def __init__(self,port):
-        self.port = port
+        self.port = port            #port is the way to connect to the bus (here port is the serial port path)
         self.msg_queue =  []
         self.wait_answer = False
         self.recv_msgs = []
@@ -95,10 +95,9 @@ class Cmri_bus:
         
         
 class Cmri_net_bus(Cmri_bus):
-    def __init__(self,ip,port):
-        super().__init__(port)
-        self.ip = ip
-        self.server = None
+    def __init__(self,client):
+        super().__init__(client)   #port is set to client as this is the way to connect to the bus
+        
 
     def start(self):  #careful this is blocking until a test program connects to it
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -131,4 +130,16 @@ class Cmri_net_bus(Cmri_bus):
                 return msg
         
 class Bus_manager:
-    pass
+    #buses names as received online
+    
+    cmri_net_bus_name = "CMRI_NET_BUS"
+    
+    @staticmethod
+    def create_bus(client):
+        """
+        create a bus based on the name provided in the msgs field of the client
+        """
+        if client.msgs[:openlcb_server.Client_bus.BUS_NAME_LEN].startswith(Bus_manager.cmri_net_bus):
+            #create a cmri_net bus
+            bus = Cmri_net_bus(client)
+            
