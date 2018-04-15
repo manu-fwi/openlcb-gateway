@@ -1,6 +1,7 @@
 import socket,select
 from openlcb_protocol import *
 import openlcb_server
+import openlcb_buses
 
 class Client:
     """
@@ -11,7 +12,10 @@ class Client:
         self.address = add
         self.msgs = ""
         self.msg_separator = msg_separator
-        
+
+    def receive(self):
+        return self.sock.recv(200).decode('utf-8')
+    
     def new_msg(self,msg):
         print("add ",msg," to client at ",self.address)
         self.msgs += msg
@@ -28,25 +32,30 @@ class Client:
         self.msgs = end
         return msg+sep
 
+    def queue(self,cmd):
+        self.sock.send(cmd)
+
 class Client_bus(Client):
     """
-    Same as Client plus the fact that the first 20 characters must be a "bus" descriptor (padded with # if necessary)
-    for example:"CMRI_NET_BUS#######"
+    Same as Client plus the fact that the first 20 characters must be a "bus" descriptor
     """
     BUS_NAME_LEN = 20
-    BUS_NAME_PAD='#'
 
     def __init__(self,sock,add):
-        super().__init__(sock,add,None) #initialize separator to None
+        super().__init__(sock,add,openlcb_buses.Bus_manager.cmri_net_bus_separator) #initialize separator to None
         self.bus = None
 
-    def next_msg(self):   #redefine to take the bus name
-        if self.msg_separator is not None:
-            return super().next_msg()
-        if len(self.msgs)>=Client_bus.BUS_NAME_LEN:
-            self.bus=openlcb_buses.Bus_manager.create(self)  #create a bus corresponding to the received bus name
-            #the bus object is responsible for deleting the bus name from the client msgs field
-        return ""
+    def check_bus_name(self):
+        """
+        check if the client has sent the bus name to connect it to the correct bus object
+        returns True if client has been connected to a bus, False otherwise
+        """
+        msg = self.next_msg()
+        if msg:
+            return openlcb_buses.Bus_manager.create_bus(self,msg)  #create a bus corresponding to the received bus name
+
+    def queue(self,cmri_msg):
+        self.sock.send(cmri_msg.to_wire_message().encode('utf-8'))
         
 def get_client_from_socket(clients,sock):
     for c in clients:
@@ -146,6 +155,7 @@ class Buses_server(Openlcb_server):
     def __init__(self,ip,port):
         super().__init__(ip,port)
         self.buses=[]
+        self.unconnected_clients = []
     
     def add_new_client(self):
         """
@@ -155,4 +165,6 @@ class Buses_server(Openlcb_server):
         clientsocket,addr = self.serversocket.accept()
         address = (str(addr).split("'"))[1]
         print("Got a connection from", address)
-        self.clients.append(client_bus(clientsocket,address))
+        c = Client_bus(clientsocket,address)
+        self.clients.append(c)
+        self.unconnected_clients.append(c)

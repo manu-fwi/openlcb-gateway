@@ -55,11 +55,11 @@ class serial_bus:
             except BaseException:
                 pass
 #connection to the gateway
-ser = serial_bus("/dev/ttyUSB1",9600)
-ser.start()
+#ser = serial_bus("/dev/ttyUSB1",9600)
+#ser.start()
 time.sleep(1) #time for arduino serial port to settle down
 gateway_ip = "127.0.0.1"
-gateway_port = 50010
+gateway_port = 50001
 s =socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 connected = False
 while not connected:
@@ -71,7 +71,8 @@ while not connected:
         time.sleep(1)
 print("connected to gateway!")
 s.settimeout(0)
-
+s.send(("CMRI_NET_BUS;").encode('utf-8'))
+s.send("new_node 20112AAAAAA 1 C 2;".encode('utf-8')) #FIXME: just one node for now
 while True:
     buf=b""
     try:
@@ -80,11 +81,11 @@ while True:
         pass
     if len(buf)>0:
         print("raw message=",buf)
-        ser.send(buf)
-    ser.process_IO()
-    if ser.available():
-        m = ser.read()
-        print("back=",m)
-        s.send(m)
+        #ser.send(buf)
+    #ser.process_IO()
+    #if ser.available():
+    #    m = ser.read()
+    #    print("back=",m)
+    #    s.send(m)
         
 ser.close()

@@ -188,20 +188,43 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </segment>
 </cdi>
 \0"""
-    
-    def __init__(self,CMRI_add,ID,bus=None):
+
+    def create_memory(self):
+        #FIXME: here I set values arbitrarily
+        channels_mem=Mem_space([(0,1)])  #first: version
+        channels_mem.set_mem(0,b"\1")
+        info_sizes = [1,8,8]         #one field for I or O and 4 events (2 for I and 2 for O)
+        offset = 1
+        for i in range(16):   #loop over 16 channels
+            for j in info_sizes:
+                channels_mem.create_mem(offset,j)
+                offset+=j
+        self.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
+                  253:channels_mem}
+        offset = 1
+        for i in range(16):
+            self.set_mem(253,offset,b"\0")
+            buf = bytearray()
+            buf.extend([i]*j)
+            self.set_mem(253,offset+1,buf)
+            buf = bytearray()
+            buf.extend([i]*(j-1))
+            buf.append(i+1)
+            self.set_mem(253,offset+9,buf)
+            offset+=17
+        self.memory[251].set_mem(0,b"\1")
+        self.memory[251].set_mem(1,b"gw1"+(b"\0")*(63-3))
+        self.memory[251].set_mem(64,b"gateway-1"+(b"\0")*(64-9))
+            
+    def __init__(self,ID):
         super().__init__(ID)
-        print(Node_cpnode.CDI)
-        self.cp_node=cmri.Cpnode(CMRI_add,bus,8)  #"real" node
-        self.ev_list=[None]*16  #event list
+        self.aliasID = ID & 0xFFF   #FIXME!!!
+        self.cp_node=None        #real node
+        self.ev_list=[None]*16   #event list
+        self.create_memory()
 
     def get_CDI(self):
         return Node_cpnode.CDI
-
-    def set_bus(self,bus):
-        if self.cp_node.bus is not None:
-            self.cp_node.bus.stop()
-        self.cp_node.bus = bus
 
     def set_mem(self,mem_sp,offset,buf):
         super().set_mem(mem_sp,offset,buf)
@@ -214,7 +237,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     offset_0 = offset
                 else:
                     offset_0 = offset - 8
-                self.ev_list[(offset-1)//17]=(event(self.read_mem(mem_sp,offset_0)),event(self.read_mem(mem_sp,offset_0+8)))
+                self.ev_list[(offset-1)//17]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
                     
     def poll(self):
         self.cp_node.read_inputs()
@@ -243,8 +266,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             self.cp_node.set_output(index-self.cp_node.nb_I,val)
             self.cp_node.write_outputs()
         
-def find_node_from_cmri_add(add):
-    for n in managed_nodes:
+def find_node_from_cmri_add(add,nodes):
+    for n in nodes:
         if n.cp_node.address == add:
             return n
     return None

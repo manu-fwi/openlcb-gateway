@@ -4,6 +4,7 @@ import openlcb_server
 from openlcb_nodes import *
 from openlcb_protocol import *
 import socket,select,time
+from collections import deque
         
 
 def get_alias_neg_from_alias(alias):
@@ -234,7 +235,7 @@ def process_grid_connect(cli,msg):
         elif (first_b & 0x7)>=2 and (first_b & 0x7)<=5: #Datagram
             process_datagram(cli,msg)
             
-def process_cmri():
+"""def process_cmri():
     global cmri_test
 
     cmri_test.process_queue()
@@ -247,104 +248,46 @@ def process_cmri():
         n.cp_node.process_receive(msg) #only msg type we can get from cmri nodes
         for ev in n.generate_events(): #FIXME: for now we send all events to JMRI basically
             #print("sending ev",ev.id)
-            serv.send_event(n,ev)
-        
+            OLCB_serv.send_event(n,ev)
+"""        
     
 #globals: fixme
-#cmri test server
-cmri_test = buses.Cmri_net_bus("127.0.0.1",50010)
-print("gateway-test-cmri listening on 127.0.0.1 at port ",50010,"waiting until connected to test prog")
-cmri_test.start()
-print("connected to cmri test!")
 
-cp_node=Node_cpnode(1,0x020112AAAAAA,cmri_test)
-cp_node.aliasID = 0xAAA    #FIXME negotiation not done yet
-#create mem segment for each channel
-channels_mem=Mem_space([(0,1)])  #first: version
-channels_mem.set_mem(0,b"\1")
-info_sizes = [1,8,8]         #one field for I or O and 4 events (2 for I and 2 for O)
-offset = 1
-for i in range(16):   #loop over 16 channels
-    for j in info_sizes:
-        channels_mem.create_mem(offset,j)
-        offset+=j
-                             
-cp_node.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
-          253:channels_mem}
-offset = 1
-for i in range(16):
-    cp_node.set_mem(253,offset,b"\0")
-    buf = bytearray()
-    buf.extend([i]*j)
-    cp_node.set_mem(253,offset+1,buf)
-    buf = bytearray()
-    buf.extend([i]*(j-1))
-    buf.append(i+1)
-    cp_node.set_mem(253,offset+9,buf)
-    offset+=17
-cp_node.memory[251].set_mem(0,b"\1")
-cp_node.memory[251].set_mem(1,b"gw1"+(b"\0")*(63-3))
-cp_node.memory[251].set_mem(64,b"gateway-1"+(b"\0")*(64-9))
-cp_node.memory[251].dump()
-cp_node.memory[253].dump()
-
-managed_nodes.append(cp_node)
-new_node(cp_node)
-
-cp_node=Node_cpnode(2,0x020112AAABBB,cmri_test)
-cp_node.aliasID = 0xBBB    #FIXME negotiation not done yet
-#create mem segment for each channel
-channels_mem=Mem_space([(0,1)])  #first: version
-channels_mem.set_mem(0,b"\1")
-info_sizes = [1,8,8]         #one field for I or O and 4 events (2 for I and 2 for O)
-offset = 1
-for i in range(16):   #loop over 16 channels
-    for j in info_sizes:
-        channels_mem.create_mem(offset,j)
-        offset+=j
-                             
-cp_node.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
-          253:channels_mem}
-cp_node.memory[251].set_mem(0,b"\2")
-cp_node.memory[251].set_mem(1,b"gw2"+(b"\0")*(63-3))
-cp_node.memory[251].set_mem(64,b"gateway-2"+(b"\0")*(64-9))
-offset = 1
-for i in range(16):
-    cp_node.set_mem(253,offset,b"\0")
-    buf = bytearray()
-    buf.extend([i]*j)
-    cp_node.set_mem(253,offset+1,buf)
-    buf = bytearray()
-    buf.extend([i]*(j-1))
-    buf.append(i+1)
-    cp_node.set_mem(253,offset+9,buf)
-    offset+=17
-cp_node.memory[251].dump()
-cp_node.memory[253].dump()
-
-#managed_nodes.append(cp_node)
-#new_node(cp_node)
 mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
 
 list_alias_neg=[]  #list of ongoing alias negotiations
 reserved_aliases = {}  #dict alias--> fullID of reserved aliases
 
-#for now: 1 can segment with all cmri nodes on it
-cmri_nodes = cmri.load_cmri_cfg("cmri_cfg_test.txt")
-
-serv = openlcb_server.Openlcb_server("127.0.0.1",50000)
-serv.start()
+OLCB_serv = openlcb_server.Openlcb_server("127.0.0.1",50000)
+OLCB_serv.start()
+buses_serv = openlcb_server.Buses_server("127.0.0.1",50001)
+buses_serv.start()
 
 # queue up to 5 requests
 
 done = False
 while not done:
-    reads = serv.wait_for_clients()
-    serv.process_reads(reads)
-    for c in serv.clients:
-        msg = c.next_msg(";")
+    reads = OLCB_serv.wait_for_clients()
+    OLCB_serv.process_reads(reads)
+    for c in OLCB_serv.clients:
+        msg = c.next_msg()
         if msg and msg != ";":
             process_grid_connect(c,msg)
-    process_cmri()
-
-    #FIXME: take care of the non openlcb messages here
+    reads=buses_serv.wait_for_clients()
+    buses_serv.process_reads(reads)
+    #check all clients who haven't sent the bus name yet
+    to_delete=deque()
+    for i in range(len(buses_serv.unconnected_clients)):
+        if buses_serv.unconnected_clients[i].check_bus_name():
+            to_delete.appendleft(i)
+    #remove the clients who just connected from the unconnected list
+    for index in to_delete:
+        buses_serv.unconnected_clients.pop(index)
+    #process any incoming messages for each bus
+    ev_list=[]
+    for bus in buses.Bus_manager.buses:
+        ev_list.extend(bus.process())
+    #and send the events generated in response
+    for ev in ev_list:
+        OLCB_serv.send_event(ev)
+        buses_serv.send_events()
