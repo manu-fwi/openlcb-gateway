@@ -184,8 +184,10 @@ def global_frame(cli,msg):
     elif var_field == 0x5B4: #PCER (event)
         ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
         print("received event:",ev_id)
-        for n in managed_nodes:
-            n.consume_event(Event(ev_id))
+        for b in buses.Bus_manager.buses:
+            for c in b.clients:
+                for n in c.managed_nodes:
+                    n.consume_event(Event(ev_id))
 
 def process_datagram(cli,msg):
     src_id = int(msg[7:10],16)

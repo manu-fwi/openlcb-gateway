@@ -160,7 +160,11 @@ class Event:
 
     def automatically_routed(self):
         return self.id[0]==0 and self.id[1]==0
-
+    def __str__(self):
+        s=""
+        for i in self.id:
+            s=hex(i)+" "
+        return s
 class Alias_negotiation:
     def __init__(self,alias):
         self.aliasID = alias
