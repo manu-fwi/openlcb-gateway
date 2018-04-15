@@ -8,7 +8,6 @@ class Bus:
     def __init__(self,name):
         self.name = name
         self.clients=[]       #client programs connected to the bus
-        self.managed_nodes=[] #managed nodes on the bus
 
     def __str__(self):
         return "Bus: "+self.name
@@ -101,6 +100,9 @@ class Cmri_net_bus(Bus):
         ev_list=[]
         for c in self.clients:
             msg = c.next_msg()
+            if not msg:
+                continue
+            print("received=",msg)
             msg=msg[:len(msg)-1]  #remove the trailing ";"
             if msg:
                 msg.lstrip() #get rid of leading spaces
@@ -111,11 +113,11 @@ class Cmri_net_bus(Bus):
                     first_byte=None
                 if first_byte==cmri.CMRI_message.SYN:
                     #it is a CMRI message, process it
-                    node = find_node_from_cmri_add(int(words_list[3],16),c.nodes)
+                    node = openlcb_nodes.find_node_from_cmri_add(cmri.CMRI_message.UA_to_add(int(words_list[3],16)),c.managed_nodes)
                     if node is None:
                         print("Unknown node!!")
                     else:
-                        node.cp_node.process_receive(cmri.from_wire_message(msg))
+                        node.cp_node.process_receive(cmri.CMRI_message.from_wire_message(msg))
                         ev_list.extend(node.generate_events())
                 else:
                     #it is a bus message (new node...)
@@ -126,13 +128,13 @@ class Cmri_net_bus(Bus):
                             cpnode.client = c
                             node = openlcb_nodes.Node_cpnode(int(l[1],16))    #full ID (Hex)
                             node.cp_node = cpnode
-                            self.managed_nodes.append(node)
+                            c.managed_nodes.append(node)
                     else:
                         print("unknown cmri_net_bus command")
                         
-        #now poll all nodes
-        for node in self.managed_nodes:
-            node.poll()
+            #now poll all nodes
+            for node in c.managed_nodes:
+                node.poll()
         return ev_list
 
         

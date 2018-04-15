@@ -1,5 +1,6 @@
 import openlcb_cmri_cfg as cmri
 from openlcb_protocol import *
+import openlcb_buses as buses
 
 """This file defines a basic openlcb node (the gateway will handle several of these
 You derive your "real node class" from it and add the handling specific to your hardware
@@ -247,7 +248,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         cpn = self.cp_node
         for i in range(cpn.nb_I):
             if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
-                ev_lst.append(self.ev_list[i][cpn.inputs[i][0]])
+                ev_lst.append((self,self.ev_list[i][cpn.inputs[i][0]]))
         return ev_lst
 
     def consume_event(self,ev):
@@ -279,9 +280,11 @@ def find_node(aliasID):
     return None
 
 def find_managed_node(aliasID):
-    for n in managed_nodes:
-        if n.aliasID == aliasID:
-            return n
+    for b in buses.Bus_manager.buses:
+        for c in b.clients:
+            for n in c.managed_nodes:
+                if n.aliasID == aliasID:
+                    return n
     return None
    
 
@@ -296,5 +299,4 @@ def new_node(new_n):
     all_nodes.append(new_n)
     return True
 #globals
-managed_nodes = []   #holds all nodes that the gateway manages
 all_nodes = []       #list of all known nodes

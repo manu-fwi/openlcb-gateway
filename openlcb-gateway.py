@@ -110,7 +110,7 @@ def can_control_frame(cli,msg):
         print("CID Frame n°",first_b & 0x7," * ",hex(var_field),end=" * 0x")
         #full_ID = var_field << 12*((first_b&0x7) -4)
         if first_b&0x7==7:
-            alias_neg = alias_negotiation(src_id)
+            alias_neg = Alias_negotiation(src_id)
         else:
             alias_neg = get_alias_neg_from_alias(src_id)
         alias_neg.next_step(var_field)
@@ -122,7 +122,7 @@ def can_control_frame(cli,msg):
             jmri_identified = True   #FIXME
             neg = get_alias_neg_from_alias(src_id)
             reserve_aliasID(src_id)
-            new_node(node(neg.fullID,True,neg.aliasID))
+            new_node(Node(neg.fullID,True,neg.aliasID))
 
         elif var_field==0x701:
             print("AMD Frame",end=" * ")
@@ -151,9 +151,11 @@ def global_frame(cli,msg):
     s = cli.sock
     
     if var_field==0x490:  #Verify node ID (global) FIXME
-        for n in managed_nodes:
-            s.send((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
-            print("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
+        for b in buses.Bus_manager.buses:
+            for c in b.clients:
+                for n in c.managed_nodes:
+                    s.send((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
+                    print("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
 
     elif var_field==0x828:#Protocol Support Inquiry
         dest_node_alias = int(msg[12:15],16)
@@ -289,5 +291,5 @@ while not done:
         ev_list.extend(bus.process())
     #and send the events generated in response
     for ev in ev_list:
-        OLCB_serv.send_event(ev)
-        buses_serv.send_events()
+        OLCB_serv.send_event(ev[0],ev[1])
+        buses_serv.send_event(ev[0],ev[1])

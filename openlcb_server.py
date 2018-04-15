@@ -44,6 +44,7 @@ class Client_bus(Client):
     def __init__(self,sock,add):
         super().__init__(sock,add,openlcb_buses.Bus_manager.cmri_net_bus_separator) #initialize separator to None
         self.bus = None
+        self.managed_nodes=[]
 
     def check_bus_name(self):
         """
@@ -55,7 +56,7 @@ class Client_bus(Client):
             return openlcb_buses.Bus_manager.create_bus(self,msg)  #create a bus corresponding to the received bus name
 
     def queue(self,cmri_msg):
-        self.sock.send(cmri_msg.to_wire_message().encode('utf-8'))
+        self.sock.send((cmri_msg.to_wire_message()+";").encode('utf-8'))
         
 def get_client_from_socket(clients,sock):
     for c in clients:
@@ -95,7 +96,7 @@ class Openlcb_server:
         clientsocket,addr = self.serversocket.accept()
         address = (str(addr).split("'"))[1]
         print("Got a connection from", address)
-        self.clients.append(client(clientsocket,address,";"))
+        self.clients.append(Client(clientsocket,address,";"))
         
     def deconnect_client(self,c):
         """
@@ -144,8 +145,8 @@ class Openlcb_server:
 
     def send_event(self,n,ev):
         for c in self.clients:   #FIXME
-            c.sock.send(frame.build_PCER(n,ev).to_gridconnect())
-            print("event sent by server = ",frame.build_PCER(n,ev).to_gridconnect())
+            c.sock.send(Frame.build_PCER(n,ev).to_gridconnect())
+            print("event sent by server = ",Frame.build_PCER(n,ev).to_gridconnect())
 
 
 class Buses_server(Openlcb_server):
@@ -168,3 +169,9 @@ class Buses_server(Openlcb_server):
         c = Client_bus(clientsocket,address)
         self.clients.append(c)
         self.unconnected_clients.append(c)
+
+    def send_event(self,n,ev):
+        for bus in self.buses:
+            for c in bus.clients:
+                for n in c.managed_nodes:
+                    n.consume_event(ev)

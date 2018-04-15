@@ -25,6 +25,9 @@ class serial_bus:
             print("overrun of the sending buffer")
         self.to_send=msg
 
+    def sending(self):
+        return len(self.to_send)>0
+
     def read(self):
         if len(self.rcv_buffer)>0:
             res = self.rcv_buffer
@@ -54,9 +57,42 @@ class serial_bus:
                 self.rcv_buffer +=  self.ser_port.read()
             except BaseException:
                 pass
+
+def decode_messages():
+    global rcv_messages,rcv_cmri_messages
+
+    sep = ";"
+    print(rcv_messages)
+    while sep==";":
+        first,sep,end = rcv_messages.partition(";")
+        print(first,"/",sep,"/",end)
+        if sep!="":
+            rcv_cmri_messages.append(cmri.CMRI_message.from_wire_message(first))
+            rcv_messages = end
+
+def process():
+    global rcv_cmri_messages,ser,must_wait_answer
+
+    if ser.sending() or must_wait_answer:  #if we are already sending or waiting for an answer
+        #not much we can do, let's wait for IO to proceed
+        return
+    #no IO occuring let's begin a new one if there is any
+
+    if not rcv_cmri_messages:
+        return
+    print("start IO")
+    msg = rcv_cmri_messages.pop(0)
+    ser.send(msg.to_raw_message())
+    must_wait_answer = (msg.type_m == cmri.CMRI_message.POLL_M)
+    
 #connection to the gateway
-#ser = serial_bus("/dev/ttyUSB1",9600)
-#ser.start()
+ser = serial_bus("/dev/ttyUSB1",9600)
+ser.start()
+rcv_messages=""  #last received messages ready to be cut and decoded
+rcv_cmri_messages = []  #decoded cmri messages received from the gateway, waiting to be sent
+message_to_send=b""   #last incomplete message from the serial port
+must_wait_answer = False  #this is True when the last message sent or being sent needs an answer (like Poll message)
+
 time.sleep(1) #time for arduino serial port to settle down
 gateway_ip = "127.0.0.1"
 gateway_port = 50001
@@ -75,17 +111,28 @@ s.send(("CMRI_NET_BUS;").encode('utf-8'))
 s.send("new_node 20112AAAAAA 1 C 2;".encode('utf-8')) #FIXME: just one node for now
 while True:
     buf=b""
+    rcv_msg_list=[]
     try:
-        buf=s.recv(200) #byte array: the raw cmri message
+        buf=s.recv(200).decode('utf-8') #byte array: the raw cmri message
     except BlockingIOError:
         pass
     if len(buf)>0:
+        rcv_messages+=buf
         print("raw message=",buf)
-        #ser.send(buf)
-    #ser.process_IO()
-    #if ser.available():
-    #    m = ser.read()
-    #    print("back=",m)
-    #    s.send(m)
+        decode_messages()
+        
+    ser.process_IO()
+    process()
+    if ser.available():     # we are receiving an answer
+        message_to_send += ser.read()
+        print("back=",message_to_send)
+        ETX_pos=cmri.CMRI_message.find_ETX(message_to_send)
+        if ETX_pos<len(message_to_send):
+            #answer complete, send it to server
+            print("sending...",(cmri.CMRI_message.raw_to_wire_message(message_to_send[:ETX_pos+1])+";").encode('utf-8'))
+            s.send((cmri.CMRI_message.raw_to_wire_message(message_to_send[:ETX_pos+1])+";").encode('utf-8'))
+            #discard the part we just sent
+            message_to_send=message_to_send[ETX_pos+1:]
+            must_wait_answer = False
         
 ser.close()

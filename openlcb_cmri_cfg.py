@@ -75,7 +75,7 @@ class CMRI_message:
         if self.type_m == None:
             return ""
         wire_msg = (hex_int(CMRI_message.SYN)+" ")*2+hex_int(CMRI_message.STX)+" "+hex_int(CMRI_message.add_to_UA(self.address))
-        wire_msg+=" "+CMRI_message.type_char[self.type_m].decode('utf-8')+" "
+        wire_msg+=" "+hex_int(ord(CMRI_message.type_char[self.type_m]))+" "
         for b in self.message:
             wire_msg += hex_int(b)+" "
         wire_msg += hex_int(CMRI_message.ETX)
@@ -119,12 +119,12 @@ class CMRI_message:
         raw_msg = b""
         byte_list = msg.split(' ')
         for b in byte_list:
-            raw_msg += int(b,16)
+            raw_msg += bytes((int(b,16),))
         return raw_msg
     
     @staticmethod
     def from_wire_message(msg):
-        return from_raw_message(wire_to_raw_message(msg))
+        return CMRI_message.from_raw_message(CMRI_message.wire_to_raw_message(msg))
 
     @staticmethod
     def raw_to_wire_message(raw_msg):
@@ -135,6 +135,7 @@ class CMRI_message:
         msg = ""
         for b in raw_msg:
             msg += hex_int(b)+" "
+        print("raw_to_wire=",msg,len(msg))
         return msg[:len(msg)-1]
     
 class CMRI_node:
@@ -344,6 +345,7 @@ def decode_cmri_node_cfg(args_list):
             node.decode_IOX(args_list[i])
     else:
         print("Node type not managed")
+    print("address=",node.address)
     return node
 
 def load_cmri_cfg(filename):
