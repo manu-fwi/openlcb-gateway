@@ -1,4 +1,5 @@
 import time
+import openlcb_nodes
 
 class CMRI_message:
     SYN=0xFF
@@ -299,7 +300,6 @@ class CPNode (CMRI_node):
         return res
 
 #
-#Reads the config file
 #Format (space (ONE only) separated):
 # CMRI node's address followed by the node type (N,X,C)
 # (FIXME):for now only C is allowed
@@ -345,11 +345,9 @@ def decode_cmri_node_cfg(args_list):
             node.decode_IOX(args_list[i])
     else:
         print("Node type not managed")
-    print("address=",node.address)
     return node
 
-def load_cmri_cfg(filename):
-    nodes=[]
+def load_cmri_cfg(client,filename):
     with open(filename) as f:
         line = f.readline()
         while line!='':
@@ -358,10 +356,17 @@ def load_cmri_cfg(filename):
                 if line == '':
                     return
                 args = line.split(' ')
-                node = decode_cmri_node_cfg(args)
-                if node is not None:
-                    nodes.append(node)
+                cpnode = decode_cmri_node_cfg(args[4:])
+                if cpnode is not None:
+                    cpnode.client = client
+                    node = openlcb_nodes.Node_cpnode(int(args[0],16))    #full ID (Hex)
+                    node.cp_node = cpnode
+                    node.set_mem(251,0,bytes((int(args[1],16),)))
+                    node.set_mem(251,1,args[2].encode('utf-8')+(b"\0")*(63-len(args[2])))
+                    node.set_mem(251,64,args[3].encode('utf-8')+(b"\0")*(64-len(args[3])))
+                    node.set_mem(253,0,bytes((cpnode.address,)))
+                    client.managed_nodes.append(node)
             line = f.readline()
-    return nodes
+
 def hex_int(i):   #same as hex but withouth the leading "0x"
     return hex(i)[2:] 

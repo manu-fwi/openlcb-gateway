@@ -55,7 +55,8 @@ class Client_bus(Client):
         if msg:
             return openlcb_buses.Bus_manager.create_bus(self,msg)  #create a bus corresponding to the received bus name
 
-    def queue(self,cmri_msg):
+    def queue(self,cmri_msg): #FIXME for now only cmri is handled
+        print("queue<<",(cmri_msg.to_wire_message()+";").encode('utf-8'))
         self.sock.send((cmri_msg.to_wire_message()+";").encode('utf-8'))
         
 def get_client_from_socket(clients,sock):

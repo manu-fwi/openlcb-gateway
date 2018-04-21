@@ -25,7 +25,7 @@ class Mem_space:
         self.mem[(offset,size)]=None
         
     def set_mem_partial(self,add,buf):
-        """returns the memory space (offset,size) if memory has been updated
+        """returns the memory space (offset,size,buf) if memory must be updated
         or None if the write is incomplete: some writes are still expected for this memory space
         """
         
@@ -39,12 +39,13 @@ class Mem_space:
                     self.mem_chunks[offset]=buf
                 print("set_mem_partial:",offset,size,"=",buf)
                 if len(self.mem_chunks[offset])==size:
-                    self.mem[(offset,size)]=self.mem_chunks[offset]
+                    buf=self.mem_chunks[offset]
                     del self.mem_chunks[offset]
                     print("set_mem_partial done",self.mem_chunks)
-                    return (offset,size)
+                    return (offset,size,buf)
                 elif len(self.mem_chunks[offset])>size:
                     print("memory write error in set_mem_partial, chunk size is bigger than memory size at",offset)
+                    del self.mem_chunks[offset]
 
         return None
 
@@ -54,7 +55,7 @@ class Mem_space:
             self.mem[(offset,len(buf))]=buf
             return True
         
-        print("set_mem failed, off=",offset,"buf=",buf," fo length=",len(buf))
+        print("set_mem failed, off=",offset,"buf=",buf," of length=",len(buf))
         return False
 
 
@@ -104,10 +105,14 @@ class Node:
 
     def set_mem(self,mem_sp,offset,buf): #extend this to sync the "real" node (cpNode or whatever)
                                          #with the openlcb memory
+        print("node set_mem");
         return self.memory[mem_sp].set_mem(offset,buf)
     
-    def set_mem_partial(self,add,buf):
-        return self.memory[mem_sp].set_mem_partial(add,buf)
+    def set_mem_partial(self,mem_sp,add,buf):
+        res = self.memory[mem_sp].set_mem_partial(add,buf)
+        if res is not None:
+            print("node set_mem_partial calls set_mem",mem_sp,res)
+            self.set_mem(mem_sp,res[0],res[2])
         
     def read_mem(self,mem_sp,add):
         print("read_mem",mem_sp,add)
@@ -191,10 +196,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 \0"""
 
     def create_memory(self):
-        #FIXME: here I set values arbitrarily
-        channels_mem=Mem_space([(0,1)])  #first: version
-        channels_mem.set_mem(0,b"\1")
-        info_sizes = [1,8,8]         #one field for I or O and 4 events (2 for I and 2 for O)
+        channels_mem=Mem_space([(0,1)])  #first: node address
+        info_sizes = [1,8,8]         #one field for type(I or O) and 2 events (2 for I and 2 for O)
         offset = 1
         for i in range(16):   #loop over 16 channels
             for j in info_sizes:
@@ -213,9 +216,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             buf.append(i+1)
             self.set_mem(253,offset+9,buf)
             offset+=17
-        self.memory[251].set_mem(0,b"\1")
-        self.memory[251].set_mem(1,b"gw1"+(b"\0")*(63-3))
-        self.memory[251].set_mem(64,b"gateway-1"+(b"\0")*(64-9))
             
     def __init__(self,ID):
         super().__init__(ID)
@@ -228,18 +228,26 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         return Node_cpnode.CDI
 
     def set_mem(self,mem_sp,offset,buf):
+        print("node_cpnode set_mem")
         super().set_mem(mem_sp,offset,buf)
-        #rebuild the events if they have changed
-        if mem_sp == 253 and offset > 1:
-            entry = (offset-1)%17
-            if entry>0: #this means it is an event id
-                #we have to set the pair of events, first get the offset of the first event in memory
-                if entry == 1:
-                    offset_0 = offset
-                else:
-                    offset_0 = offset - 8
-                self.ev_list[(offset-1)//17]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
-                    
+       
+        if mem_sp == 253:
+            if offset == 0:
+                #address change
+                print("changing address",self.cp_node.address,buf[0])
+                self.cp_node.address = buf[0]
+            elif offset > 1:
+                #FIXME: I dont handle the I/O type change for now
+                #rebuild the events if they have changed
+                entry = (offset-1)%17
+                if entry>0: #this means it is an event id
+                    #we have to set the pair of events, first get the offset of the first event in memory
+                    if entry == 1:
+                        offset_0 = offset
+                    else:
+                        offset_0 = offset - 8
+                    self.ev_list[(offset-1)//17]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
+
     def poll(self):
         self.cp_node.read_inputs()
         

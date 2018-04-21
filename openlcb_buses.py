@@ -87,9 +87,10 @@ class Cmri_net_bus(Bus):
     - byte = number of bytes for the payload (excluding this number)
     - space separated (only ONE space) word and numbers/CMRI message (distinguished by the 2 SYN chars at the beginning)
     Message types (other than the CMRI message)
-    - New node: "new_node" followed by its full ID (FIXME plus other info for the LCB node)
+    - New node: "new_node" followed by: full_ID(8 bytes) version(one byte) name(string <63 chars) description(string <64 chars)
     and the format describing a cmri node (cf openlcb_cmri_cfg.py)
-    - to be completed FIXME
+    - load nodes descriptions from a file: "nodes_from_file" followed by a file name
+       File format: LF separated lines following the format above (without the new_node prefix and without the trailing ";")
     """
     separator = ";"
     def __init__(self):
@@ -100,37 +101,44 @@ class Cmri_net_bus(Bus):
         ev_list=[]
         for c in self.clients:
             msg = c.next_msg()
-            if not msg:
-                continue
-            print("received=",msg)
-            msg=msg[:len(msg)-1]  #remove the trailing ";"
             if msg:
-                msg.lstrip() #get rid of leading spaces
-                words_list = msg.split(' ')
-                try:
-                    first_byte = int(words_list[0],16)
-                except:
-                    first_byte=None
-                if first_byte==cmri.CMRI_message.SYN:
-                    #it is a CMRI message, process it
-                    node = openlcb_nodes.find_node_from_cmri_add(cmri.CMRI_message.UA_to_add(int(words_list[3],16)),c.managed_nodes)
-                    if node is None:
-                        print("Unknown node!!")
+                print("received=",msg)
+                msg=msg[:len(msg)-1]  #remove the trailing ";"
+                if msg:
+                    msg.lstrip() #get rid of leading spaces
+                    words_list = msg.split(' ')
+                    try:
+                        first_byte = int(words_list[0],16)
+                    except:
+                        first_byte=None
+                    if first_byte==cmri.CMRI_message.SYN:
+                        #it is a CMRI message, process it
+                        node = openlcb_nodes.find_node_from_cmri_add(cmri.CMRI_message.UA_to_add(int(words_list[3],16)),c.managed_nodes)
+                        if node is None:
+                            print("Unknown node!!")
+                        else:
+                            node.cp_node.process_receive(cmri.CMRI_message.from_wire_message(msg))
+                            ev_list.extend(node.generate_events())
                     else:
-                        node.cp_node.process_receive(cmri.CMRI_message.from_wire_message(msg))
-                        ev_list.extend(node.generate_events())
-                else:
-                    #it is a bus message (new node...)
-                    if msg.startswith("new_node"):
-                        l = msg.split(' ')
-                        cpnode=cmri.decode_cmri_node_cfg(l[2:])
-                        if cpnode is not None:
-                            cpnode.client = c
-                            node = openlcb_nodes.Node_cpnode(int(l[1],16))    #full ID (Hex)
-                            node.cp_node = cpnode
-                            c.managed_nodes.append(node)
-                    else:
-                        print("unknown cmri_net_bus command")
+                        #it is a bus message (new node...)
+                        if msg.startswith("new_node"):
+                            l = msg.split(' ')
+                            cpnode=cmri.decode_cmri_node_cfg(l[5:])
+                            if cpnode is not None:
+                                cpnode.client = c
+                                node = openlcb_nodes.Node_cpnode(int(l[1],16))    #full ID (Hex)
+                                node.cp_node = cpnode
+                                #set info
+                                node.set_mem(251,0,bytes((int(l[2],16),)))
+                                node.set_mem(251,1,l[3].encode('utf-8')+(b"\0")*(63-len(l[3])))
+                                node.set_mem(251,64,l[4].encode('utf-8')+(b"\0")*(64-len(l[4])))
+                                #set address
+                                node.set_mem(253,0,bytes((cpnode.address,)))
+                                c.managed_nodes.append(node)
+                        elif msg.startswith("nodes_from_file"):
+                            cmri.load_cmri_cfg(c,msg.split(' ')[1])
+                        else:
+                            print("unknown cmri_net_bus command")
                         
             #now poll all nodes
             for node in c.managed_nodes:

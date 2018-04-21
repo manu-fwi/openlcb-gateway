@@ -88,7 +88,7 @@ def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
         if src_node.current_write[0] not in src_node.memory:
             print("memory unknown!")
             return
-        src_node.memory[src_node.current_write[0]].set_mem_partial(src_node.current_write[1],res)
+        src_node.set_mem_partial(src_node.current_write[0],src_node.current_write[1],res)
     if buf[3]=="A" or buf[3]=="D":
         src_node.current_write = None
 
