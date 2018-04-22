@@ -1,7 +1,10 @@
-#cmri node descriptions:
+#cmri node description (used by the cmri_net_serial helper to describe cmri nodes)
 #!!!Empty line means end of config
 #Format (space separated):
-# CMRI node's bus number (FIXME: need to be more precise)
+# node full ID (8 bytes) in hexadecimal (for ex.: 12AABB8865231701)
+# version (1 byte in hexadecimal also)
+# name (string < 63 chars)  #FIXME no space allowed for now
+# description (string < 64 chars) #FIXME no space allowed for now
 # CMRI node's address followed by the node type (N,X,C)
 # (FIXME):for now only C is allowed
 #   For C type:
@@ -16,6 +19,5 @@
 #            7 -> 12 O / 4 I (BASE_NODE_RSMC_LOCK)
 #      next is the IOX config: a list of space separated pairs of numbers (0=OUTPUT, 1=INPUT, -1=Not assigned)
 #                          ex: 0,0 0,1 0,-1
-#0 1 C 0 1,0
-#0 2 C 4 0,0 0,1 1,0 1,1 0,1 1,1 1,1 1,1
-0 1 C 2
+#Ex: 1122334455667788 2 name_you_like description_of_the_node 30 C 2 1,0
+

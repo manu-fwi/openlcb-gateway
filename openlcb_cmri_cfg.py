@@ -136,7 +136,7 @@ class CMRI_message:
         msg = ""
         for b in raw_msg:
             msg += hex_int(b)+" "
-        print("raw_to_wire=",msg,len(msg))
+        #print("raw_to_wire=",msg,len(msg))
         return msg[:len(msg)-1]
     
 class CMRI_node:

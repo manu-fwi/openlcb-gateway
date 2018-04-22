@@ -125,11 +125,11 @@ while True:
     process()
     if ser.available():     # we are receiving an answer
         message_to_send += ser.read()
-        print("back=",message_to_send)
+
         ETX_pos=cmri.CMRI_message.find_ETX(message_to_send)
         if ETX_pos<len(message_to_send):
             #answer complete, send it to server
-            print("sending...",(cmri.CMRI_message.raw_to_wire_message(message_to_send[:ETX_pos+1])+";").encode('utf-8'))
+            print("received from serial and sending it to the server:",(cmri.CMRI_message.raw_to_wire_message(message_to_send[:ETX_pos+1])+";").encode('utf-8'))
             s.send((cmri.CMRI_message.raw_to_wire_message(message_to_send[:ETX_pos+1])+";").encode('utf-8'))
             #discard the part we just sent
             message_to_send=message_to_send[ETX_pos+1:]
