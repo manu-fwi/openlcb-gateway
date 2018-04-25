@@ -347,6 +347,21 @@ def decode_cmri_node_cfg(args_list):
         print("Node type not managed")
     return node
 
+
+def split_args(msg):
+    """
+    splits the msg in args (strings must be quoted)
+    """
+    beg = msg.find('"')
+    args = msg[:beg-1].split(' ')  #split the args before the first "
+    end = msg.find('"',beg+1)  #find next "
+    args.append(msg[beg+1:end]) #get the string without the "
+    beg = msg.find('"',end+1)
+    end = msg.find('"',beg+1)
+    args.append(msg[beg+1:end]) #get the string without the "
+    args.extend(msg[end+2:].split(' '))  #make sure we go pass the next space after the last "
+    return args
+
 def load_cmri_cfg(client,filename):
     with open(filename) as f:
         line = f.readline()
@@ -355,7 +370,7 @@ def load_cmri_cfg(client,filename):
             if (line.lstrip())[0]!="#":  #only process uncommented line
                 if line == '':
                     return
-                args = line.split(' ')
+                args = split_args(line)
                 cpnode = decode_cmri_node_cfg(args[4:])
                 if cpnode is not None:
                     cpnode.client = client

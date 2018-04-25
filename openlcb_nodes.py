@@ -165,20 +165,27 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 <description>The cpNode address.</description>
 <min>0</min><max>127</max>
 </int>
+<group>
+<name>Base I/O configuration</name>
+<int size="1">
+<default>2</default>
+<map>
+<relation><property>1</property><value>6 Inputs / 10 Outputs</value></relation>
+<relation><property>2</property><value>8 Inputs / 8 Outputs</value></relation>
+<relation><property>3</property><value>8 Outputs / 8 Inputs</value></relation>
+<relation><property>4</property><value>12 Outputs / 4 Inputs</value></relation>
+<relation><property>5</property><value>16 Inputs</value></relation>
+<relation><property>6</property><value>16 Outputs</value></relation>
+<relation><property>7</property><value>RSMC 5 Inputs / 11 Outputs</value></relation>
+<relation><property>7</property><value>RSMC LOCK 4 Inputs / 12 Outputs</value></relation>
+</map>
+</int>
+</group>
 <group replication="16">
 <name>Channels</name>
 <description>Each channel is an I/O line.</description>
 <repname>Channel</repname>
-<group>
-<name>I/O selection</name>
-<int size="1">
-<default>0</default>
-<map>
-<relation><property>0</property><value>Output</value></relation>
-<relation><property>1</property><value>Input</value></relation>
-</map>
-</int>
-</group>
+
 <group>
 <name>Input/Output</name>
 <eventid>
@@ -197,25 +204,24 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 
     def create_memory(self):
         channels_mem=Mem_space([(0,1)])  #first: node address
-        info_sizes = [1,8,8]         #one field for type(I or O) and 2 events (2 for I and 2 for O)
         offset = 1
         for i in range(16):   #loop over 16 channels
-            for j in info_sizes:
-                channels_mem.create_mem(offset,j)
-                offset+=j
+            for j in range(2):
+                channels_mem.create_mem(offset,8)
+                offset+=8
         self.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
                   253:channels_mem}
         offset = 1
+        self.set_mem(253,offset,b"\2")
         for i in range(16):
-            self.set_mem(253,offset,b"\0")
             buf = bytearray()
-            buf.extend([i]*j)
-            self.set_mem(253,offset+1,buf)
+            buf.extend([i]*8)
+            self.set_mem(253,offset,buf)
             buf = bytearray()
-            buf.extend([i]*(j-1))
+            buf.extend([i]*7)
             buf.append(i+1)
-            self.set_mem(253,offset+9,buf)
-            offset+=17
+            self.set_mem(253,offset+8,buf)
+            offset+=16
             
     def __init__(self,ID):
         super().__init__(ID)
@@ -239,14 +245,13 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             elif offset > 1:
                 #FIXME: I dont handle the I/O type change for now
                 #rebuild the events if they have changed
-                entry = (offset-1)%17
-                if entry>0: #this means it is an event id
-                    #we have to set the pair of events, first get the offset of the first event in memory
-                    if entry == 1:
-                        offset_0 = offset
-                    else:
-                        offset_0 = offset - 8
-                    self.ev_list[(offset-1)//17]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
+                entry = (offset-2)//16
+                
+                if (offset-2)%16==0:
+                    offset_0 = offset
+                else:
+                    offset_0 = offset - 8
+                self.ev_list[entry]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
 
     def poll(self):
         self.cp_node.read_inputs()

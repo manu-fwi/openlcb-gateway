@@ -87,7 +87,13 @@ def process():
     
 #connection to the gateway
 ser = serial_bus("/dev/ttyUSB1",9600)
-ser.start()
+connected = False
+while not connected:
+    try:
+        ser.start()
+        connected=True
+    except serial.serialutil.SerialException:
+        pass
 rcv_messages=""  #last received messages ready to be cut and decoded
 rcv_cmri_messages = []  #decoded cmri messages received from the gateway, waiting to be sent
 message_to_send=b""   #last incomplete message from the serial port
