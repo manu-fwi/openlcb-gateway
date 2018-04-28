@@ -11,80 +11,10 @@ class Bus:
 
     def __str__(self):
         return "Bus: "+self.name
-
-     
-"""
-class Cmri_bus(Bus):
-    def __init__(self,port):
-        super().__init__()
-        self.port = port            #port is the way to connect to the bus (here port is the serial port path)
-        self.ser_port = serial.Serial()
-        self.ser_port.baudrate=9600
-        self.write_timeout = None
-
-    def start(self,baudrate):
-        self.ser_port.port = self.port
-        self.ser_port.baudrate=baudrate
-        if not self.ser_port.is_open:
-            self.ser_port.open()
-
-    def __str__(self):
-        return "CMRI bus on port"+self.port
-
-    def stop(self):
-        if self.ser_port.is_open:
-            self.ser_port.close()
-
-    def send(self,msg):
-        self.ser_port.write(msg)
-        print("Written to serial port(",self.port,"):",msg)
-
-    def recv(self): #return the msg of None if nothing is ready
-        pass
-        
-    def pop_next_msg(self):
-        if not self.recv_msgs:
-            return None
-        msg = self.recv_msgs.pop(0)
-        self.wait_answer = False   #FIXME
-        self.process_queue()
-        print("pop next recv msg=",msg,len(self.recv_msgs))
-        return cmri.CMRI_message.from_raw_message(msg)
-
-    def process_queue(self):
-        if not self.wait_answer and self.msg_queue:
-            msg,must_wait = self.msg_queue.pop(0)
-            print("unqueued=",msg.message,must_wait,self.msg_queue)
-            self.send(msg.to_raw_message())
-            print("test-cmri-bus sending to client:",msg.to_raw_message())
-            self.wait_answer = must_wait
-        
-    def queue(self,msg,wait_answer):   #msg: cmri msg to queue to send
-        self.msg_queue.append((msg,wait_answer))
-        print("queued=",msg.to_raw_message(),wait_answer,self.msg_queue)
-        self.process_queue()
-        
-    def process_answer(self):
-
-        msg = self.recv()
-        if msg is not None:
-            curr_pos = 0
-            #print("msg=",msg,len(msg),end=" ")
-            self.recv_buffer+=msg
-            ETX_pos = cmri.CMRI_message.find_ETX(self.recv_buffer)
-            while ETX_pos<len(self.recv_buffer):
-                print(curr_pos,"ETX=",ETX_pos,end="/")
-                self.recv_msgs.append(self.recv_buffer[:ETX_pos+1])
-                print("appended new msg",self.recv_buffer)
-                self.recv_buffer = self.recv_buffer[ETX_pos+1:]  #remove part already used
-                ETX_pos = cmri.CMRI_message.find_ETX(self.recv_buffer)
-            #print("after",self.recv_buffer,self.recv_msgs)
-"""        
      
 class Cmri_net_bus(Bus):
     """
     message format (messages are separated by a ";", also number is presented as an hexdecimal string):
-    - byte = number of bytes for the payload (excluding this number)
     - space separated (only ONE space) word and numbers/CMRI message (distinguished by the 2 SYN chars at the beginning)
     Message types (other than the CMRI message)
     - New node: "new_node" followed by: full_ID(8 bytes) version(one byte) name(string <63 chars) description(string <64 chars)
@@ -145,12 +75,16 @@ class Cmri_net_bus(Bus):
                 node.poll()
         return ev_list
 
-        
+class Can_bus(Bus):
+    pass
+
 class Bus_manager:
     #buses names as received online
     
     cmri_net_bus_name = "CMRI_NET_BUS"
     cmri_net_bus_separator = ";"
+    can_bus_name = "CAN_BUS"
+    can_bus_separator = ";"
 
     #list of active buses
     buses = []
@@ -166,6 +100,15 @@ class Bus_manager:
             bus = Bus_manager.find_bus_by_name(Bus_manager.cmri_net_bus_name)
             if bus == None:
                 bus = Cmri_net_bus()
+                Bus_manager.buses.append(bus)
+                print("creating a cmri net bus")
+            bus.clients.append(client)
+            return True
+        elif  msg.startswith(Bus_manager.can_bus_name):
+            #create a cmri_net bus
+            bus = Bus_manager.find_bus_by_name(Bus_manager.can_bus_name)
+            if bus == None:
+                bus = Can_bus()
                 Bus_manager.buses.append(bus)
                 print("creating a cmri net bus")
             bus.clients.append(client)

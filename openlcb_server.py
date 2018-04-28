@@ -37,10 +37,8 @@ class Client:
 
 class Client_bus(Client):
     """
-    Same as Client plus the fact that the first 20 characters must be a "bus" descriptor
+    Same as Client plus the fact that the first line must be a "bus" descriptor plus the client name(cf openlcb_buses.py)
     """
-    BUS_NAME_LEN = 20
-
     def __init__(self,sock,add):
         super().__init__(sock,add,openlcb_buses.Bus_manager.cmri_net_bus_separator) #initialize separator to None
         self.bus = None
@@ -53,7 +51,10 @@ class Client_bus(Client):
         """
         msg = self.next_msg()
         if msg:
-            return openlcb_buses.Bus_manager.create_bus(self,msg)  #create a bus corresponding to the received bus name
+            
+            l = msg[:len(msg)-1].split(' ')   #get rid of the separator and join all pieces to get the name back
+            self.name = ' '.join(l[1:])
+            return openlcb_buses.Bus_manager.create_bus(self,l[0])  #create a bus corresponding to the received bus name
 
     def queue(self,cmri_msg): #FIXME for now only cmri is handled
         print("queue<<",(cmri_msg.to_wire_message()+";").encode('utf-8'))

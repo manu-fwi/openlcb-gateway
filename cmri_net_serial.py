@@ -113,7 +113,7 @@ while not connected:
         time.sleep(1)
 print("connected to gateway!")
 s.settimeout(0)
-s.send(("CMRI_NET_BUS;").encode('utf-8'))
+s.send(("CMRI_NET_BUS cmri bus 1;").encode('utf-8'))
 s.send("nodes_from_file cmri_nodes.cfg;".encode('utf-8')) #FIXME: just one node for now
 while True:
     buf=b""

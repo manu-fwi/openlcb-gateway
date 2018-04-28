@@ -180,7 +180,7 @@ class CPNode (CMRI_node):
         for i in self.IOX:
             if i>0:
                 res += i
-        return res
+        return res*8   #batches of 8 bits 
     
     def nb_IOX_outputs(self):
         res = 0
@@ -200,7 +200,7 @@ class CPNode (CMRI_node):
         self.IOX.extend(IO)
         
     def decode_IOX(self,IO):
-        print("decoding IOX",IO)
+        #print("decoding IOX",IO)
         
         a = [int(io) for io in IO.split(',')]
         if len(a)!=2:
@@ -248,17 +248,16 @@ class CPNode (CMRI_node):
     def write_outputs(self):
         #send outputs to node
         bits = [io[0] for io in self.outputs]
-        bytes_value = CPNode.pack_bits(bits)
+        bytes_value = bytearray((CPNode.pack_bits(bits),))
         if len(bytes_value)==1:
             bytes_value+=b"\0"
         first_bit = 0
         for i in self.IOX:
-            if i==-1:
-                bytes_value += b"\0"
-            elif i==0:
+            if i==0:
                 bits = [io[0] for io in self.outputs_IOX[first_bit:first_bit+8]]
-                bytes_value+=CPNode.pack_bits(bits)
+                bytes_value+=bytearray((CPNode.pack_bits(bits),))
                 print(i," bytes=",bytes_value)
+                first_bit += 8
         cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
         if self.client!=None:
             self.client.queue(cmd)
@@ -268,6 +267,7 @@ class CPNode (CMRI_node):
             if i==0:
                 for io in self.outputs_IOX[first_bit:first_bit+8]:
                     io[1]=io[0]
+                first_bit+=8
 
     def set_output(self,index_out,value):
         if index_out<CPNode.total_IO - self.nb_I:
@@ -290,13 +290,11 @@ class CPNode (CMRI_node):
 
     @staticmethod
     def pack_bits(bits_list): #will pack a list of bit values as a list of bytes, MSB is first bit and so on
-        res = bytearray(b"\0\0")
-        j = 0
+        res = 0
         for i in bits_list:
-            print("aavant j=",j,"i=",i,"res=",res)            
-            res[j//8] = (res[j//8] << 1) | i
-            print("apres j=",j,"i=",i,"res=",res)
-            j+=1
+            print("i=",i,"res=",res)            
+            res = (res << 1) | i
+            print("i=",i,"res=",res)
         return res
 
 #
@@ -371,6 +369,7 @@ def load_cmri_cfg(client,filename):
                 if line == '':
                     return
                 args = split_args(line)
+                print("args=",args)
                 cpnode = decode_cmri_node_cfg(args[4:])
                 if cpnode is not None:
                     cpnode.client = client

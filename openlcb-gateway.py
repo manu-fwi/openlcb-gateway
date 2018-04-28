@@ -238,23 +238,7 @@ def process_grid_connect(cli,msg):
                             
         elif (first_b & 0x7)>=2 and (first_b & 0x7)<=5: #Datagram
             process_datagram(cli,msg)
-            
-"""def process_cmri():
-    global cmri_test
 
-    cmri_test.process_queue()
-    for n in managed_nodes:
-        n.poll()
-    cmri_test.process_answer()
-    msg=cmri_test.pop_next_msg()
-    if msg is not None:
-        n = find_node_from_cmri_add(msg.address)
-        n.cp_node.process_receive(msg) #only msg type we can get from cmri nodes
-        for ev in n.generate_events(): #FIXME: for now we send all events to JMRI basically
-            #print("sending ev",ev.id)
-            OLCB_serv.send_event(n,ev)
-"""        
-    
 #globals: fixme
 
 mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
