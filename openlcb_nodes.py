@@ -134,7 +134,7 @@ class Node:
         print("build_simple_info not implemented!") #fixme
     
 class Node_cpnode(Node):
-    CDI="""<?xml version="1.0"?>
+    CDI_header="""<?xml version="1.0"?>
 <cdi xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 
@@ -198,10 +198,44 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </eventid>
 </group>
 </group>
-</segment>
+"""
+    CDI_footer = """</segment>
 </cdi>
 \0"""
-
+    CDI_IOX = """<group>
+<name>IOX expansions</name>
+<int size="1">
+<default>2</default>
+<map>
+<relation><property>0</property><value>8 Outputs</value></relation>
+<relation><property>1</property><value>8 Inputs</value></relation>
+</map>
+</int>
+<group replication="8">
+<name> IOX channels</name>
+<description> Each channel is an I/O line on a IOX expander</description>
+<repname>Channel</repname>
+<group>
+<name>Input/Output</name>
+<eventid>
+<name>Input/Output LOW</name>
+<description>When this event arrives, the output will be switched to LOW or if it is an Input this event is generated when it is LOW</description>
+</eventid>
+<eventid>
+<name>Input/Output HIGH</name>
+<description>When this event arrives, the output will be switched to HIGH or if it is an Input this event is generated when it is HIGH.</description>
+</eventid>
+</group>
+</group>
+</group>
+"""
+    CDI_IOX_repetition_beg="""<group replication="%nbiox">
+<name> IOX expansions</name>
+<description> Each group describes and IOX card I/O group</description>
+<repname>Cards</repname>
+"""
+    CDI_IOX_repetition_end="""</group>
+"""
     def create_memory(self):
         channels_mem=Mem_space([(0,1)])  #first: node address
         offset = 1
@@ -230,8 +264,20 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.ev_list=[None]*16   #event list
         self.create_memory()
 
+    def get_IOX_CDI(self):
+        nb_iox_io = (self.cp_node.nb_IOX_inputs()+self.cp_node.nb_IOX_inputs())//8
+        if nb_iox_io==0:
+            return ""
+        res=""
+        if nb_iox_io>0:
+            res += Node_cpnode.CDI_IOX_repetition_beg.replace("%nbiox",str(nb_iox_io))
+        res+=Node_cpnode.CDI_IOX
+        if nb_iox_io>0:
+            res+=Node_cpnode.CDI_IOX_repetition_end
+        return res
+        
     def get_CDI(self):
-        return Node_cpnode.CDI
+        return Node_cpnode.CDI_header+self.get_IOX_CDI()+Node_cpnode.CDI_footer
 
     def set_mem(self,mem_sp,offset,buf):
         print("node_cpnode set_mem")

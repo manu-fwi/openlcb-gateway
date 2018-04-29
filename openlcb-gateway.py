@@ -25,6 +25,7 @@ def send_CDI(s,src_node,dest_node,address,size):
     data = bytearray((0x20,0x53))
     data.extend(address.to_bytes(4,'big'))
     data.extend(bytearray(src_node.get_CDI()[address:address+size],'utf-8'))
+    print(src_node.get_CDI())
     dgrams=create_datagram_list(src_node,dest_node,data)
     for d in dgrams:
         s.send(d.to_gridconnect())
