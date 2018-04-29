@@ -205,7 +205,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     CDI_IOX = """<group>
 <name>IOX expansions</name>
 <int size="1">
-<default>2</default>
+<default>1</default>
 <map>
 <relation><property>0</property><value>8 Outputs</value></relation>
 <relation><property>1</property><value>8 Inputs</value></relation>
@@ -232,21 +232,29 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     CDI_IOX_repetition_beg="""<group replication="%nbiox">
 <name> IOX expansions</name>
 <description> Each group describes and IOX card I/O group</description>
-<repname>Cards</repname>
+<repname>Card </repname>
 """
     CDI_IOX_repetition_end="""</group>
 """
     def create_memory(self):
-        channels_mem=Mem_space([(0,1)])  #first: node address
-        offset = 1
-        for i in range(16):   #loop over 16 channels
-            for j in range(2):
+            
+        channels_mem=Mem_space([(0,1),(1,1)])  #node address and io config
+        offset = 2
+        #loop over 16 channels (basic IO)
+        for i in range(self.cp_node.total_IO*2): #2 events per IO line
+            channels_mem.create_mem(offset,8)
+            offset+=8
+        #now IOX associated memory
+        for i in range(len(self.cp_node.IOX)):
+            channels_mem.create_mem(offset,1)   #Input or output for the IOX card
+            offset+=1
+            for j in range(16):   #2 events per IO line
                 channels_mem.create_mem(offset,8)
                 offset+=8
         self.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
-                  253:channels_mem}
-        offset = 1
-        self.set_mem(253,offset,b"\2")
+                       253:channels_mem}
+        offset = 2
+        self.set_mem(253,1,b"\2")
         for i in range(16):
             buf = bytearray()
             buf.extend([i]*8)
@@ -262,7 +270,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.aliasID = ID & 0xFFF   #FIXME!!!
         self.cp_node=None        #real node
         self.ev_list=[None]*16   #event list
-        self.create_memory()
 
     def get_IOX_CDI(self):
         nb_iox_io = (self.cp_node.nb_IOX_inputs()+self.cp_node.nb_IOX_inputs())//8
@@ -274,13 +281,13 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         res+=Node_cpnode.CDI_IOX
         if nb_iox_io>0:
             res+=Node_cpnode.CDI_IOX_repetition_end
+        print("get_IOX_CDI", nb_iox_io,res)
         return res
         
     def get_CDI(self):
         return Node_cpnode.CDI_header+self.get_IOX_CDI()+Node_cpnode.CDI_footer
 
     def set_mem(self,mem_sp,offset,buf):
-        print("node_cpnode set_mem")
         super().set_mem(mem_sp,offset,buf)
        
         if mem_sp == 253:
@@ -288,8 +295,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 #address change
                 print("changing address",self.cp_node.address,buf[0])
                 self.cp_node.address = buf[0]
-            elif offset > 1:
                 #FIXME: I dont handle the I/O type change for now
+            elif offset >=2 and offset-2<=self.cp_node.total_IO*2*8: #check if we change a basic IO event
                 #rebuild the events if they have changed
                 entry = (offset-2)//16
                 

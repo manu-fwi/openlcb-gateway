@@ -86,7 +86,7 @@ def process():
     must_wait_answer = (msg.type_m == cmri.CMRI_message.POLL_M)
     
 #connection to the gateway
-ser = serial_bus("/dev/ttyUSB1",9600)
+ser = serial_bus("/dev/ttyUSB0",9600)
 connected = False
 while not connected:
     try:

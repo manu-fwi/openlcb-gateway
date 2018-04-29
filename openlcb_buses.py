@@ -45,7 +45,7 @@ class Cmri_net_bus(Bus):
                         #it is a CMRI message, process it
                         node = openlcb_nodes.find_node_from_cmri_add(cmri.CMRI_message.UA_to_add(int(words_list[3],16)),c.managed_nodes)
                         if node is None:
-                            print("Unknown node!!")
+                            print("Unknown node!! add=",cmri.CMRI_message.UA_to_add(int(words_list[3],16)) )
                         else:
                             node.cp_node.process_receive(cmri.CMRI_message.from_wire_message(msg))
                             ev_list.extend(node.generate_events())
@@ -58,6 +58,7 @@ class Cmri_net_bus(Bus):
                                 cpnode.client = c
                                 node = openlcb_nodes.Node_cpnode(int(l[1],16))    #full ID (Hex)
                                 node.cp_node = cpnode
+                                node.create_memory()
                                 #set info
                                 node.set_mem(251,0,bytes((int(l[2],16),)))
                                 node.set_mem(251,1,l[3].encode('utf-8')+(b"\0")*(63-len(l[3])))

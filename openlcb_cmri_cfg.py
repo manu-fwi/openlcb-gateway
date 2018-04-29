@@ -180,7 +180,7 @@ class CPNode (CMRI_node):
         for i in self.IOX:
             if i>0:
                 res += i
-        return res*8   #batches of 8 bits 
+        return res 
     
     def nb_IOX_outputs(self):
         res = 0
@@ -189,15 +189,15 @@ class CPNode (CMRI_node):
                 res+=8
         return res
     
-    def add_IOX(self,IO):
-        for i in range(len(IO)):
-            if IO[i]!=-1:
-                IO[i] <<= 3   #x8 because each element is the nb of inputs: 8 or 0
-                if IO[i]>0:
+    def add_IOX(self,IO_pair):
+        for i in range(len(IO_pair)):
+            if IO_pair[i]!=-1:
+                IO_pair[i] <<= 3   #x8 because each element is the nb of inputs: 8 or 0
+                if IO_pair[i]>0:
                     self.inputs_IOX.extend([[-1,-1] for i in range(8)])  #extend bits array
                 else:
                     self.outputs_IOX.extend([[0,-1] for i in range(8)])
-        self.IOX.extend(IO)
+        self.IOX.extend(IO_pair)
         
     def decode_IOX(self,IO):
         #print("decoding IOX",IO)
@@ -223,17 +223,18 @@ class CPNode (CMRI_node):
         return True
 
     def process_receive(self,msg):
+        print("process receive=",msg.message)
         message=msg.message
-        index = 1
+        index = 0
         n = 0
-        while n < self.nb_I and index <=2:
+        while n < self.nb_I and index <=1:
             print("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
             self.inputs[n][1] = self.inputs[n][0]  #current value becomes last value
             self.inputs[n][0] = (message[index] >> (n%8))&0x01
             n+=1
             if n % 8==0:
                 index +=1 #next byte
-        index = 3
+        index = 2
         n=0
         while n<self.nb_IOX_inputs() and index < len(message):
             print("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
@@ -375,6 +376,7 @@ def load_cmri_cfg(client,filename):
                     cpnode.client = client
                     node = openlcb_nodes.Node_cpnode(int(args[0],16))    #full ID (Hex)
                     node.cp_node = cpnode
+                    node.create_memory()
                     node.set_mem(251,0,bytes((int(args[1],16),)))
                     node.set_mem(251,1,args[2].encode('utf-8')+(b"\0")*(63-len(args[2])))
                     node.set_mem(251,64,args[3].encode('utf-8')+(b"\0")*(64-len(args[3])))
