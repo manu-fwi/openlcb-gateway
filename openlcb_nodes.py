@@ -295,6 +295,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 #address change
                 print("changing address",self.cp_node.address,buf[0])
                 self.cp_node.address = buf[0]
+            elif offset == 1:
+                pass
                 #FIXME: I dont handle the I/O type change for now
             elif offset >=2 and offset-2<=self.cp_node.total_IO*2*8: #check if we change a basic IO event
                 #rebuild the events if they have changed
@@ -305,6 +307,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 else:
                     offset_0 = offset - 8
                 self.ev_list[entry]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
+            else: #memory changed is about IOX part
+                pass
 
     def poll(self):
         self.cp_node.read_inputs()
