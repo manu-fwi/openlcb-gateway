@@ -17,10 +17,7 @@ class Cmri_net_bus(Bus):
     message format (messages are separated by a ";", also number is presented as an hexdecimal string):
     - space separated (only ONE space) word and numbers/CMRI message (distinguished by the 2 SYN chars at the beginning)
     Message types (other than the CMRI message)
-    - New node: "new_node" followed by: full_ID(8 bytes) version(one byte) name(string <63 chars) description(string <64 chars)
-    and the format describing a cmri node (cf openlcb_cmri_cfg.py)
-    - load nodes descriptions from a file: "nodes_from_file" followed by a file name
-       File format: LF separated lines following the format above (without the new_node prefix and without the trailing ";")
+    - New node: "start_node" followed by: full_ID(8 bytes)
     """
     separator = ";"
     def __init__(self):
@@ -80,10 +77,15 @@ class Can_bus(Bus):
     pass
 
 class Bus_manager:
-    #buses names as received online
-    
+    #buses constants
+    #cmri_net_bus
     cmri_net_bus_name = "CMRI_NET_BUS"
     cmri_net_bus_separator = ";"
+    #this is the name of the file where all nodes are described (full ID, description,name,version,events)
+    #see openlcb_nodes_db.py for more info
+    cmri_net_bus_db_file="cmri_net_bus_nodes_db.cfg"
+
+    #can_bus FIXME
     can_bus_name = "CAN_BUS"
     can_bus_separator = ";"
 

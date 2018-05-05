@@ -11,7 +11,7 @@ Also contains the memory space management (as in CDI config)
 It is made of triples: beginning address(offset), size and a write_callback function
 This function is called when the memory cell is written to with the following parameters:
 write_callback(offset,buf)
-where offset is the beginnon of the cell and buf is the buf which has just been written
+where offset is the begining of the cell and buf is the buf which has just been written
 """
 class Mem_space:
     def __init__(self,list=None):
