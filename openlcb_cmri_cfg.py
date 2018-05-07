@@ -152,6 +152,29 @@ class CMRI_node:
 class CPNode (CMRI_node):
     total_IO = 16
     read_period = 10 #in seconds
+
+    @staticmethod
+    def decode_nb_inputs(cpn_type):
+        if cpn_type==0:
+            return 6
+        elif cpn_type==1:
+            return 8
+        elif cpn_type==2:
+            return 8
+        elif cpn_type==3:
+            return 4
+        elif cpn_type==4:
+            return 16
+        elif cpn_type==5:
+            return 0
+        elif cpn_type==6:
+            return 5
+        elif cpn_type==7:
+            return 4
+
+        debug("Unknown cpnode I/O configuration")
+        return None
+    
     def __init__(self,address,nb_I,client=None):
         super().__init__(address)
         self.nb_I = nb_I

@@ -155,6 +155,18 @@ def data_from_dgram_list(dgram_l):
     return l
 
 class Event:
+
+    @staticmethod
+    def from_str(s):  #from a hex dotted notation xx.xx.xx.xx.xx.xx.xx.xx
+        l = s.split(".")
+        if len(l)!=8:
+            debug("Malformed event")
+            return None
+        ev = b""
+        for i in l:
+            ev+=bytes((int(i,16),))
+        return ev
+    
     def __init__(self,id):  #id is a 8 bytes array
         self.id = id
 
@@ -163,8 +175,9 @@ class Event:
     def __str__(self):
         s=""
         for i in self.id:
-            s=hex(i)+" "
-        return s
+            s=hex(i)+"."
+        return s[:len(s)-1]
+    
 class Alias_negotiation:
     def __init__(self,alias):
         self.aliasID = alias

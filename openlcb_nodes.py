@@ -236,6 +236,35 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 """
     CDI_IOX_repetition_end="""</group>
 """
+    @staticmethod
+    def from_json(js):
+        def normalize(s,length):
+            res = bytearray(s.encode('utf-8'))
+            if len(res)>length:
+                res=res[:length]
+            elif len(res)<length:
+                res.extend(b"\0"*(length-len(res)))
+            return res
+            
+        n = Node_cpnode(js["fullID"])
+        nb_I = CPNode.decode_nb_inputs(int(js["IO_config"],16))
+        n.cpnode = CPNode(js["cmri_node_add"], nb_I)
+        n.set_mem(251,0,bytes((int(js["version"],16),)))
+        if "name" in js:
+            n.set_mem(251,1,normalize(js["name"],63))
+        if "description" in js:
+            n.set_mem(251,64,normalize(js["description"],64))
+        if "basic_events" in js:
+            n.ev_list=[]
+            for ev in js["basic_events"]:
+                n.ev_list.append(Event.from_str(ev))
+            n.ev_list.extend([None]*(16-len(n.ev_list)))   #complete to 16
+        if "IOX_events" in js:
+            n.ev_list_IOX=[]
+            for ev in js["IOX_events"]:
+                n.ev_list_IOX.append(Event.from_str(ev))
+        return n
+                
     def create_memory(self):
             
         channels_mem=Mem_space([(0,1),(1,1)])  #node address and io config
@@ -269,7 +298,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         super().__init__(ID)
         self.aliasID = ID & 0xFFF   #FIXME!!!
         self.cp_node=None        #real node
-        self.ev_list=[None]*16   #event list
+        self.ev_list=[None]*16   #basic event list
+        self.ev_list_IOX = []
 
     def get_IOX_CDI(self):
         nb_iox_io = (self.cp_node.nb_IOX_inputs()+self.cp_node.nb_IOX_inputs())//8
@@ -293,7 +323,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         if mem_sp == 253:
             if offset == 0:
                 #address change
-                print("changing address",self.cp_node.address,buf[0])
+                debug("changing address",self.cp_node.address,buf[0])
                 self.cp_node.address = buf[0]
             elif offset == 1:
                 pass

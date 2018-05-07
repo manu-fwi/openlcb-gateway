@@ -5,6 +5,7 @@ from openlcb_nodes import *
 from openlcb_protocol import *
 import socket,select,time
 from collections import deque
+import openlcb_nodes_db
         
 
 def get_alias_neg_from_alias(alias):
