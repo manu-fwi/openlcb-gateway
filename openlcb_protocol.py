@@ -1,3 +1,5 @@
+from openlcb_debug import *
+
 #protocols definitions
 SPSP   = 0x800000 # Simple Protocol subset
 DGP    = 0x400000 # Datagram Protocol
@@ -143,7 +145,7 @@ def create_addressed_frame_list(src,dest,MTI,data,pad_last=False):  #data is the
             d.add_data(data[pos:len(data)]+bytearray([0]*(pos+6-len(data))))
         else:
             d.add_data(data[pos:pos+6])
-        print("data=",d.data)
+        debug("data=",d.data)
         pos+=6
         l.append(d)
     return l
@@ -172,10 +174,11 @@ class Event:
 
     def automatically_routed(self):
         return self.id[0]==0 and self.id[1]==0
+    
     def __str__(self):
         s=""
         for i in self.id:
-            s=hex(i)+"."
+            s=hexp(i,2)+"."
         return s[:len(s)-1]
     
 class Alias_negotiation:
@@ -189,7 +192,7 @@ class Alias_negotiation:
         self.step+=1
     def reserve(self):
         if self.step<4:
-            print("Reserve alias=",self.aliasID," before all CID received (",self.step,")")
+            debug("Reserve alias=",self.aliasID," before all CID received (",self.step,")")
             return False
         return True
 

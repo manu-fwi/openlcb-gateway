@@ -1,6 +1,7 @@
 import openlcb_cmri_cfg as cmri
 from openlcb_protocol import *
 import openlcb_buses as buses
+from openlcb_debug import *
 
 """This file defines a basic openlcb node (the gateway will handle several of these
 You derive your "real node class" from it and add the handling specific to your hardware
@@ -247,7 +248,10 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             return res
             
         n = Node_cpnode(js["fullID"])
-        nb_I = CPNode.decode_nb_inputs(int(js["IO_config"],16))
+        if "IO_config" in js:
+            nb_I = CPNode.decode_nb_inputs(int(js["IO_config"],16))
+        else:
+            nb_I = 16
         n.cpnode = CPNode(js["cmri_node_add"], nb_I)
         n.set_mem(251,0,bytes((int(js["version"],16),)))
         if "name" in js:
@@ -256,14 +260,44 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             n.set_mem(251,64,normalize(js["description"],64))
         if "basic_events" in js:
             n.ev_list=[]
+            index=0
             for ev in js["basic_events"]:
-                n.ev_list.append(Event.from_str(ev))
-            n.ev_list.extend([None]*(16-len(n.ev_list)))   #complete to 16
+                if index%2==0:
+                    ev0=Event.from_str(ev)
+                else:
+                    n.ev_list.append((ev0,Event.from_str(ev)))
+                index+=1
+            n.ev_list.extend([(None,None)]*(16-len(n.ev_list)))   #complete to 16
         if "IOX_events" in js:
             n.ev_list_IOX=[]
+            index=0
             for ev in js["IOX_events"]:
-                n.ev_list_IOX.append(Event.from_str(ev))
+                if index%2==0:
+                    ev0=Event.from_str(ev)
+                else:
+                    n.ev_list_IOX.append((ev0,Event.from_str(ev)))
+                index+=1
         return n
+
+    def to_json(self):
+        name = self.read_mem(251,1)
+        descr = self.read_mem(251,64)
+        #dict describing the node, first part
+        node_desc = {"fullID":self.ID,"cmri_node_add":self.cp_node.address,
+                     "version":self.read_mem(251,0)[0],"name":name[:name.find(0)],
+                     "description":descr[:descr.find(0)],
+                     "IO_config":self.read_mem(253,1)[0]}
+        str_events=[]
+        for ev in self.ev_list:
+            str_events.extend((str(ev[0]),str(ev[1])))
+        node_desc["basic_events"]=str_events
+        for ev in self.ev_list_IOX:
+            str_events.extend((str(ev[0]),str(ev[1])))
+        node_desc["IOX_events"]=str_events
+        debug(ev,str(ev))
+        debug("node desc=",node_desc)
+        return node_desc
+        
                 
     def create_memory(self):
             
@@ -298,7 +332,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         super().__init__(ID)
         self.aliasID = ID & 0xFFF   #FIXME!!!
         self.cp_node=None        #real node
-        self.ev_list=[None]*16   #basic event list
+        self.ev_list=[(None,None)]*16   #basic event list
         self.ev_list_IOX = []
 
     def get_IOX_CDI(self):
@@ -336,6 +370,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     offset_0 = offset
                 else:
                     offset_0 = offset - 8
+                debug(entry)
                 self.ev_list[entry]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
             else: #memory changed is about IOX part
                 pass
@@ -349,9 +384,11 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         for i in range(cpn.nb_I):
             if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
                 ev_lst.append((self,self.ev_list[i][cpn.inputs[i][0]]))
+
         return ev_lst
 
     def consume_event(self,ev):
+        debug(self.to_json())
         val = -1
         index = 0
         for ev_pair in self.ev_list:

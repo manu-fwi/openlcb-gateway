@@ -39,6 +39,7 @@ class Nodes_db:
                 self.store_node(file,n)
 
 class Nodes_db_cpnode(Nodes_db):
+    
     def load_node(self,file):
         try:
             js = json.load(file)
@@ -50,4 +51,10 @@ class Nodes_db_cpnode(Nodes_db):
             return None
         
         return Node_cpnode.from_json(js)
+
+    def store_node(self,file,node):
+        try:
+            json.dump(node.to_json(),file)
+        except JSONDecodeError:
+            debug("Json error when storing node",node.fullID)
     
