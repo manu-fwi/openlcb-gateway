@@ -178,7 +178,7 @@ class Event:
     def __str__(self):
         s=""
         for i in self.id:
-            s=hexp(i,2)+"."
+            s+=hexp(i,2)+"."
         return s[:len(s)-1]
     
 class Alias_negotiation:

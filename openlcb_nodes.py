@@ -249,15 +249,26 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             
         n = Node_cpnode(js["fullID"])
         if "IO_config" in js:
-            nb_I = CPNode.decode_nb_inputs(int(js["IO_config"],16))
+            nb_I = cmri.CPNode.decode_nb_inputs(js["IO_config"])
         else:
             nb_I = 16
-        n.cpnode = CPNode(js["cmri_node_add"], nb_I)
-        n.set_mem(251,0,bytes((int(js["version"],16),)))
+        n.cp_node = cmri.CPNode(js["cmri_node_add"], nb_I)
+        n.create_memory()
+        if "version" in js:
+            version = int(js["version"],16)
+        else:
+            version = 0
+            n.set_mem(251,0,bytes((version,)))
         if "name" in js:
-            n.set_mem(251,1,normalize(js["name"],63))
+            name = js["name"]
+        else:
+            name = ""
+            n.set_mem(251,1,normalize(name,63))
         if "description" in js:
-            n.set_mem(251,64,normalize(js["description"],64))
+            description= js["description"]
+        else:
+            description = ""
+            n.set_mem(251,64,normalize(description,64))
         if "basic_events" in js:
             n.ev_list=[]
             index=0
@@ -388,7 +399,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         return ev_lst
 
     def consume_event(self,ev):
-        debug(self.to_json())
         val = -1
         index = 0
         for ev_pair in self.ev_list:
@@ -421,7 +431,7 @@ def find_managed_node(aliasID):
         for c in b.clients:
             for n in c.managed_nodes:
                 if n.aliasID == aliasID:
-                    return n
+                    return (n,c)
     return None
    
 

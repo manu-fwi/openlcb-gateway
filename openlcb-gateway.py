@@ -161,7 +161,7 @@ def global_frame(cli,msg):
 
     elif var_field==0x828:#Protocol Support Inquiry
         dest_node_alias = int(msg[12:15],16)
-        dest_node = find_managed_node(dest_node_alias)
+        dest_node,cli_dest = find_managed_node(dest_node_alias)
 
         if dest_node is not None:
             #FIXME: set correct bits
@@ -170,7 +170,7 @@ def global_frame(cli,msg):
 
     elif var_field == 0xDE8:#Simple Node Information Request
         dest_node_alias = int(msg[12:15],16)
-        dest_node = find_managed_node(dest_node_alias)
+        dest_node,cli_dest = find_managed_node(dest_node_alias)
         if dest_node is not None:
             print("sent SNIR Reply")
             #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;").encode("utf-8"))#SNIR header
@@ -198,7 +198,7 @@ def process_datagram(cli,msg):
     print("datagram!!")
     #for now we assume a one frame datagram
     dest_node_alias = int(msg[4:7],16)
-    dest_node = find_managed_node(dest_node_alias)
+    dest_node,cli_dest = find_managed_node(dest_node_alias)
     if dest_node is None:   #not for us
         print("Frame is not for us!!")
         #FIXME: we have to transmit it ??

@@ -114,7 +114,7 @@ while not connected:
 print("connected to gateway!")
 s.settimeout(0)
 s.send(("CMRI_NET_BUS cmri bus 1;").encode('utf-8'))
-s.send("nodes_from_file cmri_nodes.cfg;".encode('utf-8')) #FIXME: just one node for now
+s.send(("start_node 20112AAAAAA;").encode('utf-8'))
 while True:
     buf=b""
     rcv_msg_list=[]

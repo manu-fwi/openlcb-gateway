@@ -3,6 +3,8 @@ import openlcb_cmri_cfg as cmri
 import serial
 import openlcb_server
 import openlcb_nodes
+import openlcb_nodes_db as nodes_db
+from openlcb_debug import *
 
 class Bus:
     def __init__(self,name):
@@ -20,8 +22,11 @@ class Cmri_net_bus(Bus):
     - New node: "start_node" followed by: full_ID(8 bytes)
     """
     separator = ";"
+    nodes_db_file = "cmri_net_bus_db.cfg"
     def __init__(self):
         super().__init__(Bus_manager.cmri_net_bus_name)
+        self.nodes_db = nodes_db.Nodes_db_cpnode(Cmri_net_bus.nodes_db_file)
+        self.nodes_db.load_all_nodes()
         
     def process(self):
         #check all messages and return a list of events that has been generated in response
@@ -48,29 +53,20 @@ class Cmri_net_bus(Bus):
                             ev_list.extend(node.generate_events())
                     else:
                         #it is a bus message (new node...)
-                        if msg.startswith("new_node"):
-                            l = msg.split(' ')
-                            cpnode=cmri.decode_cmri_node_cfg(l[5:])
-                            if cpnode is not None:
-                                cpnode.client = c
-                                node = openlcb_nodes.Node_cpnode(int(l[1],16))    #full ID (Hex)
-                                node.cp_node = cpnode
-                                node.create_memory()
-                                #set info
-                                node.set_mem(251,0,bytes((int(l[2],16),)))
-                                node.set_mem(251,1,l[3].encode('utf-8')+(b"\0")*(63-len(l[3])))
-                                node.set_mem(251,64,l[4].encode('utf-8')+(b"\0")*(64-len(l[4])))
-                                #set address
-                                node.set_mem(253,0,bytes((cpnode.address,)))
+                        if msg.startswith("start_node"):
+                            fullID= int(msg.split(' ')[1],16)
+                            if fullID in self.nodes_db.db:
+                                node = self.nodes_db.db[fullID]   #get node from db
                                 c.managed_nodes.append(node)
-                        elif msg.startswith("nodes_from_file"):
-                            cmri.load_cmri_cfg(c,msg.split(' ')[1])
+                            else:
+                                debug("Error: unknown node of full ID",fullID,self.nodes_db.db.keys())
                         else:
                             print("unknown cmri_net_bus command")
                         
             #now poll all nodes
             for node in c.managed_nodes:
                 node.poll()
+        self.nodes_db.sync()
         return ev_list
 
 class Can_bus(Bus):
