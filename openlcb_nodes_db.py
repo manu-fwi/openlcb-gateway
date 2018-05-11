@@ -28,8 +28,8 @@ class Nodes_db_cpnode:
     def store_all_nodes(self):
         with open(self.file_name,'w') as file:
             db_list=[]
-            for n in self.nodes_db:
-                db_list.append(n.to_json())
+            for n in self.db:
+                db_list.append(self.db[n].to_json())
                 #fixme: error handling
             json.dump(db_list,file)
         self.synced = True

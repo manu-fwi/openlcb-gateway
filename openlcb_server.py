@@ -54,7 +54,9 @@ class Client_bus(Client):
             
             l = msg[:len(msg)-1].split(' ')   #get rid of the separator and join all pieces to get the name back
             self.name = ' '.join(l[1:])
-            return openlcb_buses.Bus_manager.create_bus(self,l[0])  #create a bus corresponding to the received bus name
+            bus= openlcb_buses.Bus_manager.create_bus(self,l[0])  #create a bus corresponding to the received bus name
+            self.bus=bus
+            return bus is not None
 
     def queue(self,cmri_msg): #FIXME for now only cmri is handled
         print("queue<<",(cmri_msg.to_wire_message()+";").encode('utf-8'))
@@ -137,7 +139,7 @@ class Openlcb_server:
                 m = s.recv(200).decode('utf-8')
             except socket.error:
                 print("recv error")
-            print(len(m)," => ",m)
+            debug(len(m)," => ",m)
             if not m:
                 #ready to read and empty msg means deconnection
                 self.deconnect_client(c)

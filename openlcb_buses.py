@@ -91,8 +91,8 @@ class Bus_manager:
     def create_bus(client,msg):
         """
         create a bus based on the name provided in the msgs field of the client
-        returns True if bus has been found (or created if needed)
-        False otherwise
+        returns the bus if it has been found (or created if needed)
+        None otherwise
         """
         if msg.startswith(Bus_manager.cmri_net_bus_name):
             #create a cmri_net bus
@@ -102,7 +102,7 @@ class Bus_manager:
                 Bus_manager.buses.append(bus)
                 print("creating a cmri net bus")
             bus.clients.append(client)
-            return True
+            return bus
         elif  msg.startswith(Bus_manager.can_bus_name):
             #create a cmri_net bus
             bus = Bus_manager.find_bus_by_name(Bus_manager.can_bus_name)
@@ -111,8 +111,8 @@ class Bus_manager:
                 Bus_manager.buses.append(bus)
                 print("creating a cmri net bus")
             bus.clients.append(client)
-            return True
-        return False
+            return bus
+        return None
 
     @staticmethod
     def find_bus_by_name(name):

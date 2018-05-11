@@ -295,8 +295,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         descr = self.read_mem(251,64)
         #dict describing the node, first part
         node_desc = {"fullID":self.ID,"cmri_node_add":self.cp_node.address,
-                     "version":self.read_mem(251,0)[0],"name":name[:name.find(0)],
-                     "description":descr[:descr.find(0)],
+                     "version":self.read_mem(251,0)[0],"name":name[:name.find(0)].decode('utf-8'),
+                     "description":descr[:descr.find(0)].decode('utf-8'),
                      "IO_config":self.read_mem(253,1)[0]}
         str_events=[]
         for ev in self.ev_list:

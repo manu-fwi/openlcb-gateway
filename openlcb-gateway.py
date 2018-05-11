@@ -20,13 +20,13 @@ def send_fields(sock,src_node,MTI,fields,dest_node):
     frames = create_addressed_frame_list(src_node,dest_node,MTI,("\0".join(fields)).encode('utf-8'),True)
     for f in frames:
         sock.send(f.to_gridconnect())
-        print("--->",f.to_gridconnect().decode('utf-8'))
+        debug("--->",f.to_gridconnect().decode('utf-8'))
 
 def send_CDI(s,src_node,dest_node,address,size):
     data = bytearray((0x20,0x53))
     data.extend(address.to_bytes(4,'big'))
     data.extend(bytearray(src_node.get_CDI()[address:address+size],'utf-8'))
-    print(src_node.get_CDI())
+    debug(src_node.get_CDI())
     dgrams=create_datagram_list(src_node,dest_node,data)
     for d in dgrams:
         s.send(d.to_gridconnect())
@@ -42,30 +42,31 @@ def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
         mem_sp = 0xFC+int(msg[14])
         size=int(msg[23:25],16)
         mem_sp_separated = False
-    print("memory read at",mem_sp,"offset",add,"size",size)
+    debug("memory read at",mem_sp,"offset",add,"size",size)
     if mem_sp not in src.memory:
-        print("memory unknown!!")
+        debug("memory unknown!!")
         return
     mem = src.read_mem(mem_sp,add)
-    print("memory read sends:",mem)
+    debug("memory read sends:",mem)
     if mem is None:
-        print("memory error")
+        debug("memory error")
     else:
         to_send2= bytearray((0x20,int("5"+msg[14],16)))
         to_send2.extend(add.to_bytes(4,'big'))
         if mem_sp_separated:
             to_send2.extend((mem_sp,))
         to_send2.extend(mem[:size])
-        print("to_send=",to_send)
-        print("to_send2=",to_send2)
+        debug("to_send=",to_send)
+        debug("to_send2=",to_send2)
         dgrams = create_datagram_list(src,dest,to_send2)
         for d in dgrams:
             s.send(d.to_gridconnect())
-            print("sending",d.data,"=",d.to_gridconnect())
+            debug("sending",d.data,"=",d.to_gridconnect())
             
 def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
+    #return True when write has completed (a full write is generally split in several chunks
 
-    print("memory write")
+    debug("memory write")
     if buf[3]=="A" or buf[3]=="B":
         if buf[14]=="0":
             mem_sp = int(buf[23:25],16)
@@ -75,30 +76,32 @@ def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
             data_beg=23
         src_node.current_write=(mem_sp,add)
         s.send((":X19A28"+hexp(src_node.aliasID,3)+"N0"+hexp(dest_node.aliasID,3)+";").encode("utf-8"))
-        print("datagram received ok sent --->",":X19A28"+hexp(src_node.aliasID,3)+"N0"+hexp(dest_node.aliasID,3)+";")
+        debug("datagram received ok sent --->",":X19A28"+hexp(src_node.aliasID,3)+"N0"+hexp(dest_node.aliasID,3)+";")
     else:
         data_beg=11
     if src_node.current_write is None:
-        print("write error: trying to write but current_write is none!!")
+        debug("write error: trying to write but current_write is none!!")
     else:
         res=b""
         for pos in range(data_beg,len(buf)-1,2):
-            print(buf[pos:pos+2])
+            debug(buf[pos:pos+2])
             res+=bytes([int(buf[pos:pos+2],16)])
-        print("written:",res)
-        print("node:",src_node.ID,"memory write",src_node.current_write[0],"offset",src_node.current_write[1])
+        debug("written:",res)
+        debug("node:",src_node.ID,"memory write",src_node.current_write[0],"offset",src_node.current_write[1])
         if src_node.current_write[0] not in src_node.memory:
-            print("memory unknown!")
-            return
+            debug("memory unknown!")
+            return False
         src_node.set_mem_partial(src_node.current_write[0],src_node.current_write[1],res)
     if buf[3]=="A" or buf[3]=="D":
         src_node.current_write = None
+        return True
+    return False
 
 def reserve_aliasID(src_id):
     neg=get_alias_neg_from_alias(src_id)
     if neg.reserve():
         if neg.aliasID in reserved_aliases:
-            print("Error: trying to reserve alias ",neg.aliasID,"(",neg.fullID,") but its already reserved!")
+            debug("Error: trying to reserve alias ",neg.aliasID,"(",neg.fullID,") but its already reserved!")
         else:
             reserved_aliases[neg.aliasID]=neg.fullID
             list_alias_neg.remove(neg)
@@ -109,7 +112,7 @@ def can_control_frame(cli,msg):
     src_id = int(msg[7:10],16)
     data_needed = False
     if first_b & 0x7>=4 and first_b & 0x7<=7:
-        print("CID Frame n°",first_b & 0x7," * ",hex(var_field),end=" * 0x")
+        debug("CID Frame n°",first_b & 0x7," * ",hex(var_field))
         #full_ID = var_field << 12*((first_b&0x7) -4)
         if first_b&0x7==7:
             alias_neg = Alias_negotiation(src_id)
@@ -120,30 +123,30 @@ def can_control_frame(cli,msg):
 
     elif first_b&0x7==0:
         if var_field==0x700:
-            print("RID Frame * full ID=")#,hex(full_ID),end=" * ")
+            debug("RID Frame * full ID=")#,hex(full_ID))
             jmri_identified = True   #FIXME
             neg = get_alias_neg_from_alias(src_id)
             reserve_aliasID(src_id)
             new_node(Node(neg.fullID,True,neg.aliasID))
 
         elif var_field==0x701:
-            print("AMD Frame",end=" * ")
+            debug("AMD Frame")
             neg = get_alias_neg_from_alias(src_id)
             new_node(Node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
             reserve_aliasID(src_id)
             data_needed = True   #we could check the fullID
 
         elif var_field==0x702:
-            print("AME Frame",end=" * ")
+            debug("AME Frame")
             data_nedded=True
         elif var_field==0x703:
-            print("AMR Frame",end=" * ")
+            debug("AMR Frame")
             data_nedded=True
         elif var_field>=0x710 and var_field<=0x713:
-            print("Unknown Frame",end=" * ")
-    print(hexp(src_id,3))
+            debug("Unknown Frame")
+    debug(hexp(src_id,3))
     if data_needed and not data_present:
-        print("Data needed but none is present!")
+        debug("Data needed but none is present!")
         return
 
 def global_frame(cli,msg):
@@ -157,7 +160,7 @@ def global_frame(cli,msg):
             for c in b.clients:
                 for n in c.managed_nodes:
                     s.send((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
-                    print("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
+                    debug("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
 
     elif var_field==0x828:#Protocol Support Inquiry
         dest_node_alias = int(msg[12:15],16)
@@ -166,13 +169,13 @@ def global_frame(cli,msg):
         if dest_node is not None:
             #FIXME: set correct bits
             s.send((":X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;").encode("utf-8"))
-            print("sent--->:X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;")
+            debug("sent--->:X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;")
 
     elif var_field == 0xDE8:#Simple Node Information Request
         dest_node_alias = int(msg[12:15],16)
         dest_node,cli_dest = find_managed_node(dest_node_alias)
         if dest_node is not None:
-            print("sent SNIR Reply")
+            debug("sent SNIR Reply")
             #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;").encode("utf-8"))#SNIR header
             #print(":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;")
             #FIXME:
@@ -185,7 +188,7 @@ def global_frame(cli,msg):
 
     elif var_field == 0x5B4: #PCER (event)
         ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
-        print("received event:",ev_id)
+        debug("received event:",ev_id)
         for b in buses.Bus_manager.buses:
             for c in b.clients:
                 for n in c.managed_nodes:
@@ -195,38 +198,40 @@ def process_datagram(cli,msg):
     src_id = int(msg[7:10],16)
     s = cli.sock
     address = int(msg[15:23],16)
-    print("datagram!!")
     #for now we assume a one frame datagram
     dest_node_alias = int(msg[4:7],16)
     dest_node,cli_dest = find_managed_node(dest_node_alias)
     if dest_node is None:   #not for us
-        print("Frame is not for us!!")
+        debug("Frame is not for us!!")
         #FIXME: we have to transmit it ??
         return
     src_node = find_node(src_id)
 
     if dest_node.current_write is not None:
         #if there is a write in progress then this datagram is part of it
-        memory_write(s,dest_node,src_node,address,msg)
+        if memory_write(s,dest_node,src_node,address,msg):
+            debug(cli_dest,cli_dest.bus,cli_dest.bus.nodes_db)
+            cli_dest.bus.nodes_db.synced = False
     elif msg[11:15]=="2043": #read command for CDI
-        print("read command, address=",int(msg[15:23],16))
+        debug("read command, address=",int(msg[15:23],16))
         s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
-        print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
+        debug("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
         send_CDI(s,dest_node,src_node,address,int(msg[23:25],16))
     elif msg[11:13]=="20": #read/write command
         s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
-        print("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
+        debug("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
         if msg[13]=="4":
             memory_read(s,dest_node,src_node,address,msg)
         elif msg[13]=="0":
-            memory_write(s,dest_node,src_node,address,msg)
+            if memory_write(s,dest_node,src_node,address,msg):
+                cli_dest.bus.nodes_db.synced = False
     
 def process_grid_connect(cli,msg):
     if msg[:2]!=":X":
-        print("Error: not an extended frame!!")
+        debug("Error: not an extended frame!!")
         return
     if msg[10]!="N":
-        print("Error: not a normal frame!!")
+        debug("Error: not a normal frame!!")
         return
     first_b = int(msg[2:4],16)
     can_prefix = (first_b & 0x18) >> 3
