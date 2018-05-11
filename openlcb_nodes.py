@@ -254,21 +254,22 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             nb_I = 16
         n.cp_node = cmri.CPNode(js["cmri_node_add"], nb_I)
         n.create_memory()
+        n.set_mem(253,1,bytes((js["IO_config"],)))
         if "version" in js:
             version = int(js["version"],16)
         else:
             version = 0
-            n.set_mem(251,0,bytes((version,)))
+        n.set_mem(251,0,bytes((version,)))
         if "name" in js:
             name = js["name"]
         else:
             name = ""
-            n.set_mem(251,1,normalize(name,63))
+        n.set_mem(251,1,normalize(name,63))
         if "description" in js:
             description= js["description"]
         else:
             description = ""
-            n.set_mem(251,64,normalize(description,64))
+        n.set_mem(251,64,normalize(description,64))
         if "basic_events" in js:
             n.ev_list=[]
             index=0
@@ -303,6 +304,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             str_events.extend((str(ev[0]),str(ev[1])))
         node_desc["basic_events"]=str_events
         for ev in self.ev_list_IOX:
+            
             str_events.extend((str(ev[0]),str(ev[1])))
         node_desc["IOX_events"]=str_events
         debug(ev,str(ev))
@@ -310,8 +312,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         return node_desc
         
                 
-    def create_memory(self):
-            
+    def create_memory(self):           
         channels_mem=Mem_space([(0,1),(1,1)])  #node address and io config
         offset = 2
         #loop over 16 channels (basic IO)
@@ -327,27 +328,17 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 offset+=8
         self.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
                        253:channels_mem}
-        offset = 2
-        self.set_mem(253,1,b"\2")
-        for i in range(16):
-            buf = bytearray()
-            buf.extend([i]*8)
-            self.set_mem(253,offset,buf)
-            buf = bytearray()
-            buf.extend([i]*7)
-            buf.append(i+1)
-            self.set_mem(253,offset+8,buf)
-            offset+=16
+        
             
     def __init__(self,ID):
         super().__init__(ID)
         self.aliasID = ID & 0xFFF   #FIXME!!!
         self.cp_node=None        #real node
         self.ev_list=[(None,None)]*16   #basic event list
-        self.ev_list_IOX = []
+        self.ev_list_IOX = [(None,None)]*128    #IOX events list 2 events for 8 IO lines for 8 cards max
 
     def get_IOX_CDI(self):
-        nb_iox_io = (self.cp_node.nb_IOX_inputs()+self.cp_node.nb_IOX_inputs())//8
+        nb_iox_io = (self.cp_node.nb_IOX_inputs()+self.cp_node.nb_IOX_outputs())//8
         if nb_iox_io==0:
             return ""
         res=""
@@ -384,7 +375,19 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 debug(entry)
                 self.ev_list[entry]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
             else: #memory changed is about IOX part
-                pass
+                offset_0 =offset-2-self.cp_node.total_IO*2*8
+                card = offset_0//(1+8*2*8) #compute the card number, each description is 129 bytes long
+                                       #IO type + 8 bytes for 8 pairs of events (1 pair per I/O line)
+                offset_in_card = offset_0 % (1+8*2*8)
+                if offset_in_card == 0:  #IO Type
+                    self.cp_node.IOX[index]=self.read_mem(mem_sp,offset)[0]
+                    #fixme: rebuild corresponding IOX
+                else:   #event
+                    if offset_in_card == 1: #first event
+                        offset_0 = offset
+                    else:
+                        offset_0 = offset - 8
+                    self.ev_list_IOX[card]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
 
     def poll(self):
         self.cp_node.read_inputs()
