@@ -160,6 +160,8 @@ class Event:
 
     @staticmethod
     def from_str(s):  #from a hex dotted notation xx.xx.xx.xx.xx.xx.xx.xx
+        if s=="None":
+            return Event(b"\0"*8)
         l = s.split(".")
         if len(l)!=8:
             debug("Malformed event")
@@ -167,7 +169,7 @@ class Event:
         ev = b""
         for i in l:
             ev+=bytes((int(i,16),))
-        return ev
+        return Event(ev)
     
     def __init__(self,id):  #id is a 8 bytes array
         self.id = id
@@ -176,6 +178,8 @@ class Event:
         return self.id[0]==0 and self.id[1]==0
     
     def __str__(self):
+        if self.id == None:
+            return "0."*7+"0"
         s=""
         for i in self.id:
             s+=hexp(i,2)+"."

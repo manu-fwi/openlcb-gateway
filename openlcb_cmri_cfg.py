@@ -1,5 +1,6 @@
 import time
 import openlcb_nodes
+from openlcb_debug import *
 
 class CMRI_message:
     SYN=0xFF
@@ -152,6 +153,7 @@ class CMRI_node:
 class CPNode (CMRI_node):
     total_IO = 16
     read_period = 10 #in seconds
+    IOX_max = 16   #max number of IO ports (*8 to get max number of IO lines)
 
     @staticmethod
     def decode_nb_inputs(cpn_type):
@@ -178,7 +180,7 @@ class CPNode (CMRI_node):
     def __init__(self,address,nb_I,client=None):
         super().__init__(address)
         self.nb_I = nb_I
-        self.IOX=[]
+        self.IOX=[0]*16   #16 boards max
         self.last_input_read = time.time() #timestamp used to trigger a periodic input read
         #inputs states pair (first is current state, second is last state)
         #state = -1: never polled
@@ -201,39 +203,26 @@ class CPNode (CMRI_node):
     def nb_IOX_inputs(self):
         res = 0
         for i in self.IOX:
-            if i>0:
-                res += i
+            if i==2:
+                res += 8
         return res 
     
     def nb_IOX_outputs(self):
         res = 0
         for i in self.IOX:
-            if i==0:
-                res+=8
+            if i==1:
+                res += 8
         return res
     
-    def add_IOX(self,IO_pair):
-        for i in range(len(IO_pair)):
-            if IO_pair[i]!=-1:
-                IO_pair[i] <<= 3   #x8 because each element is the nb of inputs: 8 or 0
-                if IO_pair[i]>0:
-                    self.inputs_IOX.extend([[-1,-1] for i in range(8)])  #extend bits array
-                else:
-                    self.outputs_IOX.extend([[0,-1] for i in range(8)])
-        self.IOX.extend(IO_pair)
+    def build_IOX(self):
+        debug(self.IOX)
+        for i in range(len(self.IOX)):
+            if self.IOX[i]==1:
+                self.outputs_IOX.extend([[0,-1] for k in range(8)])
+            elif self.IOX[i]==2:
+                self.inputs_IOX.extend([[-1,-1] for k in range(8)])  #extend bits array
+                   
         
-    def decode_IOX(self,IO):
-        #print("decoding IOX",IO)
-        
-        a = [int(io) for io in IO.split(',')]
-        if len(a)!=2:
-            print("bad IOX")
-        else:
-            if (abs(a[0])!=1 and a[0]!=0) or (abs(a[1])!=1 and a[1]!=0):
-                print("bad IOX")
-            else:
-                self.add_IOX(a)
-
     def read_inputs(self):  #returns True if poll has been sent or False otherwise
         #send poll to cpNode
         if time.time()<self.last_poll+CPNode.read_period:
@@ -277,10 +266,10 @@ class CPNode (CMRI_node):
             bytes_value+=b"\0"
         first_bit = 0
         for i in self.IOX:
-            if i==0:
+            if i==1:
                 bits = [io[0] for io in self.outputs_IOX[first_bit:first_bit+8]]
                 bytes_value+=bytearray((CPNode.pack_bits(bits),))
-                print(i," bytes=",bytes_value)
+                debug("(",i,") bytes=",bytes_value)
                 first_bit += 8
         cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
         if self.client!=None:
@@ -288,10 +277,10 @@ class CPNode (CMRI_node):
         for io in self.outputs:
             io[1]=io[0]  #value has been sent so sync last known value to that
         for i in self.IOX:
-            if i==0:
+            if i==1:
                 for io in self.outputs_IOX[first_bit:first_bit+8]:
                     io[1]=io[0]
-                first_bit+=8
+                    first_bit+=8
 
     def set_output(self,index_out,value):
         if index_out<CPNode.total_IO - self.nb_I:
@@ -308,7 +297,7 @@ class CPNode (CMRI_node):
     def get_IO_nb(self):
         res = CPNode.total_IO
         for IO in self.IOX:
-            if IO!=-1:
+            if IO>0:
                 res+=8
         return res
 

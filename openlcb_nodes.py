@@ -208,8 +208,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 <int size="1">
 <default>1</default>
 <map>
-<relation><property>0</property><value>8 Outputs</value></relation>
-<relation><property>1</property><value>8 Inputs</value></relation>
+<relation><property>0</property><value>No card</value></relation>
+<relation><property>1</property><value>8 Outputs</value></relation>
+<relation><property>2</property><value>8 Inputs</value></relation>
 </map>
 </int>
 <group replication="8">
@@ -254,9 +255,20 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             nb_I = 16
         n.cp_node = cmri.CPNode(js["cmri_node_add"], nb_I)
         n.create_memory()
+        n.set_mem(253,0,bytes((js["cmri_node_add"],)))
         n.set_mem(253,1,bytes((js["IO_config"],)))
+        if "IOX_config" in js:
+            IOX= js["IOX_config"]
+        else:
+            IOX=[0]*16
+        index=0
+        debug(IOX)
+        for i in IOX:
+            debug("IOX",i,2+cmri.CPNode.total_IO*2*8+index*(1+2*8*8))
+            n.set_mem(253,2+cmri.CPNode.total_IO*2*8+index*(1+2*8*8),bytes((i,)))
+            index+=1
         if "version" in js:
-            version = int(js["version"],16)
+            version = js["version"]
         else:
             version = 0
         n.set_mem(251,0,bytes((version,)))
@@ -271,24 +283,24 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             description = ""
         n.set_mem(251,64,normalize(description,64))
         if "basic_events" in js:
-            n.ev_list=[]
             index=0
             for ev in js["basic_events"]:
-                if index%2==0:
-                    ev0=Event.from_str(ev)
-                else:
-                    n.ev_list.append((ev0,Event.from_str(ev)))
+                debug("basic",index,ev)
+                n.set_mem(253,2+index*8,Event.from_str(ev).id)
                 index+=1
-            n.ev_list.extend([(None,None)]*(16-len(n.ev_list)))   #complete to 16
         if "IOX_events" in js:
-            n.ev_list_IOX=[]
-            index=0
+            debug("IOX",index,ev)
+            offset = 2+cmri.CPNode.total_IO*2*8+1   #beginning of the first IOX event
+            index = 0
             for ev in js["IOX_events"]:
-                if index%2==0:
-                    ev0=Event.from_str(ev)
-                else:
-                    n.ev_list_IOX.append((ev0,Event.from_str(ev)))
+                #compute the offset where the event must go in memory (remember its 1 byte (I or O)
+                #and then 16 times two events
+                n.set_mem(253,offset,Event.from_str(ev).id)
                 index+=1
+                offset+=8    #next event
+                if index%16==0:  #16 events per card, add 1 to skip the I/O byte of the next card
+                    offset+=1
+        n.memory[253].dump()
         return n
 
     def to_json(self):
@@ -298,16 +310,20 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         node_desc = {"fullID":self.ID,"cmri_node_add":self.cp_node.address,
                      "version":self.read_mem(251,0)[0],"name":name[:name.find(0)].decode('utf-8'),
                      "description":descr[:descr.find(0)].decode('utf-8'),
-                     "IO_config":self.read_mem(253,1)[0]}
+                     "IO_config":self.read_mem(253,1)[0],
+                     "IOX_config":self.cp_node.IOX}
         str_events=[]
+        debug("ev_list",len(self.ev_list))
         for ev in self.ev_list:
-            str_events.extend((str(ev[0]),str(ev[1])))
+            debug(ev)
+            str_events.extend((str(Event(ev[0])),str(Event(ev[1]))))
         node_desc["basic_events"]=str_events
+        str_events_IOX=[]
+        debug("ev_list_IOX",len(self.ev_list_IOX))
         for ev in self.ev_list_IOX:
-            
-            str_events.extend((str(ev[0]),str(ev[1])))
-        node_desc["IOX_events"]=str_events
-        debug(ev,str(ev))
+            debug(ev)
+            str_events_IOX.extend((str(Event(ev[0])),str(Event(ev[1]))))
+        node_desc["IOX_events"]=str_events_IOX
         debug("node desc=",node_desc)
         return node_desc
         
@@ -318,36 +334,34 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         #loop over 16 channels (basic IO)
         for i in range(self.cp_node.total_IO*2): #2 events per IO line
             channels_mem.create_mem(offset,8)
+            channels_mem.set_mem(offset,b"\0"*8)    #default event
             offset+=8
         #now IOX associated memory
-        for i in range(len(self.cp_node.IOX)):
+        for i in range(cmri.CPNode.IOX_max):
             channels_mem.create_mem(offset,1)   #Input or output for the IOX card
             offset+=1
             for j in range(16):   #2 events per IO line
                 channels_mem.create_mem(offset,8)
+                channels_mem.set_mem(offset,b"\0"*8)    #default event
                 offset+=8
         self.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
                        253:channels_mem}
+        self.memory[251].dump()
+        self.memory[253].dump()
         
             
     def __init__(self,ID):
         super().__init__(ID)
         self.aliasID = ID & 0xFFF   #FIXME!!!
         self.cp_node=None        #real node
-        self.ev_list=[(None,None)]*16   #basic event list
-        self.ev_list_IOX = [(None,None)]*128    #IOX events list 2 events for 8 IO lines for 8 cards max
+        self.ev_list=[(b"\0"*8,b"\0"*8)]*16   #basic event list
+        self.ev_list_IOX = [(b"\0"*8,b"\0"*8)]*128    #IOX events list for 8 IO lines for 16 cards max
 
     def get_IOX_CDI(self):
-        nb_iox_io = (self.cp_node.nb_IOX_inputs()+self.cp_node.nb_IOX_outputs())//8
-        if nb_iox_io==0:
-            return ""
-        res=""
-        if nb_iox_io>0:
-            res += Node_cpnode.CDI_IOX_repetition_beg.replace("%nbiox",str(nb_iox_io))
+        
+        res = Node_cpnode.CDI_IOX_repetition_beg.replace("%nbiox","16")
         res+=Node_cpnode.CDI_IOX
-        if nb_iox_io>0:
-            res+=Node_cpnode.CDI_IOX_repetition_end
-        print("get_IOX_CDI", nb_iox_io,res)
+        res+=Node_cpnode.CDI_IOX_repetition_end
         return res
         
     def get_CDI(self):
@@ -355,7 +369,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 
     def set_mem(self,mem_sp,offset,buf):
         super().set_mem(mem_sp,offset,buf)
-       
         if mem_sp == 253:
             if offset == 0:
                 #address change
@@ -364,7 +377,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             elif offset == 1:
                 pass
                 #FIXME: I dont handle the I/O type change for now
-            elif offset >=2 and offset-2<=self.cp_node.total_IO*2*8: #check if we change a basic IO event
+            elif offset >=2 and offset-2<self.cp_node.total_IO*2*8: #check if we change a basic IO event
                 #rebuild the events if they have changed
                 entry = (offset-2)//16
                 
@@ -372,22 +385,24 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     offset_0 = offset
                 else:
                     offset_0 = offset - 8
-                debug(entry)
-                self.ev_list[entry]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
+                debug("entry=",entry,"off=",offset,"off0=",offset_0)
+                self.ev_list[entry]=(self.read_mem(mem_sp,offset_0),self.read_mem(mem_sp,offset_0+8))
             else: #memory changed is about IOX part
                 offset_0 =offset-2-self.cp_node.total_IO*2*8
                 card = offset_0//(1+8*2*8) #compute the card number, each description is 129 bytes long
                                        #IO type + 8 bytes for 8 pairs of events (1 pair per I/O line)
                 offset_in_card = offset_0 % (1+8*2*8)
+                debug(offset,offset_0,card,offset_in_card,(offset_in_card-1)//16)
                 if offset_in_card == 0:  #IO Type
-                    self.cp_node.IOX[index]=self.read_mem(mem_sp,offset)[0]
-                    #fixme: rebuild corresponding IOX
+                    self.cp_node.IOX[card]=self.read_mem(mem_sp,offset)[0]
+                    self.cp_node.build_IOX()
                 else:   #event
-                    if offset_in_card == 1: #first event
+                    ev_pair_index=(offset_in_card-1)//16
+                    if (offset_in_card-1)%16 == 0: #first event
                         offset_0 = offset
                     else:
                         offset_0 = offset - 8
-                    self.ev_list_IOX[card]=(Event(self.read_mem(mem_sp,offset_0)),Event(self.read_mem(mem_sp,offset_0+8)))
+                    self.ev_list_IOX[card*8+ev_pair_index]=(self.read_mem(mem_sp,offset_0),self.read_mem(mem_sp,offset_0+8))
 
     def poll(self):
         self.cp_node.read_inputs()

@@ -26,7 +26,7 @@ def send_CDI(s,src_node,dest_node,address,size):
     data = bytearray((0x20,0x53))
     data.extend(address.to_bytes(4,'big'))
     data.extend(bytearray(src_node.get_CDI()[address:address+size],'utf-8'))
-    debug(src_node.get_CDI())
+    #debug(src_node.get_CDI())
     dgrams=create_datagram_list(src_node,dest_node,data)
     for d in dgrams:
         s.send(d.to_gridconnect())
@@ -56,8 +56,6 @@ def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
         if mem_sp_separated:
             to_send2.extend((mem_sp,))
         to_send2.extend(mem[:size])
-        debug("to_send=",to_send)
-        debug("to_send2=",to_send2)
         dgrams = create_datagram_list(src,dest,to_send2)
         for d in dgrams:
             s.send(d.to_gridconnect())
