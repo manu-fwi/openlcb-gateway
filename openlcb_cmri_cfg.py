@@ -152,7 +152,7 @@ class CMRI_node:
 
 class CPNode (CMRI_node):
     total_IO = 16
-    read_period = 10 #in seconds
+    read_period = 2 #in seconds
     IOX_max = 16   #max number of IO ports (*8 to get max number of IO lines)
 
     @staticmethod
