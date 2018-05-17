@@ -51,7 +51,7 @@ class Cmri_net_bus(Bus):
                         else:
                             node.cp_node.process_receive(cmri.CMRI_message.from_wire_message(msg))
                             ev_list.extend(node.generate_events())
-                    else:
+                    elif first_byte is not None:
                         #it is a bus message (new node...)
                         if msg.startswith("start_node"):
                             fullID= int(msg.split(' ')[1],16)
@@ -59,9 +59,13 @@ class Cmri_net_bus(Bus):
                                 node = self.nodes_db.db[fullID]   #get node from db
                                 c.managed_nodes.append(node)
                             else:
-                                debug("Error: unknown node of full ID",fullID,self.nodes_db.db.keys())
+                                debug("Unknown node of full ID",fullID,", adding it to the DB")
+                                node = openlcb_nodes.Node_cpnode.from_json(json.dumps(openlcb_nodes.Node_cpnode.DEFAULT_JSON))
+                                self.nodes_db.db[fullID]=node
                         else:
-                            print("unknown cmri_net_bus command")
+                            debug("unknown cmri_net_bus command")
+                    else:
+                        debug("malformed cmri_net_bus command")
                         
             #now poll all nodes
             for node in c.managed_nodes:

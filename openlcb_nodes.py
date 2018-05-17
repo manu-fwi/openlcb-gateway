@@ -238,6 +238,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 """
     CDI_IOX_repetition_end="""</group>
 """
+
+    #default dict to add new nodes to the DB when they have no description (used by cmri_net_bus)
+    DEFAULT_JSON = { "fullID":None,"cmri_node_add":0 }
     @staticmethod
     def from_json(js):
         def normalize(s,length):

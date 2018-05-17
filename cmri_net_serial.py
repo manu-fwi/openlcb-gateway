@@ -84,9 +84,31 @@ def process():
     msg = rcv_cmri_messages.pop(0)
     ser.send(msg.to_raw_message())
     must_wait_answer = (msg.type_m == cmri.CMRI_message.POLL_M)
+
+def load_config():
+    #Load config file (json formatted dict config, see below)
+    #
+    #
+    #
+    #
+    with open("cmri_net_serial.cfg") as cfg_file:
+        config = json.load(cfg_file)
+    #plug reasonable default values for secondary parameters
+    if "serial_speed" not in config:
+        config["serial_speed"]=9600
+    if "openlcb_gateway_ip" not in config:
+        config["openlcb_gateway_ip"]="127.0.0.1"
+    if "openlcb_gateway_port" not in config:
+        config["openlcb_gateway_port"]="50001"
+    if "nodes_ID_filename" not in config:
+        config["nodes_ID_filename"]="cmri_net_serial_nodes_ID.cfg"
     
+    return config
+
+config = load_config()
 #connection to the gateway
-ser = serial_bus("/dev/ttyUSB0",9600)
+ser = serial_bus(config["serial_port"],config["serial_speed"])
+
 connected = False
 while not connected:
     try:
@@ -100,8 +122,8 @@ message_to_send=b""   #last incomplete message from the serial port
 must_wait_answer = False  #this is True when the last message sent or being sent needs an answer (like Poll message)
 
 time.sleep(1) #time for arduino serial port to settle down
-gateway_ip = "127.0.0.1"
-gateway_port = 50001
+gateway_ip = config["openlcb_gateway_ip"]
+gateway_port = config["openlcb_gateway_port"]
 s =socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 connected = False
 while not connected:
@@ -113,7 +135,9 @@ while not connected:
         time.sleep(1)
 print("connected to gateway!")
 s.settimeout(0)
+#create or connect to existing cmri_net_bus
 s.send(("CMRI_NET_BUS cmri bus 1;").encode('utf-8'))
+#read and add the nodes we want to manage
 s.send(("start_node 20112AAAAAA;").encode('utf-8'))
 while True:
     buf=b""
