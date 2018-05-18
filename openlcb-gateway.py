@@ -6,7 +6,8 @@ from openlcb_protocol import *
 import socket,select,time
 from collections import deque
 import openlcb_nodes_db
-        
+import openlcb_config
+       
 
 def get_alias_neg_from_alias(alias):
     found = None
@@ -251,9 +252,11 @@ mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1
 list_alias_neg=[]  #list of ongoing alias negotiations
 reserved_aliases = {}  #dict alias--> fullID of reserved aliases
 
-OLCB_serv = openlcb_server.Openlcb_server("127.0.0.1",50000)
+config_dict = openlcb_config.load_config("openlcb_gateway.cfg")
+
+OLCB_serv = openlcb_server.Openlcb_server(config_dict["server_ip"],config_dict["server_base_port"])
 OLCB_serv.start()
-buses_serv = openlcb_server.Buses_server("127.0.0.1",50001)
+buses_serv = openlcb_server.Buses_server(config_dict["server_ip"],config_dict["server_base_port"]+1)
 buses_serv.start()
 
 # queue up to 5 requests
