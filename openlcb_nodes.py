@@ -420,21 +420,19 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         return ev_lst
 
     def consume_event(self,ev):
-        val = -1
+        #the node might consume the same event for several outputs (one event controlling several outputs)
         index = 0
         for ev_pair in self.ev_list:
+            val = -1
             if ev.id == ev_pair[0]:
                 val = 0
-                break
             elif ev.id == ev_pair[1]:
                 val = 1
-                break
             index+=1
-        debug("consume event:",index,">?",self.cp_node.nb_I," val=",val)
-        if val>=0 and index>=self.cp_node.nb_I:  #we only consume event for outputs
-
-            self.cp_node.set_output(index-self.cp_node.nb_I,val)
-            self.cp_node.write_outputs()
+            debug("consume event:",index,">?",self.cp_node.nb_I," val=",val)
+            if val>=0 and index>=self.cp_node.nb_I:  #we only consume event for outputs
+                self.cp_node.set_output(index-self.cp_node.nb_I,val)
+                self.cp_node.write_outputs()
         
 def find_node_from_cmri_add(add,nodes):
     for n in nodes:

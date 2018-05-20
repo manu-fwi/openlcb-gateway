@@ -241,7 +241,6 @@ class CPNode (CMRI_node):
         index = 0
         n = 0
         while n < self.nb_I and index <=1:
-            #debug("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
             self.inputs[n][1] = self.inputs[n][0]  #current value becomes last value
             self.inputs[n][0] = (message[index] >> (n%8))&0x01
             n+=1
@@ -250,7 +249,6 @@ class CPNode (CMRI_node):
         index = 2
         n=0
         while n<self.nb_IOX_inputs() and index < len(message):
-            debug("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
             self.inputs_IOX[n][1] = self.inputs_IOX[n][0]  #current value becomes last value
             self.inputs_IOX[n][0] = (message[index] >> (n%8))&0x01
             n+=1
