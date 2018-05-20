@@ -2,6 +2,7 @@ import socket,select
 from openlcb_protocol import *
 import openlcb_server
 import openlcb_buses
+from openlcb_debug import *
 
 class Client:
     """
@@ -17,7 +18,7 @@ class Client:
         return self.sock.recv(200).decode('utf-8')
     
     def new_msg(self,msg):
-        print("add ",msg," to client at ",self.address)
+        debug("add ",msg," to client at ",self.address)
         self.msgs += msg
 
     #return the next msg (with the separator)
@@ -28,7 +29,7 @@ class Client:
         if not sep:
             #print("sep!!")
             return ""
-        print("next message from ",self.address,msg+sep)
+        debug("next message from ",self.address,msg+sep)
         self.msgs = end
         return msg+sep
 
@@ -59,7 +60,7 @@ class Client_bus(Client):
             return bus is not None
 
     def queue(self,cmri_msg): #FIXME for now only cmri is handled
-        print("queue<<",(cmri_msg.to_wire_message()+";").encode('utf-8'))
+        debug("queue<<",(cmri_msg.to_wire_message()+";").encode('utf-8'))
         self.sock.send((cmri_msg.to_wire_message()+";").encode('utf-8'))
         
 def get_client_from_socket(clients,sock):
@@ -81,7 +82,7 @@ class Openlcb_server:
     def start(self):
         self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.serversocket.bind((self.address, self.port))
-        print("gateway listening on ",self.address," at port ",self.port)
+        debug("gateway listening on ",self.address," at port ",self.port)
 
         # queue up to 5 requests
         self.serversocket.listen(5)
@@ -99,7 +100,7 @@ class Openlcb_server:
 
         clientsocket,addr = self.serversocket.accept()
         address = (str(addr).split("'"))[1]
-        print("Got a connection from", address)
+        debug("Got a connection from", address)
         self.clients.append(Client(clientsocket,address,";"))
         
     def deconnect_client(self,c):
@@ -109,7 +110,7 @@ class Openlcb_server:
        
         #Here you can add the name of the client who is deconnecting
 
-        print("Client at ", c.address," is now deconnected!")
+        debug("Client at ", c.address," is now deconnected!")
 
         #Here remember to clean the dictionaries
         self.clients.remove(c)
@@ -138,19 +139,19 @@ class Openlcb_server:
             try:
                 m = s.recv(200).decode('utf-8')
             except socket.error:
-                print("recv error")
+                debug("recv error")
             debug(len(m)," => ",m)
             if not m:
                 #ready to read and empty msg means deconnection
                 self.deconnect_client(c)
             else:
-                print("new msg=",m)
+                debug("new msg=",m)
                 c.new_msg(m)
 
     def send_event(self,n,ev):
         for c in self.clients:   #FIXME
             c.sock.send(Frame.build_PCER(n,ev).to_gridconnect())
-            print("event sent by server = ",Frame.build_PCER(n,ev).to_gridconnect())
+            debug("event sent by server = ",Frame.build_PCER(n,ev).to_gridconnect())
 
 
 class Buses_server(Openlcb_server):
@@ -169,13 +170,13 @@ class Buses_server(Openlcb_server):
 
         clientsocket,addr = self.serversocket.accept()
         address = (str(addr).split("'"))[1]
-        print("Got a connection from", address)
+        debug("Got a connection to cmri net bus from", address)
         c = Client_bus(clientsocket,address)
         self.clients.append(c)
         self.unconnected_clients.append(c)
 
-    def send_event(self,n,ev):
+    def send_event(self,node,ev):
         for bus in self.buses:
             for c in bus.clients:
                 for n in c.managed_nodes:
-                    n.consume_event(ev)
+                    n.consume_event(Event(ev))

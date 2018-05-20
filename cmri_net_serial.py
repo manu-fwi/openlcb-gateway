@@ -1,6 +1,7 @@
 import openlcb_cmri_cfg as cmri
 import socket,time
-import serial
+import serial,json
+from openlcb_debug import *
 
 class serial_bus:
     def __init__(self,port,baudrate):
@@ -40,10 +41,9 @@ class serial_bus:
         return len(self.rcv_buffer)
     
     def process_IO(self):
-        global count
         if self.to_send:  #still sending
-            print("sending msg=",self.to_send[self.to_send_pos:])
             if self.to_send_pos < len(self.to_send):
+                debug("sending msg=",self.to_send[self.to_send_pos:])
                 try:
                     nb = self.ser_port.write(self.to_send[self.to_send_pos:])
                     self.to_send_pos += nb
@@ -52,6 +52,7 @@ class serial_bus:
             else:
                 self.to_send = b""
                 self.to_send_pos = 0
+                debug("sending is done")
         else:   #see if we have received something
             try:
                 self.rcv_buffer +=  self.ser_port.read()
@@ -146,6 +147,7 @@ while True:
     rcv_msg_list=[]
     try:
         buf=s.recv(200).decode('utf-8') #byte array: the raw cmri message
+        print(buf)
     except BlockingIOError:
         pass
     if len(buf)>0:

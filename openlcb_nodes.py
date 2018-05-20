@@ -423,15 +423,16 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         val = -1
         index = 0
         for ev_pair in self.ev_list:
-            if ev.id == ev_pair[0].id:
+            if ev.id == ev_pair[0]:
                 val = 0
                 break
-            elif ev.id == ev_pair[1].id:
+            elif ev.id == ev_pair[1]:
                 val = 1
                 break
             index+=1
+        debug("consume event:",index,">?",self.cp_node.nb_I," val=",val)
         if val>=0 and index>=self.cp_node.nb_I:  #we only consume event for outputs
-            print("consume_ev",ev.id,index,val)
+
             self.cp_node.set_output(index-self.cp_node.nb_I,val)
             self.cp_node.write_outputs()
         

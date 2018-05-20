@@ -1,6 +1,6 @@
 import socket,select
 import openlcb_cmri_cfg as cmri
-import serial
+import serial,json
 import openlcb_server
 import openlcb_nodes
 import openlcb_nodes_db as nodes_db
@@ -34,7 +34,6 @@ class Cmri_net_bus(Bus):
         for c in self.clients:
             msg = c.next_msg()
             if msg:
-                print("received=",msg)
                 msg=msg[:len(msg)-1]  #remove the trailing ";"
                 if msg:
                     msg.lstrip() #get rid of leading spaces
@@ -47,14 +46,14 @@ class Cmri_net_bus(Bus):
                         #it is a CMRI message, process it
                         node = openlcb_nodes.find_node_from_cmri_add(cmri.CMRI_message.UA_to_add(int(words_list[3],16)),c.managed_nodes)
                         if node is None:
-                            print("Unknown node!! add=",cmri.CMRI_message.UA_to_add(int(words_list[3],16)) )
+                            debug("Unknown node!! add=",cmri.CMRI_message.UA_to_add(int(words_list[3],16)) )
                         else:
                             node.cp_node.process_receive(cmri.CMRI_message.from_wire_message(msg))
                             ev_list.extend(node.generate_events())
-                    elif first_byte is not None:
+                    else:
                         #it is a bus message (new node...)
                         if msg.startswith("start_node"):
-                            fullID= int(msg.split(' ')[1],16)
+                            fullID= int(msg.split(' ')[1])
                             if fullID in self.nodes_db.db:
                                 node = self.nodes_db.db[fullID]   #get node from db
                                 c.managed_nodes.append(node)
@@ -62,10 +61,9 @@ class Cmri_net_bus(Bus):
                                 debug("Unknown node of full ID",fullID,", adding it to the DB")
                                 node = openlcb_nodes.Node_cpnode.from_json(json.dumps(openlcb_nodes.Node_cpnode.DEFAULT_JSON))
                                 self.nodes_db.db[fullID]=node
+                            node.cp_node.client = c
                         else:
                             debug("unknown cmri_net_bus command")
-                    else:
-                        debug("malformed cmri_net_bus command")
                         
             #now poll all nodes
             for node in c.managed_nodes:

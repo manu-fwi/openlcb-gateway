@@ -192,6 +192,7 @@ class CPNode (CMRI_node):
         self.outputs_IOX=[]
         self.last_poll = time.time()-CPNode.read_period
         self.last_receive = time.time()-CPNode.read_period
+        self.client = client
 
     def __str__(self):
         res = "CPNode,bus="+str(self.bus)+",add="+str(self.address)+",NB I="+str(self.nb_I)
@@ -228,19 +229,19 @@ class CPNode (CMRI_node):
         if time.time()<self.last_poll+CPNode.read_period:
             return False
         self.last_poll=time.time()
-        print("sending poll to cpNode (add=",self.address,")")
+        debug("sending poll to cpNode (add=",self.address,")")
         cmd = CMRI_message(CMRI_message.POLL_M,self.address,b"")
-        if self.client!=None:
+        if self.client is not None:
             self.client.queue(cmd)
         return True
 
     def process_receive(self,msg):
-        print("process receive=",msg.message)
+        debug("process receive=",msg.message)
         message=msg.message
         index = 0
         n = 0
         while n < self.nb_I and index <=1:
-            print("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
+            #debug("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
             self.inputs[n][1] = self.inputs[n][0]  #current value becomes last value
             self.inputs[n][0] = (message[index] >> (n%8))&0x01
             n+=1
@@ -249,14 +250,14 @@ class CPNode (CMRI_node):
         index = 2
         n=0
         while n<self.nb_IOX_inputs() and index < len(message):
-            print("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
+            debug("message=",message[index],"n=",n," index = ",index, "v=",(message[index] >> (n%8))&0x01)
             self.inputs_IOX[n][1] = self.inputs_IOX[n][0]  #current value becomes last value
             self.inputs_IOX[n][0] = (message[index] >> (n%8))&0x01
             n+=1
             if n % 8==0:
                 index +=1 #next byte
         if n<self.nb_IOX_inputs():
-            print("Error: number of inputs in Receive message not corresponding to setup")
+            debug("Error: number of inputs in Receive message not corresponding to setup")
             
     def write_outputs(self):
         #send outputs to node
@@ -271,8 +272,9 @@ class CPNode (CMRI_node):
                 bytes_value+=bytearray((CPNode.pack_bits(bits),))
                 debug("(",i,") bytes=",bytes_value)
                 first_bit += 8
+        debug("bytes_value",bytes_value)
         cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
-        if self.client!=None:
+        if self.client is not None:
             self.client.queue(cmd)
         for io in self.outputs:
             io[1]=io[0]  #value has been sent so sync last known value to that
@@ -286,13 +288,13 @@ class CPNode (CMRI_node):
         if index_out<CPNode.total_IO - self.nb_I:
             self.outputs[index_out][0]=value
         else:
-            print("output index out of range")
+            debug("output index out of range")
 
     def set_output_IOX(self, index_out,value):
         if index_out<self.nb_IOX_outputs():
             self.outputs_IOX[index_out][0]=value
         else:
-            print("IOX output index out of range")    
+            debug("IOX output index out of range")    
 
     def get_IO_nb(self):
         res = CPNode.total_IO
@@ -304,9 +306,11 @@ class CPNode (CMRI_node):
     @staticmethod
     def pack_bits(bits_list): #will pack a list of bit values as a list of bytes, MSB is first bit and so on
         res = 0
+        shift=0
         for i in bits_list:
             print("i=",i,"res=",res)            
-            res = (res << 1) | i
+            res |= i << shift
+            shift+=1
             print("i=",i,"res=",res)
         return res
 

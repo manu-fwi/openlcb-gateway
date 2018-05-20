@@ -34,7 +34,7 @@ class Frame:
     @staticmethod
     def build_PCER(src_node,ev):
         res = Frame(src_node,None,0x195B4)
-        res.data = ev.id
+        res.data = ev
         return res
                     
     def __init__(self,src_node,dest_node,header):
