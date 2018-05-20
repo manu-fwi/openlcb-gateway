@@ -186,10 +186,13 @@ class Event:
         return s[:len(s)-1]
     
 class Alias_negotiation:
+    """
+    This class holds information on an ongoing alias ID reservation
+    """
     def __init__(self,alias):
-        self.aliasID = alias
-        self.fullID=0
-        self.step=0
+        self.aliasID = alias   #alias being reserved
+        self.fullID=0          #partial or complete full ID 
+        self.step=0            #current step 0:nothing yet, 1-4:  each CID step and 5 means reserved
     def next_step(self,fullID_part):
         self.fullID <<= 12
         self.fullID+=fullID_part
@@ -198,6 +201,7 @@ class Alias_negotiation:
         if self.step<4:
             debug("Reserve alias=",self.aliasID," before all CID received (",self.step,")")
             return False
+        self.step = 5
         return True
 
 def hexp(i,width):
