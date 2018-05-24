@@ -102,8 +102,11 @@ def reserve_aliasID(src_id):
         if neg.aliasID in reserved_aliases:
             debug("Error: trying to reserve alias ",neg.aliasID,"(",neg.fullID,") but its already reserved!")
         else:
+            debug("reserving ",src_id," ",len(reserved_aliases)," ",len(list_alias_neg))
             reserved_aliases[neg.aliasID]=neg.fullID
             list_alias_neg.remove(neg)
+            debug("reserved",len(reserved_aliases),len(list_alias_neg))
+                        
 
 def can_control_frame(cli,msg):
     first_b=int(msg[2:4],16)
@@ -113,17 +116,23 @@ def can_control_frame(cli,msg):
     if first_b & 0x7>=4 and first_b & 0x7<=7:
         debug("CID Frame n°",first_b & 0x7," * ",hex(var_field))
         #full_ID = var_field << 12*((first_b&0x7) -4)
+        new = False
         if first_b&0x7==7:
+            if get_alias_neg_from_alias(src_id) is not None:
+                debug("Alias collision")
+                #fixme: what to do here??
+                return
             alias_neg = Alias_negotiation(src_id)
+            new = True
         else:
             alias_neg = get_alias_neg_from_alias(src_id)
         alias_neg.next_step(var_field)
-        list_alias_neg.append(alias_neg)
+        if new:
+            list_alias_neg.append(alias_neg)
 
     elif first_b&0x7==0:
         if var_field==0x700:
-            debug("RID Frame * full ID=")#,hex(full_ID))
-            jmri_identified = True   #FIXME
+            debug("RID Frame * full ID=")
             neg = get_alias_neg_from_alias(src_id)
             reserve_aliasID(src_id)
             new_node(Node(neg.fullID,True,neg.aliasID))
@@ -131,7 +140,7 @@ def can_control_frame(cli,msg):
         elif var_field==0x701:
             debug("AMD Frame")
             neg = get_alias_neg_from_alias(src_id)
-            new_node(Node(neg.fullID,True,neg.aliasID)) #JMRI node only for now
+            new_node(Node(neg.fullID,True,neg.aliasID))
             reserve_aliasID(src_id)
             data_needed = True   #we could check the fullID
 
@@ -180,10 +189,6 @@ def global_frame(cli,msg):
             #FIXME:
             src_node = find_node(src_id)
             send_fields(s,dest_node,0xA08,mfg_name_hw_sw_version,src_node)
-
-            #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N3"+hexp(src_id,3)+"02;").encode("utf-8"))#SNIR header
-            #print(":X19A08"+hexp(gw_add.aliasID,3)+"AAAN3"+hexp(src_id,3)+"02;")
-            #send_fields(0xA08,username_desc,src_id,True)
 
     elif var_field == 0x5B4: #PCER (event)
         ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
@@ -248,9 +253,6 @@ def process_grid_connect(cli,msg):
 #globals: fixme
 
 mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
-
-list_alias_neg=[]  #list of ongoing alias negotiations
-reserved_aliases = {}  #dict alias--> fullID of reserved aliases
 
 config_dict = openlcb_config.load_config("openlcb_gateway.cfg")
 

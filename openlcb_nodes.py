@@ -103,12 +103,24 @@ class Node:
                               #you need to create the memory spaces (see the mem_space class)
         self.current_write = None  #this is a pair (memory space, address) that holds
                                    #the current writing process
+        self.PRNG = None
 
     def set_mem(self,mem_sp,offset,buf): #extend this to sync the "real" node (cpNode or whatever)
                                          #with the openlcb memory
         print("node set_mem");
         return self.memory[mem_sp].set_mem(offset,buf)
-    
+
+    def create_alias_negotiation(self):
+        """
+        Set up a new alias negotiation (creates an alias also)
+        """
+        if self.PRNG is None:
+            PRNG = self.ID
+        else:
+            PRNG += PRNG << 9 + 0x1B0CA37A4BA9
+        alias = ((PRNG >> 36)^(PRNG>> 24)^(PRNG >> 12)^PRNG) & 0xFFF
+        return Alias_negotiation(alias,self.ID)
+        
     def set_mem_partial(self,mem_sp,add,buf):
         res = self.memory[mem_sp].set_mem_partial(add,buf)
         if res is not None:

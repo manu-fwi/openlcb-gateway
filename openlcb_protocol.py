@@ -22,6 +22,7 @@ FCP    = 0x000040 # Function Configuration
 FUP    = 0x000020 # Firmware Upgrade Protocol
 FUAP   = 0x000010 # Firmware Upgrade Active
 
+
 class Frame:
     @staticmethod
     def build_verified_nID(src_node,simple_proto):
@@ -36,18 +37,25 @@ class Frame:
         res = Frame(src_node,None,0x195B4)
         res.data = ev
         return res
-                    
+    @staticmethode
+    def build_CID(node,alias_neg):
+        res = Frame(node,None,
+                    0x1<<16 + (8-alias_neg.step)<<12 + ((alias_neg.fullID >> (48-alias_neg.step*12))&0xFFF))
+        return res
+    
     def __init__(self,src_node,dest_node,header):
         self.src = src_node
         self.dest = dest_node
         self.header = header
+        self.data = None
         
     def add_data(self,bytes_arr):
         self.data = bytes_arr   #data is a byte array, no more than 8 bytes!
 
     def to_gridconnect(self):
         res=":X"+hexp(self.header,5)+hexp(self.src.aliasID,3)+"N"
-        res+=convert_to_hex_b(self.data)+";"
+        if data is not None:
+            res+=convert_to_hex_b(self.data)+";"
         return res.encode('utf-8')
     
 class Addressed_frame(Frame):
@@ -189,14 +197,16 @@ class Alias_negotiation:
     """
     This class holds information on an ongoing alias ID reservation
     """
-    def __init__(self,alias):
+    def __init__(self,alias,fullID=0):
         self.aliasID = alias   #alias being reserved
-        self.fullID=0          #partial or complete full ID 
+        self.fullID=fullID     #partial or complete full ID 
         self.step=0            #current step 0:nothing yet, 1-4:  each CID step and 5 means reserved
+        
     def next_step(self,fullID_part):
         self.fullID <<= 12
         self.fullID+=fullID_part
         self.step+=1
+        
     def reserve(self):
         if self.step<4:
             debug("Reserve alias=",self.aliasID," before all CID received (",self.step,")")
@@ -219,3 +229,7 @@ def convert_to_hex_b(buf): #return string
     for c in buf:
         res+=hexp(c,2)
     return res
+
+#globals
+list_alias_neg=[]  #list of ongoing alias negotiations
+reserved_aliases = {}  #dict alias--> fullID of reserved aliases

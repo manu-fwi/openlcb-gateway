@@ -27,6 +27,7 @@ class Cmri_net_bus(Bus):
         super().__init__(Bus_manager.cmri_net_bus_name)
         self.nodes_db = nodes_db.Nodes_db_cpnode(Cmri_net_bus.nodes_db_file)
         self.nodes_db.load_all_nodes()
+        self.nodes_in_alias_negotiation=[]
         
     def process(self):
         #check all messages and return a list of events that has been generated in response
@@ -56,18 +57,25 @@ class Cmri_net_bus(Bus):
                             fullID= int(msg.split(' ')[1])
                             if fullID in self.nodes_db.db:
                                 node = self.nodes_db.db[fullID]   #get node from db
-                                c.managed_nodes.append(node)
                             else:
                                 debug("Unknown node of full ID",fullID,", adding it to the DB")
                                 node = openlcb_nodes.Node_cpnode.from_json(json.dumps(openlcb_nodes.Node_cpnode.DEFAULT_JSON))
                                 self.nodes_db.db[fullID]=node
                             node.cp_node.client = c
+                            #create and register alias negotiation
+                            alias_neg = node.create_alias_negotiation()
+                            list_alias_neg.append(alias_neg)
+                            alias_neg.step = 1
+                            self.nodes_in_alias_negotiation.append[(node,alias_neg)]
                         else:
                             debug("unknown cmri_net_bus command")
                         
             #now poll all nodes
             for node in c.managed_nodes:
                 node.poll()
+        #move forward for alias negotiation
+        for node,alias_neg in self.nodes_in_alias_negotiation:
+            Node.build_CID(node,alias_neg)
         self.nodes_db.sync()
         return ev_list
 

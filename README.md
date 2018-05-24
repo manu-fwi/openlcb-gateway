@@ -1,8 +1,7 @@
 # openlcb-gateway
 Gateway from openlcb to cmri (and more)
 
-The goal (briefly): run a server that JMRI will connect to and fake openlcb nodes (for now only one).
-This "faked" node will connect to a real cpNode and do the translation openlcb <-> CMRI.
+The goal (briefly): make the link between nodes which are not openlcb aware (for now the only supported type is CMRI CPNodes) and JMRI and other openlcb aware hardware/software.
 
 What works: the early openlcb transactions (but not really the alias negotiation), the config (CDI) and the CMRI translation (tested with a cpnode sketch v1.5)
 
