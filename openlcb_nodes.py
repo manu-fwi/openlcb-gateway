@@ -107,7 +107,6 @@ class Node:
 
     def set_mem(self,mem_sp,offset,buf): #extend this to sync the "real" node (cpNode or whatever)
                                          #with the openlcb memory
-        print("node set_mem");
         return self.memory[mem_sp].set_mem(offset,buf)
 
     def create_alias_negotiation(self):
@@ -427,7 +426,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         cpn = self.cp_node
         for i in range(cpn.nb_I):
             if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
-                ev_lst.append((self,self.ev_list[i][cpn.inputs[i][0]]))
+                ev_lst.append(Event(self.ev_list[i][cpn.inputs[i][0]]))
 
         return ev_lst
 

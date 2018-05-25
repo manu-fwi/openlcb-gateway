@@ -10,9 +10,22 @@ class Bus:
     def __init__(self,name):
         self.name = name
         self.clients=[]       #client programs connected to the bus
+        self.nodes_in_alias_negotiation=[]  #alias negotiations (node,alias_neg)
 
     def __str__(self):
         return "Bus: "+self.name
+
+    def generate_frames_from_alias_neg(self):
+        frames_list=[]
+        for node,alias_neg in self.nodes_in_alias_negotiation:
+            if alias_neg.step < 5:
+                alias_neg.step+=1
+                if alias_neg.step < 5:
+                    frame = Frame.build_CID(node,alias_neg)
+                else:
+                    frame = Frame.build_RID(node,alias_neg)
+                frames_list.append(frame)
+
      
 class Cmri_net_bus(Bus):
     """
@@ -27,7 +40,7 @@ class Cmri_net_bus(Bus):
         super().__init__(Bus_manager.cmri_net_bus_name)
         self.nodes_db = nodes_db.Nodes_db_cpnode(Cmri_net_bus.nodes_db_file)
         self.nodes_db.load_all_nodes()
-        self.nodes_in_alias_negotiation=[]
+
         
     def process(self):
         #check all messages and return a list of events that has been generated in response
@@ -65,7 +78,6 @@ class Cmri_net_bus(Bus):
                             #create and register alias negotiation
                             alias_neg = node.create_alias_negotiation()
                             list_alias_neg.append(alias_neg)
-                            alias_neg.step = 1
                             self.nodes_in_alias_negotiation.append[(node,alias_neg)]
                         else:
                             debug("unknown cmri_net_bus command")
@@ -74,10 +86,9 @@ class Cmri_net_bus(Bus):
             for node in c.managed_nodes:
                 node.poll()
         #move forward for alias negotiation
-        for node,alias_neg in self.nodes_in_alias_negotiation:
-            Node.build_CID(node,alias_neg)
+        frames_list = self.generate_frames_from_alias_neg()
         self.nodes_db.sync()
-        return ev_list
+        return (ev_list,frames_list)
 
 class Can_bus(Bus):
     pass

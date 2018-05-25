@@ -148,10 +148,12 @@ class Openlcb_server:
                 debug("new msg=",m)
                 c.new_msg(m)
 
-    def send_event(self,n,ev):
-        for c in self.clients:   #FIXME
-            c.sock.send(Frame.build_PCER(n,ev).to_gridconnect())
-            debug("event sent by server = ",Frame.build_PCER(n,ev).to_gridconnect())
+    #send a frame (CID or event for ex) to all clients of the server but the emitter (if not None)
+    def send(self,ev_or_frame,cli_emitter=None):
+        for c in self.clients:   #FIXME we may need to buffer this instead of just sending right away??
+            if c!=cli_emitter:
+                c.sock.send(ev_or_frame.to_gridconnect())
+                debug("event sent by server = ",ev_or_frame.to_gridconnect())
 
 
 class Buses_server(Openlcb_server):
@@ -175,8 +177,8 @@ class Buses_server(Openlcb_server):
         self.clients.append(c)
         self.unconnected_clients.append(c)
 
-    def send_event(self,node,ev):
+    def consume_event(self,ev):
         for bus in self.buses:
             for c in bus.clients:
                 for n in c.managed_nodes:
-                    n.consume_event(Event(ev))
+                    n.consume_event(ev)

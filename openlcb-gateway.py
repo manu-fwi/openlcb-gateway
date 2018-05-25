@@ -283,9 +283,16 @@ while not done:
         buses_serv.unconnected_clients.pop(index)
     #process any incoming messages for each bus
     ev_list=[]
+    frames_list=[]
     for bus in buses.Bus_manager.buses:
-        ev_list.extend(bus.process())
+        new_ev,new_frames = bus.process()
+        ev_list.extend(new_ev)
+        frames_list.extend(new_frames)
     #and send the events generated in response
     for ev in ev_list:
-        OLCB_serv.send_event(ev[0],ev[1])
-        buses_serv.send_event(ev[0],ev[1])
+        OLCB_serv.send(ev)
+        buses_serv.consume_event(ev)
+    #and send the frames generated (more likely: RID/CID frames from alias negotiation
+    for frame in frames_list:
+        OLCB_serv.send(frame)
+    #BIG FIXME: we might want to transfer all openlcb traffic to them also

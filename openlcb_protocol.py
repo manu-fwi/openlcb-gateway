@@ -37,10 +37,14 @@ class Frame:
         res = Frame(src_node,None,0x195B4)
         res.data = ev
         return res
-    @staticmethode
+    @staticmethod
     def build_CID(node,alias_neg):
         res = Frame(node,None,
                     0x1<<16 + (8-alias_neg.step)<<12 + ((alias_neg.fullID >> (48-alias_neg.step*12))&0xFFF))
+        return res
+    @staticmethod
+    def build_RID(node,alias_neg):
+        res = Frame(node,None,0x1<<16 + 0x700)
         return res
     
     def __init__(self,src_node,dest_node,header):
@@ -55,7 +59,8 @@ class Frame:
     def to_gridconnect(self):
         res=":X"+hexp(self.header,5)+hexp(self.src.aliasID,3)+"N"
         if data is not None:
-            res+=convert_to_hex_b(self.data)+";"
+            res+=convert_to_hex_b(self.data)
+        res+=";"
         return res.encode('utf-8')
     
 class Addressed_frame(Frame):
@@ -203,8 +208,7 @@ class Alias_negotiation:
         self.step=0            #current step 0:nothing yet, 1-4:  each CID step and 5 means reserved
         
     def next_step(self,fullID_part):
-        self.fullID <<= 12
-        self.fullID+=fullID_part
+        self.fullID+=fullID_part << (48-self.step)
         self.step+=1
         
     def reserve(self):
@@ -212,7 +216,7 @@ class Alias_negotiation:
             debug("Reserve alias=",self.aliasID," before all CID received (",self.step,")")
             return False
         self.step = 5
-        return True
+        return True        
 
 def hexp(i,width):
     s=hex(i)[2:].upper()
