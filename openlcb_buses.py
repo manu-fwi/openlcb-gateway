@@ -2,9 +2,11 @@ import socket,select
 import openlcb_cmri_cfg as cmri
 import serial,json
 import openlcb_server
-import openlcb_nodes
+import openlcb_nodes,time
 import openlcb_nodes_db as nodes_db
 from openlcb_debug import *
+from openlcb_protocol import *
+from collections import deque
 
 class Bus:
     def __init__(self,name):
@@ -18,13 +20,39 @@ class Bus:
     def generate_frames_from_alias_neg(self):
         frames_list=[]
         for node,alias_neg in self.nodes_in_alias_negotiation:
-            if alias_neg.step < 5:
+            #debug("alias",alias_neg.aliasID," step",alias_neg.step,alias_neg.last_emit)
+            if alias_neg.step < 6:
                 alias_neg.step+=1
+                emit = True
                 if alias_neg.step < 5:
                     frame = Frame.build_CID(node,alias_neg)
+                    #timestamp, we need that to make sure we wait 200ms between last CID and RID
+                    alias_neg.last_emit=time.time()
+                elif alias_neg.step==5:
+                    if time.time()>alias_neg.last_emit+0.2:
+                        #200ms has elapsed since CID 4 so emit RID
+                        frame = Frame.build_RID(node)
+                    else:
+                        alias_neg.step-=1   #back to step 4, we'll retry RID next time
+                        emit = False
                 else:
-                    frame = Frame.build_RID(node,alias_neg)
-                frames_list.append(frame)
+                    #emit AMD
+                    frame = Frame.build_AMD(node)
+                    node.permitted = True
+                if emit:
+                    frames_list.append(frame)
+        return frames_list
+
+    def prune_alias_negotiation(self):
+        to_delete=deque()
+        for i in range(len(self.nodes_in_alias_negotiation)):
+            if self.nodes_in_alias_negotiation[i][1].step == 6:
+                debug("deleting alias negotiation",i)
+                to_delete.appendleft(i)
+        #remove the clients who just connected from the unconnected list
+        for index in to_delete:
+            self.nodes_in_alias_negotiation.pop(index)
+
 
      
 class Cmri_net_bus(Bus):
@@ -77,8 +105,7 @@ class Cmri_net_bus(Bus):
                             node.cp_node.client = c
                             #create and register alias negotiation
                             alias_neg = node.create_alias_negotiation()
-                            list_alias_neg.append(alias_neg)
-                            self.nodes_in_alias_negotiation.append[(node,alias_neg)]
+                            self.nodes_in_alias_negotiation.append((node,alias_neg))
                         else:
                             debug("unknown cmri_net_bus command")
                         
@@ -87,6 +114,7 @@ class Cmri_net_bus(Bus):
                 node.poll()
         #move forward for alias negotiation
         frames_list = self.generate_frames_from_alias_neg()
+        self.prune_alias_negotiation()
         self.nodes_db.sync()
         return (ev_list,frames_list)
 

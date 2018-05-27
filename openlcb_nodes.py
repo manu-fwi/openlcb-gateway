@@ -118,6 +118,8 @@ class Node:
         else:
             PRNG += PRNG << 9 + 0x1B0CA37A4BA9
         alias = ((PRNG >> 36)^(PRNG>> 24)^(PRNG >> 12)^PRNG) & 0xFFF
+        
+        self.aliasID = alias
         return Alias_negotiation(alias,self.ID)
         
     def set_mem_partial(self,mem_sp,add,buf):
@@ -314,7 +316,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 offset+=8    #next event
                 if index%16==0:  #16 events per card, add 1 to skip the I/O byte of the next card
                     offset+=1
-        n.memory[253].dump()
         return n
 
     def to_json(self):

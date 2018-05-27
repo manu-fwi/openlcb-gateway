@@ -153,7 +153,7 @@ class Openlcb_server:
         for c in self.clients:   #FIXME we may need to buffer this instead of just sending right away??
             if c!=cli_emitter:
                 c.sock.send(ev_or_frame.to_gridconnect())
-                debug("event sent by server = ",ev_or_frame.to_gridconnect())
+                debug("event/frame sent by server = ",ev_or_frame.to_gridconnect())
 
 
 class Buses_server(Openlcb_server):

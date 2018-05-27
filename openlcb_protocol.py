@@ -1,4 +1,5 @@
 from openlcb_debug import *
+import time
 
 #protocols definitions
 SPSP   = 0x800000 # Simple Protocol subset
@@ -40,11 +41,19 @@ class Frame:
     @staticmethod
     def build_CID(node,alias_neg):
         res = Frame(node,None,
-                    0x1<<16 + (8-alias_neg.step)<<12 + ((alias_neg.fullID >> (48-alias_neg.step*12))&0xFFF))
+                    (0x1<<16) + ((8-alias_neg.step)<<12) + (((alias_neg.fullID >> (48-alias_neg.step*12))&0xFFF)))
+        debug("build_CID", res.to_gridconnect())
         return res
     @staticmethod
-    def build_RID(node,alias_neg):
-        res = Frame(node,None,0x1<<16 + 0x700)
+    def build_RID(node):
+        res = Frame(node,None,(0x1<<16) + 0x700)
+        debug("build_RID",res.to_gridconnect())
+        return res
+    @staticmethod
+    def build_AMD(node):
+        res = Frame(node,None,(0x1<<16) + 0x701)
+        res.data = node.ID.to_bytes(6,"big")
+        debug("build_AMD",res.to_gridconnect())
         return res
     
     def __init__(self,src_node,dest_node,header):
@@ -58,7 +67,7 @@ class Frame:
 
     def to_gridconnect(self):
         res=":X"+hexp(self.header,5)+hexp(self.src.aliasID,3)+"N"
-        if data is not None:
+        if self.data is not None:
             res+=convert_to_hex_b(self.data)
         res+=";"
         return res.encode('utf-8')
@@ -206,11 +215,12 @@ class Alias_negotiation:
         self.aliasID = alias   #alias being reserved
         self.fullID=fullID     #partial or complete full ID 
         self.step=0            #current step 0:nothing yet, 1-4:  each CID step and 5 means reserved
+        self.last_emit = time.time()
         
     def next_step(self,fullID_part):
         self.fullID+=fullID_part << (48-self.step)
         self.step+=1
-        
+
     def reserve(self):
         if self.step<4:
             debug("Reserve alias=",self.aliasID," before all CID received (",self.step,")")
@@ -235,5 +245,13 @@ def convert_to_hex_b(buf): #return string
     return res
 
 #globals
-list_alias_neg=[]  #list of ongoing alias negotiations
 reserved_aliases = {}  #dict alias--> fullID of reserved aliases
+list_alias_neg = []
+
+def get_alias_neg_from_alias(alias):
+    found = None
+    for n in list_alias_neg:
+        if n.aliasID == alias:
+            found = n
+            break
+    return found

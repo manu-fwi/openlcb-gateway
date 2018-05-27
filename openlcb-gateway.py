@@ -9,13 +9,6 @@ import openlcb_nodes_db
 import openlcb_config
        
 
-def get_alias_neg_from_alias(alias):
-    found = None
-    for n in list_alias_neg:
-        if n.aliasID == alias:
-            found = n
-            break
-    return found
 
 def send_fields(sock,src_node,MTI,fields,dest_node):
     frames = create_addressed_frame_list(src_node,dest_node,MTI,("\0".join(fields)).encode('utf-8'),True)
@@ -146,7 +139,14 @@ def can_control_frame(cli,msg):
 
         elif var_field==0x702:
             debug("AME Frame")
-            data_nedded=True
+            for b in buses.Bus_manager.buses:
+                for c in b.clients:
+                    for n in c.managed_nodes:
+                        if n.permitted:
+                            f=Frame.build_AMD(n)
+                            s.send(f.to_gridconnect().encode('utf-8'))
+                            debug("sent---->:",f.to_gridconnect())
+                            debug("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
         elif var_field==0x703:
             debug("AMR Frame")
             data_nedded=True
@@ -164,11 +164,13 @@ def global_frame(cli,msg):
     s = cli.sock
     
     if var_field==0x490:  #Verify node ID (global) FIXME
+        debug("verify id")
         for b in buses.Bus_manager.buses:
             for c in b.clients:
                 for n in c.managed_nodes:
-                    s.send((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
-                    debug("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
+                    if n.permitted:
+                        s.send((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
+                        debug("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
 
     elif var_field==0x828:#Protocol Support Inquiry
         dest_node_alias = int(msg[12:15],16)
@@ -196,7 +198,8 @@ def global_frame(cli,msg):
         for b in buses.Bus_manager.buses:
             for c in b.clients:
                 for n in c.managed_nodes:
-                    n.consume_event(Event(ev_id))
+                    if n.permitted:
+                        n.consume_event(Event(ev_id))
 
 def process_datagram(cli,msg):
     src_id = int(msg[7:10],16)
@@ -205,7 +208,7 @@ def process_datagram(cli,msg):
     #for now we assume a one frame datagram
     dest_node_alias = int(msg[4:7],16)
     dest_node,cli_dest = find_managed_node(dest_node_alias)
-    if dest_node is None:   #not for us
+    if dest_node is None and node.permitted:   #not for us or the node is not ready yet
         debug("Frame is not for us!!")
         #FIXME: we have to transmit it ??
         return
