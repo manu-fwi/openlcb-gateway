@@ -152,9 +152,17 @@ class Openlcb_server:
     def send(self,ev_or_frame,cli_emitter=None):
         for c in self.clients:   #FIXME we may need to buffer this instead of just sending right away??
             if c!=cli_emitter:
-                c.sock.send(ev_or_frame.to_gridconnect())
+                c.sock.send(ev_or_frame.to_gridconnect().encode('utf-8'))
                 debug("event/frame sent by server = ",ev_or_frame.to_gridconnect())
 
+    #transfer a frame (same as send but here we take the gridconnect encoded string
+    #instead of the Frame/Event object
+    def transfer(self,frame_gridconnect,cli_emitter=None):
+        for c in self.clients:   #FIXME we may need to buffer this instead of just sending right away??
+            if c!=cli_emitter:
+                c.sock.send(frame_gridconnect.encode('utf-8'))
+                debug("event/frame transferred by server = ",frame_gridconnect)
+        
 
 class Buses_server(Openlcb_server):
     """
