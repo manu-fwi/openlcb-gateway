@@ -102,6 +102,8 @@ def reserve_aliasID(src_id):
                         
 
 def can_control_frame(cli,msg):
+    #transfer to all other openlcb clients
+    OpenLCB_serv.transfer(msg,cli)
     first_b=int(msg[2:4],16)
     var_field = int(msg[4:7],16)
     src_id = int(msg[7:10],16)
@@ -169,7 +171,7 @@ def global_frame(cli,msg):
             for c in b.clients:
                 for n in c.managed_nodes:
                     if n.permitted:
-                        s.send((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
+                        OpenLCB_serv.transfer(":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
                         debug("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
 
     elif var_field==0x828:#Protocol Support Inquiry
@@ -201,6 +203,8 @@ def global_frame(cli,msg):
                 for n in c.managed_nodes:
                     if n.permitted:
                         n.consume_event(Event(ev_id))
+        #transfer to all other openlcb clients
+        OpenLCB_serv.transfer(msg,cli)
 
 def process_datagram(cli,msg):
     src_id = int(msg[7:10],16)
