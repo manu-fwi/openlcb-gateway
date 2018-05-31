@@ -163,7 +163,7 @@ def global_frame(cli,msg):
     src_id = int(msg[7:10],16)
     s = cli.sock
     
-    if var_field==0x490:  #Verify node ID (global) FIXME
+    if var_field==0x490:  #Verify node ID (global) FIXME: send the response globally
         debug("verify id")
         for b in buses.Bus_manager.buses:
             for c in b.clients:
@@ -195,6 +195,7 @@ def global_frame(cli,msg):
     elif var_field == 0x5B4: #PCER (event)
         ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
         debug("received event:",ev_id)
+        #FIXME: transfer to other openlcb nodes (outside of our buses)
         for b in buses.Bus_manager.buses:
             for c in b.clients:
                 for n in c.managed_nodes:
