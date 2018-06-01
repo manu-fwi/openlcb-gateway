@@ -39,6 +39,7 @@ class Bus:
                     #emit AMD
                     frame = Frame.build_AMD(node)
                     node.permitted = True
+                    debug("node of ID",node.ID," alias ",node.aliasID," now in permitted state")
                 if emit:
                     frames_list.append(frame)
         return frames_list
@@ -106,6 +107,7 @@ class Cmri_net_bus(Bus):
                             #create and register alias negotiation
                             alias_neg = node.create_alias_negotiation()
                             self.nodes_in_alias_negotiation.append((node,alias_neg))
+                            c.managed_nodes.append(node)
                         else:
                             debug("unknown cmri_net_bus command")
                         

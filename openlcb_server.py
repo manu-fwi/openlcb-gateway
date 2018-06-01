@@ -18,7 +18,7 @@ class Client:
         return self.sock.recv(200).decode('utf-8')
     
     def new_msg(self,msg):
-        debug("add ",msg," to client at ",self.address)
+        #debug("add ",msg," to client at ",self.address)
         self.msgs += msg
 
     #return the next msg (with the separator)
