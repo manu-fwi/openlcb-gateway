@@ -100,7 +100,7 @@ def load_config():
     if "openlcb_gateway_ip" not in config:
         config["openlcb_gateway_ip"]="127.0.0.1"
     if "openlcb_gateway_port" not in config:
-        config["openlcb_gateway_port"]="50001"
+        config["openlcb_gateway_port"]=50001
     if "nodes_ID_filename" not in config:
         config["nodes_ID_filename"]="cmri_net_serial_nodes_ID.cfg"
     

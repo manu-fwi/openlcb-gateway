@@ -124,7 +124,7 @@ class Datagram_rcv(Frame):
         res+=hexp(self.dest_node.aliasID,3)
         if not self.OK:
             res+="0000" #FIXME for rejected datagram we need error codes
-        return res
+        return res.encode('utf-8')
 
     def set_flags(self,reply_pending):
         self.reply_pending = reply_pending

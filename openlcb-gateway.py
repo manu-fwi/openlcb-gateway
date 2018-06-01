@@ -103,7 +103,7 @@ def reserve_aliasID(src_id):
 
 def can_control_frame(cli,msg):
     #transfer to all other openlcb clients
-    OpenLCB_serv.transfer(msg,cli)
+    OLCB_serv.transfer(msg,cli)
     first_b=int(msg[2:4],16)
     var_field = int(msg[4:7],16)
     src_id = int(msg[7:10],16)
@@ -146,7 +146,7 @@ def can_control_frame(cli,msg):
                     for n in c.managed_nodes:
                         if n.permitted:
                             f=Frame.build_AMD(n)
-                            s.send(f.to_gridconnect().encode('utf-8'))
+                            OLCB_serv.send(f)
                             debug("sent---->:",f.to_gridconnect())
                             debug("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
         elif var_field==0x703:
@@ -168,10 +168,13 @@ def global_frame(cli,msg):
     if var_field==0x490:  #Verify node ID (global) FIXME
         debug("verify id")
         for b in buses.Bus_manager.buses:
+            debug("bus verifiy id:",b.name)
             for c in b.clients:
+                debug("verify id client",c.address," managed_nodes",len(c.managed_nodes))
                 for n in c.managed_nodes:
+                    debug("verified id node",n.ID)
                     if n.permitted:
-                        OpenLCB_serv.transfer(":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
+                        OLCB_serv.transfer(":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
                         debug("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
 
     elif var_field==0x828:#Protocol Support Inquiry
@@ -203,7 +206,7 @@ def global_frame(cli,msg):
                     if n.permitted:
                         n.consume_event(Event(ev_id))
         #transfer to all other openlcb clients
-        OpenLCB_serv.transfer(msg,cli)
+        OLCB_serv.transfer(msg,cli)
 
 def process_datagram(cli,msg):
     src_id = int(msg[7:10],16)
