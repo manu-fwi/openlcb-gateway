@@ -152,7 +152,7 @@ class Openlcb_server:
     def send(self,ev_or_frame,cli_emitter=None):
         for c in self.clients:   #FIXME we may need to buffer this instead of just sending right away??
             if c!=cli_emitter:
-                c.sock.send(ev_or_frame.to_gridconnect().encode('utf-8'))
+                c.sock.send(ev_or_frame.to_gridconnect())
                 debug("event/frame sent by server = ",ev_or_frame.to_gridconnect())
 
     #transfer a frame (same as send but here we take the gridconnect encoded string
