@@ -94,6 +94,12 @@ class Datagram_content(Frame):
     FIRST = 1
     MIDDLE =2
     LAST=3
+    @staticmethod
+    def build_get_config_opt_reply(src,dest,highest_add=255,lowest_add=251,available_cmds = 0x66):
+        dgram = Datagram_content(src,dest,Datagram_content.ONE)
+        dgram.data = bytes((0x20,0x82))+available_cmds.to_bytes(2,"big")
+        dgram.data+=bytes((0x02,highest_add,lowest_add))
+        return dgram
     def __init__(self,src_node,dest_node,pos):
         super().__init__(src_node,dest_node,None)
         self.pos = pos    # pos = 0: one datagram alone, 1=first of several, 2=middle,3=last

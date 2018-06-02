@@ -212,7 +212,6 @@ def global_frame(cli,msg):
 def process_datagram(cli,msg):
     src_id = int(msg[7:10],16)
     s = cli.sock
-    address = int(msg[15:23],16)
     #for now we assume a one frame datagram
     dest_node_alias = int(msg[4:7],16)
     dest_node,cli_dest = find_managed_node(dest_node_alias)
@@ -228,18 +227,31 @@ def process_datagram(cli,msg):
             debug(cli_dest,cli_dest.bus,cli_dest.bus.nodes_db)
             cli_dest.bus.nodes_db.synced = False
     elif msg[11:15]=="2043": #read command for CDI
+        address = int(msg[15:23],16)
         debug("read command, address=",int(msg[15:23],16))
         s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
         debug("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
         send_CDI(s,dest_node,src_node,address,int(msg[23:25],16))
-    elif msg[11:13]=="20": #read/write command
+    elif msg[11:14]=="200" or msg[11:14]=="204": #read/write command
         s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
         debug("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
         if msg[13]=="4":
+            address = int(msg[15:23],16)
             memory_read(s,dest_node,src_node,address,msg)
         elif msg[13]=="0":
+            address = int(msg[15:23],16)
             if memory_write(s,dest_node,src_node,address,msg):
                 cli_dest.bus.nodes_db.synced = False
+        elif msg[11:13]=="20":
+            #other commands than read/write
+            if msg[13:15]=="A8":
+                #CDI update complete, we do not have to reply so we dont for now
+                debug("Update complete received from node ",src_node.ID)
+            elif msg[13:15]=="80":
+                #Get configurations options
+                dgram = Datagram_content.build_get_config_opt_reply(dest_node,src_node)
+                s.send(dgram.to_gridconnect())
+                debug("---> S: config opt reply=",dgram.to_gridconnect())
     
 def process_grid_connect(cli,msg):
     if msg[:2]!=":X":
