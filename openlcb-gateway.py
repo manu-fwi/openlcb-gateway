@@ -95,11 +95,34 @@ def reserve_aliasID(src_id):
         if neg.aliasID in reserved_aliases:
             debug("Error: trying to reserve alias ",neg.aliasID,"(",neg.fullID,") but its already reserved!")
         else:
-            debug("reserving ",src_id," ",len(reserved_aliases)," ",len(list_alias_neg))
             reserved_aliases[neg.aliasID]=neg.fullID
             list_alias_neg.remove(neg)
-            debug("reserved",len(reserved_aliases),len(list_alias_neg))
+            debug("reserved alias",neg.aliasID)
                         
+
+def check_alias(alias):
+    """
+    Checks if the alias is used by one of our nodes
+    if yes transition the node to inhibited state, send AMR frame
+    and reset alias negotiation for the node
+    """
+
+    node_cli = find_managed_node(alias)
+    if node_cli is None:
+        return None
+    node = node_cli[0]
+    node.permitted = False
+    #reset the alias negotiation
+    alias_neg = node.create_alias_negotiation()
+    #loop while we find an unused alias
+    while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
+        alias_neg = node.create_alias_negotiation()
+    #register to the bus alias neg list
+    node_cli[1].bus.nodes_in_alias_negotiation.append((node,alias_neg))
+    #also add it to the list of aliases negotiation
+    list_alias_neg.append(alias_neg)
+    #send AMR to all openlcb nodes
+    OLCB_serv.send(Build_AMR(node))
 
 def can_control_frame(cli,msg):
     #transfer to all other openlcb clients
@@ -121,22 +144,49 @@ def can_control_frame(cli,msg):
             new = True
         else:
             alias_neg = get_alias_neg_from_alias(src_id)
+            if alias_neg is None:
+                debug("CID frame with no previous alias negotiation!")
+                alias_neg = Alias_negotiation(src_id,0,8-(first_b&0x07))
+                new = True
         alias_neg.next_step(var_field)
         if new:
             list_alias_neg.append(alias_neg)
+        #if we have a node in permitted state we send an AMD frame
+        node_cli = find_managed_node(src_id)
+        if node_cli is not None:
+            OLCB_serv.send(Build_AMD(node_cli[0]))
 
     elif first_b&0x7==0:
         if var_field==0x700:
             debug("RID Frame * full ID=")
             neg = get_alias_neg_from_alias(src_id)
+            if neg is None:
+                #no CID before that create the alias_negotiation
+                neg = Alias_negotiation(src_id,0,4)
+                list_alias_neg.append(neg)
             reserve_aliasID(src_id)
-            new_node(Node(neg.fullID,True,neg.aliasID))
-
+            #create node but not in permitted state
+            new_node(Node(neg.fullID,False,neg.aliasID))
+            check_alias(src_id)
+                
         elif var_field==0x701:
             debug("AMD Frame")
-            neg = get_alias_neg_from_alias(src_id)
-            new_node(Node(neg.fullID,True,neg.aliasID))
-            reserve_aliasID(src_id)
+            check_alias(src_id)
+            if src_id in reserved_aliases:
+                node = find_node(src_id)
+                if node is None:
+                    debug("AMD frame received (alias=",src_id,") but node does not exist!")
+                else:
+                    #change to permitted state
+                    node.permitted = True
+            else:
+                debug("AMD frame received (alias=",src_id,") but not reserved before!")
+                #create alias, reserve it
+                neg = Alias_negotiation(src_id,0,4)
+                list_alias_neg.append(neg)
+                reserve_aliasID(src_id)
+                #create node in permitted state
+                new_node(Node(int(msg[11:23],16),True,src_id))
             data_needed = True   #we could check the fullID
 
         elif var_field==0x702:
@@ -150,6 +200,7 @@ def can_control_frame(cli,msg):
                             debug("sent---->:",f.to_gridconnect())
                             debug("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
         elif var_field==0x703:
+            #FIXME!
             debug("AMR Frame")
             data_nedded=True
         elif var_field>=0x710 and var_field<=0x713:
@@ -288,6 +339,8 @@ buses_serv.start()
 
 done = False
 while not done:
+    ev_list=[]
+    frames_list=[]
     reads = OLCB_serv.wait_for_clients()
     OLCB_serv.process_reads(reads)
     for c in OLCB_serv.clients:
@@ -305,8 +358,6 @@ while not done:
     for index in to_delete:
         buses_serv.unconnected_clients.pop(index)
     #process any incoming messages for each bus
-    ev_list=[]
-    frames_list=[]
     for bus in buses.Bus_manager.buses:
         new_ev,new_frames = bus.process()
         ev_list.extend(new_ev)

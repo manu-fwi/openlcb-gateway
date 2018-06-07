@@ -32,6 +32,10 @@ class Bus:
                     if time.time()>alias_neg.last_emit+0.2:
                         #200ms has elapsed since CID 4 so emit RID
                         frame = Frame.build_RID(node)
+                        #update reserved aliases
+                        reserved_aliases[node.aliasID]=node.ID
+                        #also delete the negotiation from the list
+                        list_alias_neg.remove(alias_neg)
                     else:
                         alias_neg.step-=1   #back to step 4, we'll retry RID next time
                         emit = False
@@ -45,6 +49,7 @@ class Bus:
         return frames_list
 
     def prune_alias_negotiation(self):
+        #we delete all finished alias negotiation and populate the reserved aliases list accordingly
         to_delete=deque()
         for i in range(len(self.nodes_in_alias_negotiation)):
             if self.nodes_in_alias_negotiation[i][1].step == 6:
@@ -54,8 +59,6 @@ class Bus:
         for index in to_delete:
             self.nodes_in_alias_negotiation.pop(index)
 
-
-     
 class Cmri_net_bus(Bus):
     """
     message format (messages are separated by a ";", also number is presented as an hexdecimal string):
@@ -106,7 +109,12 @@ class Cmri_net_bus(Bus):
                             node.cp_node.client = c
                             #create and register alias negotiation
                             alias_neg = node.create_alias_negotiation()
+                            #loop while we find an unused alias
+                            while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
+                                alias_neg = node.create_alias_negotiation()
                             self.nodes_in_alias_negotiation.append((node,alias_neg))
+                            #also add it to the list of aliases negotiation
+                            list_alias_neg.append(alias_neg)
                             c.managed_nodes.append(node)
                         else:
                             debug("unknown cmri_net_bus command")

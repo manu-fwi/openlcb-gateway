@@ -55,7 +55,12 @@ class Frame:
         res.data = node.ID.to_bytes(6,"big")
         debug("build_AMD",res.to_gridconnect())
         return res
-    
+    def build_AMR(node):
+        res = Frame(node,None,(0x1<<16) + 0x703)
+        res.data = node.ID.to_bytes(6,"big")
+        debug("build_AMR",res.to_gridconnect())
+        return res
+
     def __init__(self,src_node,dest_node,header):
         self.src = src_node
         self.dest = dest_node
@@ -217,14 +222,18 @@ class Alias_negotiation:
     """
     This class holds information on an ongoing alias ID reservation
     """
-    def __init__(self,alias,fullID=0):
+    def __init__(self,alias,fullID=0,step=0):
+        #use step only when the first CID received is not CID1 (we missed the previous ones)
         self.aliasID = alias   #alias being reserved
         self.fullID=fullID     #partial or complete full ID 
-        self.step=0            #current step 0:nothing yet, 1-4:  each CID step and 5 means reserved
+        self.step=step         #current step 0:nothing yet, 1-4:  each CID step and 5 means reserved 6 means AMD sent
         self.last_emit = time.time()
+        self.only_partial_CID = (step!=0)
         
     def next_step(self,fullID_part):
-        self.fullID+=fullID_part << (48-self.step)
+        if not self.only_partial_CID:
+            #only try to build the full ID if we got the full sequence of CIDs
+            self.fullID+=fullID_part << (48-self.step)
         self.step+=1
 
     def reserve(self):
