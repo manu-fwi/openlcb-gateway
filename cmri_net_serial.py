@@ -1,6 +1,6 @@
 import openlcb_cmri_cfg as cmri
 import socket,time
-import serial,json
+import serial,json,sys
 from openlcb_debug import *
 
 class serial_bus:
@@ -86,13 +86,13 @@ def process():
     ser.send(msg.to_raw_message())
     must_wait_answer = (msg.type_m == cmri.CMRI_message.POLL_M)
 
-def load_config():
+def load_config(filename):
     #Load config file (json formatted dict config, see below)
     #
     #
     #
     #
-    with open("cmri_net_serial.cfg") as cfg_file:
+    with open(filename) as cfg_file:
         config = json.load(cfg_file)
     #plug reasonable default values for secondary parameters
     if "serial_speed" not in config:
@@ -106,10 +106,13 @@ def load_config():
     
     return config
 
-config = load_config()
+if len(sys.argv)>=2:
+    config = load_config(sys.argv[1])
+else:
+    config = load_config("cmri_net_serial.cfg")
 #connection to the gateway
 ser = serial_bus(config["serial_port"],config["serial_speed"])
-
+debug("cmri_net_serial started on serial port",config["serial_port"])
 connected = False
 while not connected:
     try:

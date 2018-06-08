@@ -104,7 +104,9 @@ class Cmri_net_bus(Bus):
                                 node = self.nodes_db.db[fullID]   #get node from db
                             else:
                                 debug("Unknown node of full ID",fullID,", adding it to the DB")
-                                node = openlcb_nodes.Node_cpnode.from_json(json.dumps(openlcb_nodes.Node_cpnode.DEFAULT_JSON))
+                                js = openlcb_nodes.Node_cpnode.DEFAULT_JSON
+                                js["fullID"]=fullID
+                                node = openlcb_nodes.Node_cpnode.from_json(js)
                                 self.nodes_db.db[fullID]=node
                             node.cp_node.client = c
                             #create and register alias negotiation

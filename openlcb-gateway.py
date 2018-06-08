@@ -271,8 +271,8 @@ def process_datagram(cli,msg):
         #FIXME: we have to transmit it ??
         return
     src_node = find_node(src_id)
-
     if dest_node.current_write is not None:
+        address = int(msg[15:23],16)
         #if there is a write in progress then this datagram is part of it
         if memory_write(s,dest_node,src_node,address,msg):
             debug(cli_dest,cli_dest.bus,cli_dest.bus.nodes_db)

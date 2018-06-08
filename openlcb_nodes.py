@@ -269,6 +269,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             nb_I = cmri.CPNode.decode_nb_inputs(js["IO_config"])
         else:
             nb_I = 16
+            js["IO_config"]=5
         n.cp_node = cmri.CPNode(js["cmri_node_add"], nb_I)
         n.create_memory()
         n.set_mem(253,0,bytes((js["cmri_node_add"],)))
