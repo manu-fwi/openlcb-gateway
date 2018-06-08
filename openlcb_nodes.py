@@ -428,7 +428,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         cpn = self.cp_node
         for i in range(cpn.nb_I):
             if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
-                ev_lst.append(Event(self.ev_list[i][cpn.inputs[i][0]]))
+                ev_lst.append(Event(self.ev_list[i][cpn.inputs[i][0]],self.aliasID))
 
         return ev_lst
 
@@ -441,11 +441,11 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 val = 0
             elif ev.id == ev_pair[1]:
                 val = 1
-            index+=1
-            debug("consume event:",index,">?",self.cp_node.nb_I," val=",val)
+            debug("consume event:",index,">=?",self.cp_node.nb_I," val=",val)
             if val>=0 and index>=self.cp_node.nb_I:  #we only consume event for outputs
                 self.cp_node.set_output(index-self.cp_node.nb_I,val)
                 self.cp_node.write_outputs()
+            index+=1
         
 def find_node_from_cmri_add(add,nodes):
     for n in nodes:

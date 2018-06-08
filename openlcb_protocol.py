@@ -204,19 +204,23 @@ class Event:
             ev+=bytes((int(i,16),))
         return Event(ev)
     
-    def __init__(self,id):  #id is a 8 bytes array
+    def __init__(self,id,src_id=None):  #id is a 8 bytes array
         self.id = id
+        self.src_id = src_id
 
     def automatically_routed(self):
         return self.id[0]==0 and self.id[1]==0
     
     def __str__(self):
         if self.id == None:
-            return "0."*7+"0"
+            return "00."*7+"00"
         s=""
         for i in self.id:
             s+=hexp(i,2)+"."
         return s[:len(s)-1]
+
+    def to_gridconnect(self):
+        return (":X195B4"+hexp(self.src_id,3)+"N"+convert_to_hex_b(self.id)+";").encode('utf-8')
     
 class Alias_negotiation:
     """
