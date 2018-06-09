@@ -333,6 +333,7 @@ config_dict = openlcb_config.load_config("openlcb_gateway.cfg")
 OLCB_serv = openlcb_server.Openlcb_server(config_dict["server_ip"],config_dict["server_base_port"])
 OLCB_serv.start()
 buses_serv = openlcb_server.Buses_server(config_dict["server_ip"],config_dict["server_base_port"]+1)
+buses.Bus_manager.buses_serv=buses_serv
 buses_serv.start()
 
 # queue up to 5 requests

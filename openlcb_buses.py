@@ -147,7 +147,7 @@ class Bus_manager:
     can_bus_separator = ";"
 
     #list of active buses
-    buses = []
+    buses=[]
     @staticmethod
     def create_bus(client,msg):
         """
@@ -161,7 +161,7 @@ class Bus_manager:
             if bus == None:
                 bus = Cmri_net_bus()
                 Bus_manager.buses.append(bus)
-                print("creating a cmri net bus")
+                debug("creating a cmri net bus")
             bus.clients.append(client)
             return bus
         elif  msg.startswith(Bus_manager.can_bus_name):
@@ -170,7 +170,7 @@ class Bus_manager:
             if bus == None:
                 bus = Can_bus()
                 Bus_manager.buses.append(bus)
-                print("creating a cmri net bus")
+                debug("creating a cmri net bus")
             bus.clients.append(client)
             return bus
         return None

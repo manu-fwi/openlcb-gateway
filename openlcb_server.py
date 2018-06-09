@@ -170,7 +170,6 @@ class Buses_server(Openlcb_server):
     """
     def __init__(self,ip,port):
         super().__init__(ip,port)
-        self.buses=[]
         self.unconnected_clients = []
     
     def add_new_client(self):
@@ -186,7 +185,10 @@ class Buses_server(Openlcb_server):
         self.unconnected_clients.append(c)
 
     def consume_event(self,ev):
-        for bus in self.buses:
+        for bus in openlcb_buses.Bus_manager.buses:
+            debug("bus=",bus.name,len(bus.clients))
             for c in bus.clients:
+                debug("consume bus.clients")
                 for n in c.managed_nodes:
+                    debug("consume ev",ev.id,"managed nodes")
                     n.consume_event(ev)

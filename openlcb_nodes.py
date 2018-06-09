@@ -434,6 +434,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 
     def consume_event(self,ev):
         #the node might consume the same event for several outputs (one event controlling several outputs)
+        debug("node consume, ev=",ev.id)
         index = 0
         for ev_pair in self.ev_list:
             val = -1
