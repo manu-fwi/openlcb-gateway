@@ -4,6 +4,8 @@ import openlcb_server
 import openlcb_buses
 from openlcb_debug import *
 
+internal_sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+
 class Client:
     """
     Basic client class: receives the msg from the server and "cut" them using the provided msg_separator
@@ -150,17 +152,14 @@ class Openlcb_server:
 
     #send a frame (CID or event for ex) to all clients of the server but the emitter (if not None)
     def send(self,ev_or_frame,cli_emitter=None):
-        for c in self.clients:   #FIXME we may need to buffer this instead of just sending right away??
-            if c!=cli_emitter:
-                c.sock.send(ev_or_frame.to_gridconnect())
-                debug("event/frame sent by server = ",ev_or_frame.to_gridconnect())
+        self.transfer(ev_or_frame.to_gridconnect(),cli_emitter)
 
     #transfer a frame (same as send but here we take the gridconnect encoded string
     #instead of the Frame/Event object
     def transfer(self,frame_gridconnect,cli_emitter=None):
         for c in self.clients:   #FIXME we may need to buffer this instead of just sending right away??
             if c!=cli_emitter:
-                c.sock.send(frame_gridconnect.encode('utf-8'))
+                c.sock.send(frame_gridconnect)
                 debug("event/frame transferred by server = ",frame_gridconnect)
         
 
@@ -185,6 +184,9 @@ class Buses_server(Openlcb_server):
         self.unconnected_clients.append(c)
 
     def consume_event(self,ev):
+        """
+        All managed nodes receive the event and may consume it
+        """
         for bus in openlcb_buses.Bus_manager.buses:
             debug("bus=",bus.name,len(bus.clients))
             for c in bus.clients:

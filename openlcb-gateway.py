@@ -7,8 +7,6 @@ import socket,select,time
 from collections import deque
 import openlcb_nodes_db
 import openlcb_config
-       
-
 
 def send_fields(sock,src_node,MTI,fields,dest_node):
     frames = create_addressed_frame_list(src_node,dest_node,MTI,("\0".join(fields)).encode('utf-8'),True)
@@ -126,7 +124,7 @@ def check_alias(alias):
 
 def can_control_frame(cli,msg):
     #transfer to all other openlcb clients
-    OLCB_serv.transfer(msg,cli)
+    OLCB_serv.transfer(msg.encode('utf-8'),cli)
     first_b=int(msg[2:4],16)
     var_field = int(msg[4:7],16)
     src_id = int(msg[7:10],16)
@@ -210,6 +208,27 @@ def can_control_frame(cli,msg):
         debug("Data needed but none is present!")
         return
 
+def process_id_prod_consumer(cli,msg):
+    var_field = int(msg[4:7],16)
+    if var_field == 0x914: #identify producer
+        ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
+        debug("identify producer received for event:",ev_id)
+        for b in buses.Bus_manager.buses:
+            for c in b.clients:
+                for n in c.managed_nodes:
+                    if n.permitted:
+                        res = n.check_id_producer_event(Event(ev_id))
+                        if res != None:
+                            if res == Node.ID_PRO_CONS_VAL:
+                                MTI = Frame.MTI_ID_PROD_VAL
+                            elif res == Node.ID_PRO_CONS_INVAL:
+                                MTI = Frame.MTI_ID_PROD_INVAL
+                            else:
+                                MTI = Frame.MTI_ID_PROD_UNK
+                            #send it through internal socket
+                            openlcb_server.internal_sock.send(build_from_event(n,ev_id,MTI).to_gridconnect())                            
+                            #advertised mode
+                            n.advertised = True
 def global_frame(cli,msg):
     first_b=int(msg[2:4],16)
     var_field = int(msg[4:7],16)
@@ -218,6 +237,8 @@ def global_frame(cli,msg):
     
     if var_field==0x490:  #Verify node ID (global) FIXME: send the response globally
         debug("verify id")
+        #forward to all other clients
+        OLCB_serv.transfer(msg.encode('utf-8'),cli)
         for b in buses.Bus_manager.buses:
             debug("bus verifiy id:",b.name)
             for c in b.clients:
@@ -249,6 +270,8 @@ def global_frame(cli,msg):
             send_fields(s,dest_node,0xA08,mfg_name_hw_sw_version,src_node)
 
     elif var_field == 0x5B4: #PCER (event)
+        #transfer to all other openlcb clients
+        OLCB_serv.transfer(msg.encode('utf-8'),cli)
         ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
         debug("received event:",ev_id)
         #FIXME: transfer to other openlcb nodes (outside of our buses)
@@ -257,8 +280,11 @@ def global_frame(cli,msg):
                 for n in c.managed_nodes:
                     if n.permitted:
                         n.consume_event(Event(ev_id))
+    elif var_field == 0x914 or var_field == 0x8F4: #identify producer/consumer
         #transfer to all other openlcb clients
-        OLCB_serv.transfer(msg,cli)
+        OLCB_serv.transfer(msg.encode('utf-8'),cli)
+        process_id_prod_consumer(cli,msg)
+                            
 
 def process_datagram(cli,msg):
     src_id = int(msg[7:10],16)
@@ -268,7 +294,8 @@ def process_datagram(cli,msg):
     dest_node,cli_dest = find_managed_node(dest_node_alias)
     if dest_node is None and node.permitted:   #not for us or the node is not ready yet
         debug("Frame is not for us!!")
-        #FIXME: we have to transmit it ??
+        #forward to all other OLCB clients
+        OLCB_serv.transfer(msg.encode('utf-8'),cli)
         return
     src_node = find_node(src_id)
     if dest_node.current_write is not None:
@@ -336,8 +363,8 @@ buses_serv = openlcb_server.Buses_server(config_dict["server_ip"],config_dict["s
 buses.Bus_manager.buses_serv=buses_serv
 buses_serv.start()
 
-# queue up to 5 requests
-
+#internal sock used to "reinject" frames on the OLCB server)
+openlcb_server.internal_sock.connect((config_dict["server_ip"],config_dict["server_base_port"]))
 done = False
 while not done:
     ev_list=[]
@@ -360,14 +387,11 @@ while not done:
         buses_serv.unconnected_clients.pop(index)
     #process any incoming messages for each bus
     for bus in buses.Bus_manager.buses:
-        new_ev,new_frames = bus.process()
-        ev_list.extend(new_ev)
+        new_frames = bus.process()
         frames_list.extend(new_frames)
     #and send the events generated in response
-    for ev in ev_list:
-        OLCB_serv.send(ev)
-        buses_serv.consume_event(ev)
-    #and send the frames generated (more likely: RID/CID frames from alias negotiation
+    #we do this by injecting them through our internal sock
+    #FIXME: I think this ensures that the frames chronology is OK
+    #That is: the server will process these answers after all previous incoming frames
     for frame in frames_list:
-        OLCB_serv.send(frame)
-    #BIG FIXME: we might want to transfer all openlcb traffic to them also
+        openlcb_server.internal_sock.send(frame.to_gridconnect())

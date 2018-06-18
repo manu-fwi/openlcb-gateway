@@ -16,14 +16,13 @@ Format for a node description: json format with the following fields
 "IOX_events" pairs of events (only the needed number <=128)
 """
 
-
 class Nodes_db_cpnode:
     def __init__(self,file_name):
         self.file_name = file_name
         self.db={}   #dict holding all nodes description, key is full ID
         self.synced = False
         self.last_sync = 0
-        self.sync_period = 10 #30 s minimum between syncs to file
+        self.sync_period = 10 #10 s minimum between syncs to file
 
     def store_all_nodes(self):
         with open(self.file_name,'w') as file:

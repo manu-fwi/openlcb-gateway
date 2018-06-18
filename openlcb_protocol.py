@@ -25,6 +25,13 @@ FUAP   = 0x000010 # Firmware Upgrade Active
 
 
 class Frame:
+    MTI_PROD_ID_VAL = 0x544
+    MTI_PROD_ID_INVAL = 0x545
+    MTI_PROD_ID_UNK = 0x547
+    MTI_CONSU_ID_VAL = 0x4C4
+    MTI_CONSU_ID_INVAL = 0x4C5
+    MTI_CONSU_ID_UNK = 0x4C7
+
     @staticmethod
     def build_verified_nID(src_node,simple_proto):
         if simple_proto:
@@ -34,10 +41,19 @@ class Frame:
         res.data=src_node.ID.to_bytes(6,byteorder='big')
         return res
     @staticmethod
-    def build_PCER(src_node,ev):
-        res = Frame(src_node,None,0x195B4)
+    def build_from_event(src_node,ev,MTI):
+        """
+        Build all event related frames: 
+        PCER: MTI=0x5B4
+        Id producer: MTI=0x914
+        Producer identified: MTI=0x544 (valid), 0x545 (invalid), 0x547 (unk)
+        Id consumer: MTI=0x8F4
+        Consumer identified: MTI=0x4C4 (valid), 0x4C5 (invalid), 0x4C7 (unk)
+        """
+        res = Frame(src_node,None,0x19000+MTI)
         res.data = ev
         return res
+    
     @staticmethod
     def build_CID(node,alias_neg):
         res = Frame(node,None,
@@ -218,9 +234,6 @@ class Event:
         for i in self.id:
             s+=hexp(i,2)+"."
         return s[:len(s)-1]
-
-    def to_gridconnect(self):
-        return (":X195B4"+hexp(self.src_id,3)+"N"+convert_to_hex_b(self.id)+";").encode('utf-8')
     
 class Alias_negotiation:
     """
