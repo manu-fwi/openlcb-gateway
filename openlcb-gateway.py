@@ -120,7 +120,7 @@ def check_alias(alias):
     #also add it to the list of aliases negotiation
     list_alias_neg.append(alias_neg)
     #send AMR to all openlcb nodes
-    OLCB_serv.send(Build_AMR(node))
+    OLCB_serv.send(Frame.build_AMR(node))
 
 def can_control_frame(cli,msg):
     #transfer to all other openlcb clients
@@ -152,7 +152,7 @@ def can_control_frame(cli,msg):
         #if we have a node in permitted state we send an AMD frame
         node_cli = find_managed_node(src_id)
         if node_cli is not None:
-            OLCB_serv.send(Build_AMD(node_cli[0]))
+            OLCB_serv.send(Frame.build_AMD(node_cli[0]))
 
     elif first_b&0x7==0:
         if var_field==0x700:
@@ -226,7 +226,8 @@ def process_id_prod_consumer(cli,msg):
                             else:
                                 MTI = Frame.MTI_ID_PROD_UNK
                             #send it through internal socket
-                            openlcb_server.internal_sock.send(build_from_event(n,ev_id,MTI).to_gridconnect())                            
+                            #its ok its an event, not a can frame
+                            openlcb_server.internal_sock.send(Frame.build_from_event(n,ev_id,MTI).to_gridconnect())                            
                             #advertised mode
                             n.advertised = True
 def global_frame(cli,msg):
@@ -246,7 +247,7 @@ def global_frame(cli,msg):
                 for n in c.managed_nodes:
                     debug("verified id node",n.ID)
                     if n.permitted:
-                        OLCB_serv.transfer(":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
+                        OLCB_serv.transfer((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
                         debug("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
 
     elif var_field==0x828:#Protocol Support Inquiry
@@ -387,11 +388,19 @@ while not done:
         buses_serv.unconnected_clients.pop(index)
     #process any incoming messages for each bus
     for bus in buses.Bus_manager.buses:
-        new_frames = bus.process()
-        frames_list.extend(new_frames)
+        events,frames = bus.process()
+        ev_list.extend(events)
+        frames_list.extend(frames)
     #and send the events generated in response
     #we do this by injecting them through our internal sock
     #FIXME: I think this ensures that the frames chronology is OK
     #That is: the server will process these answers after all previous incoming frames
-    for frame in frames_list:
-        openlcb_server.internal_sock.send(frame.to_gridconnect())
+    for ev in ev_list:
+        openlcb_server.internal_sock.send(ev.to_gridconnect())
+
+    #frames are different as they really should not be treated by the gateway
+    #for example if we generate a CID and send it to us, that would invalidate the alias
+    #negotiation!
+    #so we only send them to the external world
+    for fr in frames_list:
+        OLCB_serv.send(fr)

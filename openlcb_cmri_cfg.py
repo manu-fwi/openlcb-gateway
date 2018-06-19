@@ -241,8 +241,11 @@ class CPNode (CMRI_node):
         index = 0
         n = 0
         while n < self.nb_I and index <=1:
-            self.inputs[n][1] = self.inputs[n][0]  #current value becomes last value
-            self.inputs[n][0] = (message[index] >> (n%8))&0x01
+            new_value = (message[index] >> (n%8))&0x01
+            #only register the new value if its different from the current one
+            if new_value != self.inputs[n][0]:
+                self.inputs[n][1] = self.inputs[n][0]  #current value becomes last value
+                self.inputs[n][0] = new_value
             n+=1
             if n % 8==0:
                 index +=1 #next byte
