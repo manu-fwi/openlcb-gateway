@@ -2,6 +2,7 @@ import openlcb_cmri_cfg as cmri
 from openlcb_protocol import *
 import openlcb_buses as buses
 from openlcb_debug import *
+import openlcb_config
 
 """This file defines a basic openlcb node (the gateway will handle several of these
 You derive your "real node class" from it and add the handling specific to your hardware
@@ -256,7 +257,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 """
     CDI_IOX_repetition_end="""</group>
 """
-
     #default dict to add new nodes to the DB when they have no description (used by cmri_net_bus)
     DEFAULT_JSON = { "fullID":None,"cmri_node_add":0 }
     @staticmethod
@@ -432,7 +432,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         cpn = self.cp_node
         for i in range(cpn.nb_I):
             if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
-                ev_lst.append(Event(self.ev_list[i][cpn.inputs[i][0]],self.aliasID))
+                if self.ev_list[i][cpn.inputs[i][0]]!=b"\0"*8: #do not generate event if 0.0.0.0.0.0.0.0
+                    ev_lst.append(Event(self.ev_list[i][cpn.inputs[i][0]],self.aliasID))
 
         return ev_lst
 
@@ -475,8 +476,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             debug("consume event:",index,">=?",self.cp_node.nb_I," val=",val)
             if val>=0 and index>=self.cp_node.nb_I:  #we only consume event for outputs
                 self.cp_node.set_output(index-self.cp_node.nb_I,val)
-                self.cp_node.write_outputs()
             index+=1
+        self.cp_node.write_outputs(openlcb_config.config_dict["outputs_path"]+str(self.ID)+".outputs")
         
 def find_node_from_cmri_add(add,nodes):
     for n in nodes:

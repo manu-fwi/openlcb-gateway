@@ -1,6 +1,7 @@
 import time
 import openlcb_nodes
 from openlcb_debug import *
+import json
 
 class CMRI_message:
     SYN=0xFF
@@ -187,7 +188,7 @@ class CPNode (CMRI_node):
         self.inputs=[[-1,-1] for i in range(nb_I)]
         self.inputs_IOX = []
         #outputs states (first is desired state, second is last known state)
-        #state=-1: never been set
+        #state=-1: never been set: FIXME do we need this?
         self.outputs=[[0,-1] for i in range(CPNode.total_IO-nb_I)]
         self.outputs_IOX=[]
         self.last_poll = time.time()-CPNode.read_period
@@ -260,7 +261,7 @@ class CPNode (CMRI_node):
         if n<self.nb_IOX_inputs():
             debug("Error: number of inputs in Receive message not corresponding to setup")
             
-    def write_outputs(self):
+    def write_outputs(self,filename):
         #send outputs to node
         bits = [io[0] for io in self.outputs]
         bytes_value = bytearray((CPNode.pack_bits(bits),))
@@ -277,6 +278,8 @@ class CPNode (CMRI_node):
         cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
         if self.client is not None:
             self.client.queue(cmd)
+        #fixme do we need this?
+        #fixme but we should save the outputs states to file (to recover after a reboot/power cycle)
         for io in self.outputs:
             io[1]=io[0]  #value has been sent so sync last known value to that
         for i in self.IOX:
@@ -284,6 +287,18 @@ class CPNode (CMRI_node):
                 for io in self.outputs_IOX[first_bit:first_bit+8]:
                     io[1]=io[0]
                     first_bit+=8
+        #save outputs states to file
+        with open(filename,"w") as file:
+            #build a list with two elements: the lists of io and of IOX outputs
+            l = []
+            l.append([io[0] for io in self.outputs])
+            l.append([])
+            first_bit=0
+            for i in self.IOX:
+                if i==1:
+                    l[1].extend([iox[0] for iox in self.outputs_IOX[first_bit:first_bit+8]])
+                    first_bit+=8
+            json.dump(l,file)
 
     def set_output(self,index_out,value):
         if index_out<CPNode.total_IO - self.nb_I:

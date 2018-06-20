@@ -356,16 +356,19 @@ def process_grid_connect(cli,msg):
 
 mfg_name_hw_sw_version=["\4python gateway","test","1.0","1.0","\2gw1","gateway-1"]
 
-config_dict = openlcb_config.load_config("openlcb_gateway.cfg")
+openlcb_config.config_dict = openlcb_config.load_config("openlcb_gateway.cfg")
 
-OLCB_serv = openlcb_server.Openlcb_server(config_dict["server_ip"],config_dict["server_base_port"])
+OLCB_serv = openlcb_server.Openlcb_server(openlcb_config.config_dict["server_ip"],
+                                          openlcb_config.config_dict["server_base_port"])
 OLCB_serv.start()
-buses_serv = openlcb_server.Buses_server(config_dict["server_ip"],config_dict["server_base_port"]+1)
+buses_serv = openlcb_server.Buses_server(openlcb_config.config_dict["server_ip"],
+                                         openlcb_config.config_dict["server_base_port"]+1)
 buses.Bus_manager.buses_serv=buses_serv
 buses_serv.start()
 
 #internal sock used to "reinject" frames on the OLCB server)
-openlcb_server.internal_sock.connect((config_dict["server_ip"],config_dict["server_base_port"]))
+openlcb_server.internal_sock.connect((openlcb_config.config_dict["server_ip"],
+                                      openlcb_config.config_dict["server_base_port"]))
 done = False
 while not done:
     ev_list=[]

@@ -14,4 +14,9 @@ def load_config(filename):
         config["server_ip"]="127.0.0.1"
     if "server_base_port" not in config:
         config["server_base_port"]=50000
+    if "outputs_path" not in config:
+        config["outputs_path"]=""
     return config
+
+#globals
+config_dict=None
