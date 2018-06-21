@@ -9,10 +9,11 @@ from openlcb_protocol import *
 from collections import deque
 
 class Bus:
-    def __init__(self,name):
+    def __init__(self,name,path_to_nodes_files):
         self.name = name
         self.clients=[]       #client programs connected to the bus
         self.nodes_in_alias_negotiation=[]  #alias negotiations (node,alias_neg)
+        self.path_to_nodes_files=path_to_nodes_files
 
     def __str__(self):
         return "Bus: "+self.name
@@ -68,8 +69,8 @@ class Cmri_net_bus(Bus):
     """
     separator = ";"
     nodes_db_file = "cmri_net_bus_db.cfg"
-    def __init__(self):
-        super().__init__(Bus_manager.cmri_net_bus_name)
+    def __init__(self,path_to_nodes_files):
+        super().__init__(Bus_manager.cmri_net_bus_name,path_to_nodes_files)
         self.nodes_db = nodes_db.Nodes_db_cpnode(Cmri_net_bus.nodes_db_file)
         self.nodes_db.load_all_nodes()
 
@@ -119,6 +120,13 @@ class Cmri_net_bus(Bus):
                             #also add it to the list of aliases negotiation
                             list_alias_neg.append(alias_neg)
                             c.managed_nodes.append(node)
+                            #now load the recorded outputs states for this node
+                            filename = self.path_nodes_files
+                            if self.path_nodes_files:
+                                filename+="/"
+                            filename+=str(node.ID)+".outputs"
+                            node.cp_node.load_outputs(filename)
+                            node.cp_node.write_outputs(filename,False)
                         else:
                             debug("unknown cmri_net_bus command")
                         
@@ -150,7 +158,7 @@ class Bus_manager:
     #list of active buses
     buses=[]
     @staticmethod
-    def create_bus(client,msg):
+    def create_bus(client,msg,path_to_outputs_files):
         """
         create a bus based on the name provided in the msgs field of the client
         returns the bus if it has been found (or created if needed)
@@ -160,7 +168,7 @@ class Bus_manager:
             #create a cmri_net bus
             bus = Bus_manager.find_bus_by_name(Bus_manager.cmri_net_bus_name)
             if bus == None:
-                bus = Cmri_net_bus()
+                bus = Cmri_net_bus(path_to_outputs_files)
                 Bus_manager.buses.append(bus)
                 debug("creating a cmri net bus")
             bus.clients.append(client)

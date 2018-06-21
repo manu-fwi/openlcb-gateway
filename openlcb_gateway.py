@@ -277,10 +277,13 @@ def global_frame(cli,msg):
         debug("received event:",ev_id)
         #FIXME: transfer to other openlcb nodes (outside of our buses)
         for b in buses.Bus_manager.buses:
+            path=b.path_to_nodes_files
+            if filename!="":
+                path+="/"
             for c in b.clients:
                 for n in c.managed_nodes:
                     if n.permitted:
-                        n.consume_event(Event(ev_id))
+                        n.consume_event(Event(ev_id),path+str(n.ID)+".outputs")
     elif var_field == 0x914 or var_field == 0x8F4: #identify producer/consumer
         #transfer to all other openlcb clients
         OLCB_serv.transfer(msg.encode('utf-8'),cli)
@@ -362,7 +365,8 @@ OLCB_serv = openlcb_server.Openlcb_server(openlcb_config.config_dict["server_ip"
                                           openlcb_config.config_dict["server_base_port"])
 OLCB_serv.start()
 buses_serv = openlcb_server.Buses_server(openlcb_config.config_dict["server_ip"],
-                                         openlcb_config.config_dict["server_base_port"]+1)
+                                         openlcb_config.config_dict["server_base_port"]+1,
+                                         openlcb_config.config_dict["outputs_path"])
 buses.Bus_manager.buses_serv=buses_serv
 buses_serv.start()
 

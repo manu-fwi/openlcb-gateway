@@ -463,7 +463,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     return ID_PRO_CON_UNKNOWN
         return None
 
-    def consume_event(self,ev):
+    def consume_event(self,ev,filename):
         #the node might consume the same event for several outputs (one event controlling several outputs)
         debug("node consume, ev=",ev.id)
         index = 0
@@ -477,7 +477,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             if val>=0 and index>=self.cp_node.nb_I:  #we only consume event for outputs
                 self.cp_node.set_output(index-self.cp_node.nb_I,val)
             index+=1
-        self.cp_node.write_outputs(openlcb_config.config_dict["outputs_path"]+str(self.ID)+".outputs")
+        self.cp_node.write_outputs(filename)
         
 def find_node_from_cmri_add(add,nodes):
     for n in nodes:

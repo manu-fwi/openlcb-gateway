@@ -1,7 +1,6 @@
 import time
 import openlcb_nodes
 from openlcb_debug import *
-import json
 
 class CMRI_message:
     SYN=0xFF
@@ -261,7 +260,7 @@ class CPNode (CMRI_node):
         if n<self.nb_IOX_inputs():
             debug("Error: number of inputs in Receive message not corresponding to setup")
             
-    def write_outputs(self,filename):
+    def write_outputs(self,filename,save=True):
         #send outputs to node
         bits = [io[0] for io in self.outputs]
         bytes_value = bytearray((CPNode.pack_bits(bits),))
@@ -288,18 +287,51 @@ class CPNode (CMRI_node):
                     io[1]=io[0]
                     first_bit+=8
         #save outputs states to file
-        with open(filename,"w") as file:
-            #build a list with two elements: the lists of io and of IOX outputs
-            l = []
-            l.append([io[0] for io in self.outputs])
-            l.append([])
-            first_bit=0
-            for i in self.IOX:
-                if i==1:
-                    l[1].extend([iox[0] for iox in self.outputs_IOX[first_bit:first_bit+8]])
-                    first_bit+=8
-            json.dump(l,file)
+        if save:
+            with open(filename,"w") as file:
+                for io in self.outputs:
+                    file.write(io," ")
+                file.write('\n')
+                first_bit=0
+                for i in self.IOX:
+                    if i==1:
+                        for iox in self.outputs_IOX[first_bit:first_bit+8]:
+                            file.write(iox[0]," ")
+                        write('\n')
+                        first_bit+=8
 
+    def load_outputs(self,filename):
+        exists=True
+        try:
+            file = open(filename,"r")
+        except IOError:
+            exists=False
+        if exists:
+            while file:
+                line = file.readline()
+                index = 0
+                for i in line.split():
+                    if index==CPNode.total_IO - self.nb_I:
+                        debug("Too many outputs values in the file",filename)
+                        break
+                    self.outputs[index][0]=int(i)
+                    index+=1
+                if index<CPNode.total_IO - self.nb_I:
+                    debug("Not enough outputs values in the file",filename)
+                line = file.readline()
+                index = 0
+                for i in line.split():
+                    if index==self.nb_IOX_outputs():
+                        debug("Too many outputs values in the file",filename)
+                        break
+                    self.outputs_IOX[index][0]=int(i)
+                    index+=1
+                if index<self.nb_IOX_outputs():
+                    debug("Not enough outputs values in the file",filename)
+            debug(self.outputs)
+            debug(self.outputs_IOX)
+            file.close()
+            
     def set_output(self,index_out,value):
         if index_out<CPNode.total_IO - self.nb_I:
             self.outputs[index_out][0]=value

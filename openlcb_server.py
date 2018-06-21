@@ -42,10 +42,11 @@ class Client_bus(Client):
     """
     Same as Client plus the fact that the first line must be a "bus" descriptor plus the client name(cf openlcb_buses.py)
     """
-    def __init__(self,sock,add):
+    def __init__(self,sock,add,path_to_nodes_files=""):
         super().__init__(sock,add,openlcb_buses.Bus_manager.cmri_net_bus_separator) #initialize separator to None
         self.bus = None
         self.managed_nodes=[]
+        self.path_to_nodes_files=path_to_nodes_files
 
     def check_bus_name(self):
         """
@@ -57,7 +58,8 @@ class Client_bus(Client):
             
             l = msg[:len(msg)-1].split(' ')   #get rid of the separator and join all pieces to get the name back
             self.name = ' '.join(l[1:])
-            bus= openlcb_buses.Bus_manager.create_bus(self,l[0])  #create a bus corresponding to the received bus name
+            #create a bus corresponding to the received bus name
+            bus= openlcb_buses.Bus_manager.create_bus(self,l[0],self.path_to_nodes_files)
             self.bus=bus
             return bus is not None
 
@@ -167,9 +169,10 @@ class Buses_server(Openlcb_server):
     """
     buses server are registering the buses when a connection is made and the bus name is sent
     """
-    def __init__(self,ip,port):
+    def __init__(self,ip,port,path_to_nodes_files):
         super().__init__(ip,port)
         self.unconnected_clients = []
+        self.path_to_nodes_files = path_to_nodes_files
     
     def add_new_client(self):
         """
@@ -179,7 +182,7 @@ class Buses_server(Openlcb_server):
         clientsocket,addr = self.serversocket.accept()
         address = (str(addr).split("'"))[1]
         debug("Got a connection to cmri net bus from", address)
-        c = Client_bus(clientsocket,address)
+        c = Client_bus(clientsocket,address,self.path_to_nodes_files)
         self.clients.append(c)
         self.unconnected_clients.append(c)
 
