@@ -121,8 +121,8 @@ class Cmri_net_bus(Bus):
                             list_alias_neg.append(alias_neg)
                             c.managed_nodes.append(node)
                             #now load the recorded outputs states for this node
-                            filename = self.path_nodes_files
-                            if self.path_nodes_files:
+                            filename = self.path_to_nodes_files
+                            if self.path_to_nodes_files:
                                 filename+="/"
                             filename+=str(node.ID)+".outputs"
                             node.cp_node.load_outputs(filename)

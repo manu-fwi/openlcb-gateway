@@ -278,7 +278,7 @@ def global_frame(cli,msg):
         #FIXME: transfer to other openlcb nodes (outside of our buses)
         for b in buses.Bus_manager.buses:
             path=b.path_to_nodes_files
-            if filename!="":
+            if path!="":
                 path+="/"
             for c in b.clients:
                 for n in c.managed_nodes:

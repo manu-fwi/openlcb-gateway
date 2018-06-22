@@ -290,34 +290,35 @@ class CPNode (CMRI_node):
         if save:
             with open(filename,"w") as file:
                 for io in self.outputs:
-                    file.write(io," ")
+                    file.write(str(io[0])+" ")
                 file.write('\n')
                 first_bit=0
                 for i in self.IOX:
                     if i==1:
                         for iox in self.outputs_IOX[first_bit:first_bit+8]:
-                            file.write(iox[0]," ")
-                        write('\n')
+                            file.write(str(iox[0])+" ")
+                        file.write('\n')
                         first_bit+=8
 
     def load_outputs(self,filename):
+        debug("loading outputs from file",filename)
         exists=True
         try:
             file = open(filename,"r")
         except IOError:
             exists=False
         if exists:
-            while file:
-                line = file.readline()
-                index = 0
-                for i in line.split():
-                    if index==CPNode.total_IO - self.nb_I:
-                        debug("Too many outputs values in the file",filename)
-                        break
-                    self.outputs[index][0]=int(i)
-                    index+=1
-                if index<CPNode.total_IO - self.nb_I:
-                    debug("Not enough outputs values in the file",filename)
+            line = file.readline()
+            index = 0
+            for i in line.split():
+                if index==CPNode.total_IO - self.nb_I:
+                    debug("Too many outputs values in the file",filename)
+                    break
+                self.outputs[index][0]=int(i)
+                index+=1
+            if index<CPNode.total_IO - self.nb_I:
+                debug("Not enough outputs values in the file",filename)
+            if file:
                 line = file.readline()
                 index = 0
                 for i in line.split():
