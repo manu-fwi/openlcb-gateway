@@ -210,26 +210,50 @@ def can_control_frame(cli,msg):
 
 def process_id_prod_consumer(cli,msg):
     var_field = int(msg[4:7],16)
-    if var_field == 0x914: #identify producer
-        ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
-        debug("identify producer received for event:",ev_id)
-        for b in buses.Bus_manager.buses:
-            for c in b.clients:
-                for n in c.managed_nodes:
-                    if n.permitted:
+    ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
+    debug("identify producer received for event:",ev_id)
+    for b in buses.Bus_manager.buses:
+        for c in b.clients:
+            for n in c.managed_nodes:
+                if n.permitted:
+                    if var_field == 0x914: #identify producer
                         res = n.check_id_producer_event(Event(ev_id))
-                        if res != None:
-                            if res == Node.ID_PRO_CONS_VAL:
-                                MTI = Frame.MTI_ID_PROD_VAL
-                            elif res == Node.ID_PRO_CONS_INVAL:
-                                MTI = Frame.MTI_ID_PROD_INVAL
-                            else:
-                                MTI = Frame.MTI_ID_PROD_UNK
-                            #send it through internal socket
-                            #its ok its an event, not a can frame
-                            openlcb_server.internal_sock.send(Frame.build_from_event(n,ev_id,MTI).to_gridconnect())                            
-                            #advertised mode
-                            n.advertised = True
+                    else: #identify consumer
+                        res = n.check_id_consumer_event(Event(ev_id))
+                    debug("res=",res)
+                    if res != None:
+                        if res == Node.ID_PRO_CON_VALID:
+                            if var_field == 0x914: #identify producer
+                                MTI = Frame.MTI_PROD_ID_VAL
+                            else: #identify consumer
+                                MTI = Frame.MTI_CONSU_ID_VAL
+                        elif res == Node.ID_PRO_CON_INVAL:
+                            if var_field == 0x914: #identify producer
+                                MTI = Frame.MTI_PROD_ID_INVAL
+                            else: #identify consumer
+                                MTI = Frame.MTI_CONSU_ID_INVAL    
+                        else:
+                            if var_field == 0x914: #identify producer
+                                MTI = Frame.MTI_PROD_ID_UNK
+                            else: #identify consumer
+                                MTI = Frame.MTI_CONSU_ID_UNK
+                        #send it through internal socket
+                        #its ok its an event, not a can frame
+                        OLCB_serv.internal_sock.send(Frame.build_from_event(n,ev_id,MTI).to_gridconnect())
+                        debug("sent to internal:", Frame.build_from_event(n,ev_id,MTI).to_gridconnect())
+                        #advertised mode
+                        n.advertised = True   
+                            
+def identify_events(msg,cli):
+    var_field = int(msg[4:7],16)
+    debug("identify events received")
+
+def consum_identified(msg,cli):
+    pass
+
+def produc_identified(msg,cli):
+    pass
+    
 def global_frame(cli,msg):
     first_b=int(msg[2:4],16)
     var_field = int(msg[4:7],16)
@@ -275,7 +299,6 @@ def global_frame(cli,msg):
         OLCB_serv.transfer(msg.encode('utf-8'),cli)
         ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
         debug("received event:",ev_id)
-        #FIXME: transfer to other openlcb nodes (outside of our buses)
         for b in buses.Bus_manager.buses:
             path=b.path_to_nodes_files
             if path!="":
@@ -288,7 +311,17 @@ def global_frame(cli,msg):
         #transfer to all other openlcb clients
         OLCB_serv.transfer(msg.encode('utf-8'),cli)
         process_id_prod_consumer(cli,msg)
-                            
+    elif var_field == 0x970 or var_field == 0x968: #identify events
+        #transfer to all other openlcb clients
+        OLCB_serv.transfer(msg.encode('utf-8'),cli)
+        identify_events(msg,cli)
+    elif var_field==0x4C4 or var_field==0x4C5 or var_field==0x4C7: #consumer identified
+        OLCB_serv.transfer(msg.encode('utf-8'),cli)
+        consum_identified(msg,cli)
+    elif var_field==0x544 or var_field==0x545 or var_field==0x547: #producer identified
+        OLCB_serv.transfer(msg.encode('utf-8'),cli)
+        produc_identified(msg,cli)
+
 
 def process_datagram(cli,msg):
     src_id = int(msg[7:10],16)
@@ -369,10 +402,7 @@ buses_serv = openlcb_server.Buses_server(openlcb_config.config_dict["server_ip"]
                                          openlcb_config.config_dict["outputs_path"])
 buses.Bus_manager.buses_serv=buses_serv
 buses_serv.start()
-
-#internal sock used to "reinject" frames on the OLCB server)
-openlcb_server.internal_sock.connect((openlcb_config.config_dict["server_ip"],
-                                      openlcb_config.config_dict["server_base_port"]))
+last_time=0
 done = False
 while not done:
     ev_list=[]
@@ -403,7 +433,8 @@ while not done:
     #FIXME: I think this ensures that the frames chronology is OK
     #That is: the server will process these answers after all previous incoming frames
     for ev in ev_list:
-        openlcb_server.internal_sock.send(ev.to_gridconnect())
+        OLCB_serv.internal_sock.send(ev.to_gridconnect())
+        debug("sent to internal"+ev.to_gridconnect())
 
     #frames are different as they really should not be treated by the gateway
     #for example if we generate a CID and send it to us, that would invalidate the alias
@@ -411,3 +442,8 @@ while not done:
     #so we only send them to the external world
     for fr in frames_list:
         OLCB_serv.send(fr)
+    #if time.time()%1000!=last_time:
+        #OLCB_serv.internal_sock.send("bonjour from internal;".encode('utf-8'))
+        #OLCB_serv.transfer("bonjour from transfer".encode('utf-8'))
+        #last_time = time.time()
+        

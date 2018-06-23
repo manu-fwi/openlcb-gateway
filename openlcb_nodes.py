@@ -374,7 +374,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     def __init__(self,ID):
         super().__init__(ID)
         self.cp_node=None        #real node
-        self.ev_list=[(b"\0"*8,b"\0"*8)]*16   #basic event list
+        self.ev_list=[(b"\0"*8,b"\0"*8)]*16   #basic event list: inputs events always first!
         self.ev_list_IOX = [(b"\0"*8,b"\0"*8)]*128    #IOX events list for 8 IO lines for 16 cards max
 
     def get_IOX_CDI(self):
@@ -456,11 +456,37 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 #check if state is coherent with event
                 #if state is -1, we return unknown
                 if self.cp_node.inputs[i][0] == val:
-                    return ID_PRO_CON_VALID
+                    return Node.ID_PRO_CON_VALID
                 elif self.cp_node.inputs[i][0] != -1:
-                    return ID_PRO_CON_INVAL
+                    return Node.ID_PRO_CON_INVAL
                 else:
-                    return ID_PRO_CON_UNKNOWN
+                    return Node.ID_PRO_CON_UNKNOWN
+        return None
+
+    def check_id_consumer_event(self,ev):
+        """
+        check if the event ev is coherent with one output state
+        This is used to reply to "identify consumer" event
+        Return valid/invalid/unknown if the event corresponds to an output
+        None otherwise
+        """
+        
+        for i in range(self.cp_node.nb_I,self.cp_node.total_IO):
+            val = -1
+            if ev.id == self.ev_list[i][0]:
+                val = 0
+            elif ev.id == self.ev_list[i][1]:
+                val = 1
+            if val!=-1:
+                #found the input corresponding to the event
+                #check if state is coherent with event
+                #if state is -1, we return unknown
+                if self.cp_node.outputs[i-self.cp_node.nb_I][0] == val:
+                    return Node.ID_PRO_CON_VALID
+                elif self.cp_node.outputs[i-self.cp_node.nb_I][0] != -1:
+                    return Node.ID_PRO_CON_INVAL
+                else:
+                    return Node.ID_PRO_CON_UNKNOWN
         return None
 
     def consume_event(self,ev,filename):

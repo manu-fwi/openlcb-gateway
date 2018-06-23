@@ -4,8 +4,6 @@ import openlcb_server
 import openlcb_buses
 from openlcb_debug import *
 
-internal_sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-
 class Client:
     """
     Basic client class: receives the msg from the server and "cut" them using the provided msg_separator
@@ -82,6 +80,7 @@ class Openlcb_server:
         self.address = address
         self.port = port
         self.clients = []
+        self.internal_sock = None
         
     def start(self):
         self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -90,7 +89,9 @@ class Openlcb_server:
 
         # queue up to 5 requests
         self.serversocket.listen(5)
-
+        self.internal_sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        self.internal_sock.connect((self.address,self.port))
+        
     def stop(self):
         self.serversocket.close()
 
@@ -127,8 +128,9 @@ class Openlcb_server:
         
         to_read = [c.sock for c in self.clients]
         to_read.append(self.serversocket)
-        #print("to_read:",to_read)
         ready_to_read,ready_to_write,in_error = select.select(to_read,[],[],timeout)
+        if self.internal_sock in ready_to_read:
+            debug("received from internal sock!!")
 
         if self.serversocket in ready_to_read:
             self.add_new_client()
