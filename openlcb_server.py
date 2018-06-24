@@ -185,6 +185,22 @@ class Buses_server(Openlcb_server):
         self.clients.append(c)
         self.unconnected_clients.append(c)
 
+    def deconnect_client(self,c):
+        """
+        deconnects the client
+        """
+        debug("Client at ", c.address," is now deconnected!")
+
+        #FIXME: need to clean up all clients connected via this client
+        self.clients.remove(c)
+        if c in self.unconnected_clients:
+            self.unconnected_clients.remove(c)
+            #nothing else to do, no node has been attached via this client yet
+            return
+        #clean the corresponding bus
+        c.bus.clients.remove(c)
+        c.sock.close()
+
     def consume_event(self,ev):
         """
         All managed nodes receive the event and may consume it

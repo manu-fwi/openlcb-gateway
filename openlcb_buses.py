@@ -174,12 +174,12 @@ class Bus_manager:
             bus.clients.append(client)
             return bus
         elif  msg.startswith(Bus_manager.can_bus_name):
-            #create a cmri_net bus
+            #create a cmri_can bus
             bus = Bus_manager.find_bus_by_name(Bus_manager.can_bus_name)
             if bus == None:
                 bus = Can_bus()
                 Bus_manager.buses.append(bus)
-                debug("creating a cmri net bus")
+                debug("creating a cmri can bus")
             bus.clients.append(client)
             return bus
         return None
