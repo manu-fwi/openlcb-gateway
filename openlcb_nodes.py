@@ -427,7 +427,21 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
                 if self.ev_list[i][cpn.inputs[i][0]]!=b"\0"*8: #do not generate event if 0.0.0.0.0.0.0.0
                     ev_lst.append(Event(self.ev_list[i][cpn.inputs[i][0]],self.aliasID))
-
+        current_bit = 0
+        ev_index = 0
+        for i in cpn.IOX:
+            if i==2: #its an input port
+                for j in range(8): #check all bits
+                    if cpn.inputs_IOX[current_bit][0]!=cpn.inputs_IOX[current_bit][1]:
+                        if self.ev_list[ev_index][cpn.inputs_IOX[current_bit][0]]!=b"\0"*8:
+                            ev_lst.append(Event(self.ev_list[ev_index][cpn.inputs_IOX[current_bit][0]],
+                                                self.aliasID))
+                    ev_index+=1 #next ev index
+                    current_bit+=1 #next bit
+            else:
+                current_bit+=8   #first bit of next card
+                ev_index+=8
+                
         return ev_lst
 
     def check_id_producer_event(self,ev):
@@ -437,7 +451,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         Return valid/invalid/unknown if the event corresponds to an input
         None otherwise
         """
-        
+        #First for board outputs
         for i in range(self.cp_node.nb_I):
             val = -1
             if ev.id == self.ev_list[i][0]:
@@ -454,6 +468,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     return Node.ID_PRO_CON_INVAL
                 else:
                     return Node.ID_PRO_CON_UNKNOWN
+        #Second for IOX
+        
         return None
 
     def find_consumer_event(self,ev):
@@ -467,6 +483,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 return (i-self.cp_node.nb_I,0)
             elif ev.id == self.ev_list[i][1]:
                 return (i-self.cp_node.nb_I,1)
+        #fixme add IOX
         return (-1,-1)
 
     def producer_identified(self,ev,filename,valid):
@@ -488,6 +505,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             if val!=self.cp_node.outputs[res[0]]:
                 self.cp_node.set_output(res[0],val)
                 self.cp_node.write_outputs(filename)
+        #fixme add IOX
 
     def check_id_consumer_event(self,ev):
         """
@@ -505,11 +523,13 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 return Node.ID_PRO_CON_INVAL
             else:
                 return Node.ID_PRO_CON_UNKNOWN
+        #fixme add IOX
         return None
 
     def consume_event(self,ev,filename):
         #the node might consume the same event for several outputs (one event controlling several outputs)
         debug("node consume, ev=",ev.id)
+        modified = False
         index = 0
         for ev_pair in self.ev_list:
             val = -1
@@ -520,8 +540,33 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             debug("consume event:",index,">=?",self.cp_node.nb_I," val=",val)
             if val>=0 and index>=self.cp_node.nb_I:  #we only consume event for outputs
                 self.cp_node.set_output(index-self.cp_node.nb_I,val)
+                modified = True
+            elif val>=0 and index<self.cp_node.nb_I:
+                debug("Event received for an input! (event id=",ev.id,")")
             index+=1
-        self.cp_node.write_outputs(filename)
+        card_index = 0
+        output_index=0
+        counter = 0  #count each event so card index is counter//8
+        #fixme check if correct
+        for ev_pair in self.ev_list_IOX:
+            val = -1
+            if ev.id == ev_pair[0]:
+                val = 0
+            elif ev.id == ev_pair[1]:
+                val = 1
+            debug("consume event:",index," val=",val)
+            if self.cp_node.IOX[counter//8]==1 and val>=0:  #we only consume event for outputs
+                self.cp_node.set_output_IOX(output_index,val)
+                modified = True
+                output_index+=1 #next output
+            elif val>=0 and self.cp_node.IOX[counter//8]==2:
+                debug("Event received for an IOX input! (event id=",ev.id,")")
+            elif val>=0 and self.cp_node.IOX[counter//8]==0:
+                debug("Event received for an empty IOX slot! (event id=",ev.id,")")
+            
+            counter+=1
+        if modified:
+            self.cp_node.write_outputs(filename)
         
 def find_node_from_cmri_add(add,nodes):
     for n in nodes:
