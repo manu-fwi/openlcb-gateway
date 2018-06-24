@@ -112,12 +112,9 @@ class Openlcb_server:
         """
         deconnects the client
         """
-       
-        #Here you can add the name of the client who is deconnecting
-
         debug("Client at ", c.address," is now deconnected!")
 
-        #Here remember to clean the dictionaries
+        #FIXME: need to clean up all clients connected via this client
         self.clients.remove(c)
         c.sock.close()
         

@@ -463,6 +463,39 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     return Node.ID_PRO_CON_UNKNOWN
         return None
 
+    def find_consumer_event(self,ev):
+        """
+        Find the Output event (we are then a consumer here)
+        Return a tuple (index,value) or None if not found, index indicates the outputs index
+        """
+        for i in range(self.cp_node.nb_I,self.cp_node.total_IO):
+            val = -1
+            if ev.id == self.ev_list[i][0]:
+                return (i-self.cp_node.nb_I,0)
+            elif ev.id == self.ev_list[i][1]:
+                return (i-self.cp_node.nb_I,1)
+        return (-1,-1)
+
+    def producer_identified(self,ev,filename,valid):
+        """
+        Will set the output according to the validity returned by the producer node
+        valid is True or False
+        """
+        res = self.find_consumer_event(ev)
+        if res != None:
+            if valid:
+                #valid so we set value to the one corresponding to the event
+                val = res[1]
+            else:
+                #invalid so we set value to the one not corresponding to the event
+                if res[1]==0:
+                    val = 1
+                else:
+                    val = 0
+            if val!=self.cp_node.outputs[res[0]]:
+                self.cp_node.set_output(res[0],val)
+                self.cp_node.write_outputs(filename)
+
     def check_id_consumer_event(self,ev):
         """
         check if the event ev is coherent with one output state
@@ -471,22 +504,14 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         None otherwise
         """
         
-        for i in range(self.cp_node.nb_I,self.cp_node.total_IO):
-            val = -1
-            if ev.id == self.ev_list[i][0]:
-                val = 0
-            elif ev.id == self.ev_list[i][1]:
-                val = 1
-            if val!=-1:
-                #found the input corresponding to the event
-                #check if state is coherent with event
-                #if state is -1, we return unknown
-                if self.cp_node.outputs[i-self.cp_node.nb_I][0] == val:
-                    return Node.ID_PRO_CON_VALID
-                elif self.cp_node.outputs[i-self.cp_node.nb_I][0] != -1:
-                    return Node.ID_PRO_CON_INVAL
-                else:
-                    return Node.ID_PRO_CON_UNKNOWN
+        res = self.find_consumer_event(ev)
+        if res is not None:
+            if self.cp_node.outputs[res[0]][0] == res[1]:
+                return Node.ID_PRO_CON_VALID
+            elif self.cp_node.outputs[res[0]][0] != -1:
+                return Node.ID_PRO_CON_INVAL
+            else:
+                return Node.ID_PRO_CON_UNKNOWN
         return None
 
     def consume_event(self,ev,filename):

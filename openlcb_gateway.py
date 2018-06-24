@@ -249,27 +249,39 @@ def identify_events(msg,cli):
     debug("identify events received")
 
 def consum_identified(msg,cli):
-    pass
+    valid = int(msg[6:7],16) #4=valid, 5=invalid, 7=unknown
+    ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
+    debug("consumer identified recevied for event:",ev_id)
+    #fixme for now we do nothing with that (we may use it to build routes for example)
 
 def produc_identified(msg,cli):
-    pass
-    
+    valid = int(msg[6:7],16) #4=valid, 5=invalid, 7=unknown
+    ev_id = bytes([int(msg[11+i*2:13+i*2],16) for i in range(8)])
+    debug("producer identified received for event:",ev_id)
+    if valid==7:
+        #unknown state reported we will do nothing with that
+        return
+    for b in buses.Bus_manager.buses:
+        path=b.path_to_nodes_files
+        if path!="":
+            path+="/"
+        for c in b.clients:
+            for n in c.managed_nodes:
+                #fixme we are using even for inhibited nodes, not sure we follow standard here
+                n.producer_identified(Event(ev_id),path+str(n.ID)+".outputs",valid==4)                    
+                
 def global_frame(cli,msg):
     first_b=int(msg[2:4],16)
     var_field = int(msg[4:7],16)
     src_id = int(msg[7:10],16)
     s = cli.sock
     
-    if var_field==0x490:  #Verify node ID (global) FIXME: send the response globally
-        debug("verify id")
+    if var_field==0x490:
         #forward to all other clients
         OLCB_serv.transfer(msg.encode('utf-8'),cli)
         for b in buses.Bus_manager.buses:
-            debug("bus verifiy id:",b.name)
             for c in b.clients:
-                debug("verify id client",c.address," managed_nodes",len(c.managed_nodes))
                 for n in c.managed_nodes:
-                    debug("verified id node",n.ID)
                     if n.permitted:
                         OLCB_serv.transfer((":X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";").encode('utf-8'))
                         debug("Sent---> :X19170"+hexp(n.aliasID,3)+"N"+hexp(n.ID,12)+";")
@@ -442,8 +454,4 @@ while not done:
     #so we only send them to the external world
     for fr in frames_list:
         OLCB_serv.send(fr)
-    #if time.time()%1000!=last_time:
-        #OLCB_serv.internal_sock.send("bonjour from internal;".encode('utf-8'))
-        #OLCB_serv.transfer("bonjour from transfer".encode('utf-8'))
-        #last_time = time.time()
         
