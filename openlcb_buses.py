@@ -171,6 +171,8 @@ class Bus_manager:
                 bus = Cmri_net_bus(path_to_outputs_files)
                 Bus_manager.buses.append(bus)
                 debug("creating a cmri net bus")
+            else:
+                debug("Found cmri net bus:",bus.name)
             bus.clients.append(client)
             return bus
         elif  msg.startswith(Bus_manager.can_bus_name):

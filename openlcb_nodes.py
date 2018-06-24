@@ -33,31 +33,25 @@ class Mem_space:
         
         for (offset,size) in self.mem.keys():
             if add>=offset and add <offset+size:
-                print("set_mem_partial:",add," in ",offset,size,"=",buf)
                 if offset in self.mem_chunks:
                     self.mem_chunks[offset]+=buf
-                    print("chunk is now=",self.mem_chunks[offset])
                 else:
                     self.mem_chunks[offset]=buf
-                print("set_mem_partial:",offset,size,"=",buf)
                 if len(self.mem_chunks[offset])==size:
                     buf=self.mem_chunks[offset]
                     del self.mem_chunks[offset]
-                    print("set_mem_partial done",self.mem_chunks)
                     return (offset,size,buf)
                 elif len(self.mem_chunks[offset])>size:
-                    print("memory write error in set_mem_partial, chunk size is bigger than memory size at",offset)
                     del self.mem_chunks[offset]
 
         return None
 
     def set_mem(self,offset,buf):
         if (offset,len(buf)) in self.mem:
-            print("set_mem(",offset,")=",buf)
             self.mem[(offset,len(buf))]=buf
             return True
         
-        print("set_mem failed, off=",offset,"buf=",buf," of length=",len(buf))
+        debug("set_mem failed, off=",offset,"buf=",buf," of length=",len(buf))
         return False
 
 
@@ -120,22 +114,21 @@ class Node:
         Set up a new alias negotiation (creates an alias also)
         """
         if self.PRNG is None:
-            PRNG = self.ID
+            self.PRNG = self.ID
         else:
-            PRNG += PRNG << 9 + 0x1B0CA37A4BA9
-        alias = ((PRNG >> 36)^(PRNG>> 24)^(PRNG >> 12)^PRNG) & 0xFFF
+            self.PRNG += (self.PRNG << 9) + 0x1B0CA37A4BA9
+        alias = ((self.PRNG >> 36)^(self.PRNG>> 24)^(self.PRNG >> 12)^self.PRNG) & 0xFFF
         
         self.aliasID = alias
+        debug("new alias for ",self.ID," : ",self.aliasID)
         return Alias_negotiation(alias,self.ID)
         
     def set_mem_partial(self,mem_sp,add,buf):
         res = self.memory[mem_sp].set_mem_partial(add,buf)
         if res is not None:
-            print("node set_mem_partial calls set_mem",mem_sp,res)
             self.set_mem(mem_sp,res[0],res[2])
         
     def read_mem(self,mem_sp,add):
-        print("read_mem",mem_sp,add)
         return self.memory[mem_sp].read_mem(add)
 
     def get_mem_size(self,mem_sp,offset):
@@ -367,8 +360,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 offset+=8
         self.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
                        253:channels_mem}
-        self.memory[251].dump()
-        self.memory[253].dump()
+        #self.memory[251].dump()
+        #self.memory[253].dump()
         
             
     def __init__(self,ID):
