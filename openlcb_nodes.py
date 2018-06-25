@@ -468,63 +468,111 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     return Node.ID_PRO_CON_INVAL
                 else:
                     return Node.ID_PRO_CON_UNKNOWN
-        #Second for IOX
+        #Second for IOX:fixme
         
         return None
 
     def find_consumer_event(self,ev):
         """
         Find the Output event (we are then a consumer here)
-        Return a tuple (index,value) or None if not found, index indicates the outputs index
+        Return a list of tuples (index,value), index indicates the outputs index
         """
+        res = []
         for i in range(self.cp_node.nb_I,self.cp_node.total_IO):
-            val = -1
             if ev.id == self.ev_list[i][0]:
-                return (i-self.cp_node.nb_I,0)
+                res.append( (i-self.cp_node.nb_I,0) )
             elif ev.id == self.ev_list[i][1]:
-                return (i-self.cp_node.nb_I,1)
+                res.append( (i-self.cp_node.nb_I,1) )
         #fixme add IOX
-        return (-1,-1)
+        return res
 
+    def find_consumer_event_IOX(self,ev):
+        """
+        Find the IOX Output events (we are then a consumer here)
+        Return a list of tuples (index,value), index indicates the IOX outputs index
+        """
+        res = []
+        ev_index=0
+        output_index=0
+        for i in self.IOX:
+            if i==1: #output card
+                for j in range(8):
+                    if ev.id == self.ev_list_IOX[ev_index][0]:
+                        res.append( (output_index,0) )
+                    elif ev.id == self.ev_list_IOX[ev_index][1]:
+                        res.append( (output_index,1) )
+                    ev_index+=1
+                    output_index+=1
+            else:
+                ev_index+=8  #input card so skip 8 events pairs
+        return res
+    
     def producer_identified(self,ev,filename,valid):
         """
         Will set the output according to the validity returned by the producer node
         valid is True or False
         """
+        modified = False
         res = self.find_consumer_event(ev)
-        if res != None:
-            if valid:
-                #valid so we set value to the one corresponding to the event
-                val = res[1]
-            else:
+        for index,val in res:
+            if not valid:
                 #invalid so we set value to the one not corresponding to the event
-                if res[1]==0:
+                if val==0:
                     val = 1
                 else:
                     val = 0
-            if val!=self.cp_node.outputs[res[0]]:
-                self.cp_node.set_output(res[0],val)
-                self.cp_node.write_outputs(filename)
-        #fixme add IOX
+            if val!=self.cp_node.outputs[index]:
+                self.cp_node.set_output(index,val)
+                modified = True
+                
+        #IOX outputs
+        res = self.find_consumer_event_IOX(ev)
+        for index,val in res:
+            if not valid:
+                #invalid so we set value to the one not corresponding to the event
+                if val==0:
+                    val = 1
+                else:
+                    val = 0
+            if val!=self.cp_node.outputs_IOX[index]:
+                self.cp_node.set_output_IOX(index,val)
+                modified = True
+
+        if modified:
+            self.cp_node.write_outputs(filename)
 
     def check_id_consumer_event(self,ev):
         """
-        check if the event ev is coherent with one output state
+        check if the event ev is coherent with output state
         This is used to reply to "identify consumer" event
         Return valid/invalid/unknown if the event corresponds to an output
+        If there are several outputs consuming the same event, we return UNKNOWN
+        if 2 outputs have different state (we do not count unset outputs)
         None otherwise
         """
         
-        res = self.find_consumer_event(ev)
-        if res is not None:
-            if self.cp_node.outputs[res[0]][0] == res[1]:
-                return Node.ID_PRO_CON_VALID
-            elif self.cp_node.outputs[res[0]][0] != -1:
-                return Node.ID_PRO_CON_INVAL
-            else:
+        consumers = self.find_consumer_events(ev)
+        result = None
+        for index,val in consumers:
+            if self.cp_node.outputs[index][0] == val:
+                new = Node.ID_PRO_CON_VALID
+            elif self.cp_node.outputs[index][0] != -1:
+                new = Node.ID_PRO_CON_INVAL
+            if result is not None and new!=result:
                 return Node.ID_PRO_CON_UNKNOWN
-        #fixme add IOX
-        return None
+            result = new
+        #IOX
+        consumers = self.find_consumer_events_IOX(ev)
+        for index,val in consumers:
+            if self.cp_node.outputs_IOX[index][0] == val:
+                new = Node.ID_PRO_CON_VALID
+            elif self.cp_node.outputs_IOX[index][0] != -1:
+                new = Node.ID_PRO_CON_INVAL
+            if result is not None and new!=result:
+                return Node.ID_PRO_CON_UNKNOWN
+            result = new
+        
+        return result
 
     def consume_event(self,ev,filename):
         #the node might consume the same event for several outputs (one event controlling several outputs)
