@@ -603,9 +603,10 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             elif ev.id == ev_pair[1]:
                 val = 1
             debug("consume event:",index," val=",val)
-            if self.cp_node.IOX[counter//8]==1 and val>=0:  #we only consume event for outputs
-                self.cp_node.set_output_IOX(output_index,val)
-                modified = True
+            if self.cp_node.IOX[counter//8]==1:
+                if val>=0:  #we only consume event for outputs
+                    self.cp_node.set_output_IOX(output_index,val)
+                    modified = True
                 output_index+=1 #next output
             elif val>=0 and self.cp_node.IOX[counter//8]==2:
                 debug("Event received for an IOX input! (event id=",ev.id,")")

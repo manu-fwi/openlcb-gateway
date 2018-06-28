@@ -341,6 +341,7 @@ class CPNode (CMRI_node):
 
     def set_output_IOX(self, index_out,value):
         if index_out<self.nb_IOX_outputs():
+            debug("setoutputIOX(",index_out,",",value,")")
             self.outputs_IOX[index_out][0]=value
         else:
             debug("IOX output index out of range")    
