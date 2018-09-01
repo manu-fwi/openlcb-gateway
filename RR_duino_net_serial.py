@@ -2,10 +2,13 @@ import socket,time
 from openlcb_serial_bus import *
 import json,sys
 from openlcb_debug import *
+import openlcb_RR_duino_nodes as RR_duino
 
+#constants
+ANSWER_TIMEOUT=1  #time out for an answer
 
 def decode_messages():
-    global rcv_messages,rcv_cmri_messages
+    global rcv_messages,rcv_RR_messages
 
     sep = ";"
     print(rcv_messages)
@@ -13,60 +16,108 @@ def decode_messages():
         first,sep,end = rcv_messages.partition(";")
         print(first,"/",sep,"/",end)
         if sep!="":
-            rcv_cmri_messages.append(cmri.CMRI_message.from_wire_message(first))
+            rcv_RR_messages.append(RR_duino.RR_duino_message.from_wire_message(first))
             rcv_messages = end
 
 def process():
-    global rcv_cmri_messages,ser,must_wait_answer
+    global rcv_RR_messages,ser,must_wait_answer
 
     if ser.sending() or must_wait_answer:  #if we are already sending or waiting for an answer
         #not much we can do, let's wait for IO to proceed
         return
     #no IO occuring let's begin a new one if there is any
 
-    if not rcv_cmri_messages:
+    if not rcv_RR_messages:
         return
     print("start IO")
-    msg = rcv_cmri_messages.pop(0)
-    ser.send(msg.to_raw_message())
-    must_wait_answer = (msg.type_m == cmri.CMRI_message.POLL_M)
+    msg = rcv_RR_messages.pop(0)
+    ser.send(msg.raw_message)
+    must_wait_answer = True
 
 def load_config(filename):
     #Load config file (json formatted dict config, see below)
-    #
-    #
-    #
-    #
+
     with open(filename) as cfg_file:
         config = json.load(cfg_file)
     #plug reasonable default values for secondary parameters
     if "serial_speed" not in config:
-        config["serial_speed"]=9600
+        config["serial_speed"]=19200
     if "openlcb_gateway_ip" not in config:
         config["openlcb_gateway_ip"]="127.0.0.1"
     if "openlcb_gateway_port" not in config:
         config["openlcb_gateway_port"]=50001
     if "nodes_ID_filename" not in config:
-        config["nodes_ID_filename"]="cmri_net_serial_nodes_ID.cfg"
+        config["nodes_ID_filename"]="RR_duino_net_serial_nodes_ID.cfg"
     
     return config
 
+def send_msg(msg):
+    #send a message to the serial port and wait for the answer (or timeout)
+    #return answer or None if timed out
+    #this should be called when no message is processed on the serial bus
+
+    ser.send(msg.raw_message)
+    answer = bytearray()
+    begin = time.time()
+    while not RR_duino.RR_duino_message.is_complete_message(message_to_send) and time.time()<begin+ANSWER_TIMEOUT: #not complete yet
+        ser.process_IO()
+        r = ser.read()
+        if r is not None:
+            begin = time.time()
+            answer.extend(r)
+    #check time out and answer begins by START and is the answer to the command we have sent
+    if time.time()<begin+ANSWER_TIMEOUT:
+        answer_msg =  RR_duino.RR_duino_message(answer)
+        if answer_msg.is_valid() and answer_msg.is_answer_to_cmd(msg.raw_message[1]):
+            return answer_msg
+        else:
+            debug("Broken protocol: command was:", msg.to_wire_message()," answer : ",answer_msg.to_wire_message())
+    return None
+    
+def load_nodes():
+    global fullID_add,online_nodes
+    debug("loading RR_duino nodes from",config["nodes_ID_filename"])
+    with open(config["nodes_ID_filename"]) as cfg_file:
+        fullID_add = json.load(cfg_file)
+        
+    #try all addresses and ask each responding node to load its config from EEPROM
+    for fullID in fullID_add:
+        answer = ser.send_msg(RR_duino.RR_duino_message.build_load_from_eeprom(fullID_add[fullID]))
+        if answer is not None and answer.get_error_code()==0:
+            #new node online, set it up
+            answer = ser.send_msg(RR_duino.RR_duino_message.build_save_to_eeprom(fullID_add[fullID]))
+            if answer is not None and answer.get_error_code()==0:
+                answer = ser.send_msg(RR_duino.RR_duino_message.build_version_cmd(fullID_add[fullID]))
+                if answer is not None and answer.get_error_code()==0:
+                    
+                    #add the node to the online list
+                    #fixme
+                    pass
+    #for all online nodes, load their config: sensors and turnouts
+    for fullID in online_nodes:
+        pass
+        
 if len(sys.argv)>=2:
     config = load_config(sys.argv[1])
 else:
-    config = load_config("cmri_net_serial.cfg")
-#connection to the gateway
+    config = load_config("RR_duino_net_serial.cfg")
+
+#connection to the serial bus
 ser = serial_bus(config["serial_port"],config["serial_speed"])
-debug("cmri_net_serial started on serial port",config["serial_port"])
+debug("RR_duino_net_serial started on serial port",config["serial_port"])
 connected = False
 while not connected:
     try:
         ser.start()
         connected=True
     except serial.serialutil.SerialException:
+        time.sleep(1)
+        debug("Waiting to connect to serial port",config["serial_port"])
         pass
+debug("Connected to serial port",config["serial_port"])
+
 rcv_messages=""  #last received messages ready to be cut and decoded
-rcv_cmri_messages = []  #decoded cmri messages received from the gateway, waiting to be sent
+rcv_RR_duino_messages = []  #decoded cmri messages received from the gateway, waiting to be sent
 message_to_send=b""   #last incomplete message from the serial port
 must_wait_answer = False  #this is True when the last message sent or being sent needs an answer (like Poll message)
 
@@ -74,6 +125,13 @@ time.sleep(1) #time for arduino serial port to settle down
 gateway_ip = config["openlcb_gateway_ip"]
 gateway_port = config["openlcb_gateway_port"]
 s =socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+
+#load nodes from files and bring them online
+#dict of fullID address correspondance
+fullID_add = {}
+load_nodes()
+
+#connect to gateway
 connected = False
 while not connected:
     try:
@@ -85,22 +143,21 @@ while not connected:
 print("connected to gateway!")
 s.settimeout(0)
 #create or connect to existing cmri_net_bus
-s.send(("CMRI_NET_BUS cmri bus 1;").encode('utf-8'))
-#read and add the nodes we want to manage
-for fullID in config["nodes_ID_list"]:
-    s.send(("start_node "+str(fullID)+";").encode('utf-8'))
-    
+s.send(("RR_DUINO_NET_BUS cmri bus 1;").encode('utf-8'))
+
+#FIXME: send all nodes to gateway
+
 while True:
     buf=b""
     rcv_msg_list=[]
     try:
         buf=s.recv(200).decode('utf-8') #byte array: the raw cmri message
-        print(buf)
+        debug(buf)
     except BlockingIOError:
         pass
     if len(buf)>0:
         rcv_messages+=buf
-        print("raw message=",buf)
+        debug("raw message=",buf)
         decode_messages()
         
     ser.process_IO()
@@ -108,13 +165,12 @@ while True:
     if ser.available():     # we are receiving an answer
         message_to_send += ser.read()
 
-        ETX_pos=cmri.CMRI_message.find_ETX(message_to_send)
-        if ETX_pos<len(message_to_send):
+        if RR_duino.RR_duino_message.is_complete_message(message_to_send):
             #answer complete, send it to server
-            print("received from serial and sending it to the server:",(cmri.CMRI_message.raw_to_wire_message(message_to_send[:ETX_pos+1])+";").encode('utf-8'))
-            s.send((cmri.CMRI_message.raw_to_wire_message(message_to_send[:ETX_pos+1])+";").encode('utf-8'))
+            debug("received from serial and sending it to the server:",(RR_duino.RRduino_message.raw_to_wire_message(message_to_send)+";").encode('utf-8'))
+            s.send((RR_duino.RR_duino_message.raw_to_wire_message(message_to_send)+";").encode('utf-8'))
             #discard the part we just sent
-            message_to_send=message_to_send[ETX_pos+1:]
+            message_to_send=b""
             must_wait_answer = False
         
 ser.close()
