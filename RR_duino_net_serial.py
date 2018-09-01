@@ -7,6 +7,41 @@ import openlcb_RR_duino_nodes as RR_duino
 #constants
 ANSWER_TIMEOUT=1  #time out for an answer
 
+class RR_duino_node:
+    PING_TIME_OUT = 10   # 10s between pings
+    def __init__(self,address,version):
+        self.address=address
+        self.version=version
+        self.sensors = []  #list of sensors config (subaddress,pin,type)
+        self.turnouts = [] #list of turnouts config (subaddress,servo_pin,straight pos,thrown pos [,relay pin 1, relay pin 2,pulse pin 1, pulse pin 2])
+        self.last_ping = 0
+
+    def get_config(self):
+        #get list of sensors and turnouts
+        debug("Getting config from node at ",self.address)
+        command = build_show_cmd(self.address)
+        i=0
+        error = False
+        while (i<2) and not error:
+            answer = []
+            done = False
+            while not done:
+                answer.append(send_msg(command))
+                if answer[-1] is None or not answer[-1].is_answer_to_cmd(command.get_cmd()):
+                    debug("Bad answer when loading config from node at ",self.address)
+                    done = True
+                    error = True
+                else:
+                    done = answer[-1].is_last_answer()
+                    for m in answer:
+                        if i==0:
+                            self.sensors.extend(m.get_list_of_sensors_config())
+                        else:
+                            self.turnouts.extend(m.get_list_of_turnouts_config())
+
+            command = build_show_cmd(self.address,True) #for turnouts now
+            i+=1
+            
 def decode_messages():
     global rcv_messages,rcv_RR_messages
 
@@ -89,13 +124,13 @@ def load_nodes():
             if answer is not None and answer.get_error_code()==0:
                 answer = ser.send_msg(RR_duino.RR_duino_message.build_version_cmd(fullID_add[fullID]))
                 if answer is not None and answer.get_error_code()==0:
-                    
                     #add the node to the online list
-                    #fixme
-                    pass
+                    new_node = RR_duino_node(fullID_add[fullID],answer.get_version())
+                    online_nodes[fullID]=new_node
     #for all online nodes, load their config: sensors and turnouts
     for fullID in online_nodes:
-        pass
+        n = online_nodes[fullID]
+        n.get_config()
         
 if len(sys.argv)>=2:
     config = load_config(sys.argv[1])
@@ -127,8 +162,10 @@ gateway_port = config["openlcb_gateway_port"]
 s =socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 
 #load nodes from files and bring them online
-#dict of fullID address correspondance
+#dict of fullID address correspondances
 fullID_add = {}
+#dict of fullID online node correspondances
+online_nodes = {}
 load_nodes()
 
 #connect to gateway

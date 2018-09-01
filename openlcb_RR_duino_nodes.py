@@ -57,6 +57,12 @@ class RR_duino_message:
     def get_address(self):
         return self.raw_message[2] & 0x3F
 
+    def get_command(self):
+        return self.raw_message[1]
+    
+    def get_version(self):
+        return self.raw_message[2]
+
     def is_valid(self):
         #crude test about correctness: only check the start byte for now
         return self.raw_message[0]==RR_duino_message.START
@@ -278,6 +284,13 @@ class RR_duino_message:
     def build_version_cmd(add):
         return RR_duino_message(bytes((0xFF,0b10001001,add)))
 
+    @staticmethod
+    def build_show_cmd(add, on_turnout=False):
+        c = 0b11001001
+        if on_turnout:
+            c |= (1 << RR_duino_message.CMD_SENSOR_TURNOUT_BT)
+        return RR_duino_message(bytes((0xFF,c,add)))
+    
     @staticmethod
     def is_complete_message(msg):
         #msg is a bytes array
