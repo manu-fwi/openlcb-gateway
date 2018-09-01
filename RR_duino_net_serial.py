@@ -36,8 +36,10 @@ class RR_duino_node:
                     for m in answer:
                         if i==0:
                             self.sensors.extend(m.get_list_of_sensors_config())
+                            debug("Sensors list=",self.sensors)
                         else:
                             self.turnouts.extend(m.get_list_of_turnouts_config())
+                            debug("Turnouts list=",self.turnouts)
 
             command = build_show_cmd(self.address,True) #for turnouts now
             i+=1
