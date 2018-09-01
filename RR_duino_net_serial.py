@@ -82,7 +82,7 @@ def load_config(filename):
     if "openlcb_gateway_port" not in config:
         config["openlcb_gateway_port"]=50001
     if "nodes_ID_filename" not in config:
-        config["nodes_ID_filename"]="RR_duino_net_serial_nodes_ID.cfg"
+        config["nodes_ID_filename"]="RR_duino_net_serial_nodes_DB.cfg"
     
     return config
 
@@ -113,16 +113,19 @@ def load_nodes():
     global fullID_add,online_nodes
     debug("loading RR_duino nodes from",config["nodes_ID_filename"])
     with open(config["nodes_ID_filename"]) as cfg_file:
-        fullID_add = json.load(cfg_file)
+        fullID_add_json = json.load(cfg_file)
+    #keys in dict are always str when decoded from json so back to ints
+    for ID in fullID_add_json:
+        fullID_add[int(ID)]=fullID_add_json[ID]
         
     #try all addresses and ask each responding node to load its config from EEPROM
     for fullID in fullID_add:
-        answer = ser.send_msg(RR_duino.RR_duino_message.build_load_from_eeprom(fullID_add[fullID]))
+        answer = send_msg(RR_duino.RR_duino_message.build_load_from_eeprom(fullID_add[fullID]))
         if answer is not None and answer.get_error_code()==0:
             #new node online, set it up
-            answer = ser.send_msg(RR_duino.RR_duino_message.build_save_to_eeprom(fullID_add[fullID]))
+            answer = send_msg(RR_duino.RR_duino_message.build_save_to_eeprom(fullID_add[fullID]))
             if answer is not None and answer.get_error_code()==0:
-                answer = ser.send_msg(RR_duino.RR_duino_message.build_version_cmd(fullID_add[fullID]))
+                answer = send_msg(RR_duino.RR_duino_message.build_version_cmd(fullID_add[fullID]))
                 if answer is not None and answer.get_error_code()==0:
                     #add the node to the online list
                     new_node = RR_duino_node(fullID_add[fullID],answer.get_version())
