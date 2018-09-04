@@ -15,6 +15,7 @@ class RR_duino_node:
         self.sensors = []  #list of sensors config (subaddress,pin,type)
         self.turnouts = [] #list of turnouts config (subaddress,servo_pin,straight pos,thrown pos [,relay pin 1, relay pin 2,pulse pin 1, pulse pin 2])
         self.last_ping = 0
+        self.config_OK = False
 
     def get_config(self):
         #get list of sensors and turnouts
@@ -40,6 +41,8 @@ class RR_duino_node:
                         else:
                             self.turnouts.extend(m.get_list_of_turnouts_config())
                             debug("Turnouts list=",self.turnouts)
+                    self.last_ping = time.time()
+                    self.config_OK = True
 
             command = build_show_cmd(self.address,True) #for turnouts now
             i+=1
@@ -136,12 +139,17 @@ def load_nodes():
     for fullID in online_nodes:
         n = online_nodes[fullID]
         n.get_config()
-        
+
+def to_managed(fullID):
+    #send request to the server
+    managed_nodes[fullID] = onlines_nodes[ID]
+    del onlines_nodes[ID]
+    
 if len(sys.argv)>=2:
     config = load_config(sys.argv[1])
 else:
     config = load_config("RR_duino_net_serial.cfg")
-
+    
 #connection to the serial bus
 ser = serial_bus(config["serial_port"],config["serial_speed"])
 debug("RR_duino_net_serial started on serial port",config["serial_port"])
@@ -171,6 +179,7 @@ s =socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 fullID_add = {}
 #dict of fullID online node correspondances
 online_nodes = {}
+#dict of fullID <-> managed nodes (online and declared to the gateway)
 load_nodes()
 
 #connect to gateway
@@ -190,6 +199,11 @@ s.send(("RR_DUINO_NET_BUS cmri bus 1;").encode('utf-8'))
 #FIXME: send all nodes to gateway
 
 while True:
+    if online_nodes:
+        #try to put all online nodes with good config to "managed" state (declare to gateway)
+        for ID in onlines_nodes:
+            if online_nodes[ID].config_OK:
+                to_managed(ID)
     buf=b""
     rcv_msg_list=[]
     try:
