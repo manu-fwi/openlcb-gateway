@@ -1,5 +1,4 @@
 from openlcb_protocol import *
-import openlcb_buses as buses
 from openlcb_debug import *
 import openlcb_config
 
@@ -152,14 +151,6 @@ def find_node(aliasID):
             return n
     return None
 
-def find_managed_node(aliasID):
-    for b in buses.Bus_manager.buses:
-        for c in b.clients:
-            for n in c.managed_nodes:
-                if n.aliasID == aliasID:
-                    return (n,c)
-    return None
-   
 
 """
 append the new node if it was not known before (return True)

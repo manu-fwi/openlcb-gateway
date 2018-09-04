@@ -1,9 +1,9 @@
 import openlcb_cmri_cfg as cmri
 from openlcb_protocol import *
 from openlcb_debug import *
-import openlcb_config
+import openlcb_config,openlcb_nodes
 
-class Node_cpnode(Node):
+class Node_cpnode(openlcb_nodes.Node):
     CDI_header="""<?xml version="1.0"?>
 <cdi xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">

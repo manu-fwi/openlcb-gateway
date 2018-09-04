@@ -523,3 +523,11 @@ class RR_duino_node:
             shift+=1
             print("i=",i,"res=",res)
         return res
+
+def find_node_from_add(add,nodes):
+    for n in nodes:
+        if n.RR_duino_node.address == add:
+            return n
+    return None
+
+    

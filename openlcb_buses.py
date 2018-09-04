@@ -4,12 +4,13 @@ import serial,json
 import openlcb_server
 import openlcb_nodes,time
 import openlcb_nodes_db as nodes_db
+import openlcb_RR_duino_nodes as RR_duino
 from openlcb_debug import *
 from openlcb_protocol import *
 from collections import deque
 
 class Bus:
-    def __init__(self,name,path_to_nodes_files):
+    def __init__(self,name,path_to_nodes_files=None):
         self.name = name
         self.clients=[]       #client programs connected to the bus
         self.nodes_in_alias_negotiation=[]  #alias negotiations (node,alias_neg)
@@ -142,6 +143,83 @@ class Cmri_net_bus(Bus):
 class Can_bus(Bus):
     pass
 
+class RR_duino_net_bus(Bus):
+    """
+    message format (messages are separated by a ";", also number is presented as an hexdecimal string):
+    - space separated (only ONE space) word and numbers/CMRI message (distinguished by the 0xFF byte at the beginning)
+    Message types (other than the CMRI message)
+    - New node: "start_node" followed by: full_ID(8 bytes) and node config (version, sensors, turnouts)
+    """
+    separator = ";"
+    
+    def __init__(self):
+        super().__init__(Bus_manager.RR_duino_net_bus_name)
+        
+    def process(self):
+        #check all messages and return a list of events that has been generated in response
+        #also checks all alias negotiation and return the corresponding can frames (CID,AMD,...)
+        ev_list=[]
+        for c in self.clients:
+            msg = c.next_msg()
+            if msg:
+                msg=msg[:len(msg)-1]  #remove the trailing ";"
+                if msg:
+                    msg.lstrip() #get rid of leading spaces
+                    words_list = msg.split(' ')
+                    try:
+                        first_byte = int(words_list[0],16)
+                    except:
+                        first_byte=None
+                    if first_byte==RR_duino.RR_duino_message.START:
+                        #it is a RR_duino message, process it
+                        RR_msg = RR_duino.from_wire_message(msg)
+                        node = RR_duino.find_node_from_add(RR_msg.get_address(),c.managed_nodes)
+                        if node is None:
+                            debug("Unknown node!! add=", RR_msg.get_address())
+                        else:
+                            node.RR_duino_node.process_receive(RR_duino_msg)
+                            ev_list.extend(node.generate_events())
+                    else:
+                        #it is a bus message (new node...)
+                        if words_list =="start_node":
+                            fullID= int(words_list[1])
+                            if fullID in self.nodes_db.db:
+                                node = self.nodes_db.db[fullID]   #get node from db
+                            else:
+                                debug("Unknown node of full ID",fullID,", adding it to the DB")
+                                js = openlcb_nodes.Node_cpnode.DEFAULT_JSON
+                                js["fullID"]=fullID
+                                node = openlcb_nodes.Node_cpnode.from_json(js)
+                                self.nodes_db.db[fullID]=node
+                            node.cp_node.client = c
+                            #create and register alias negotiation
+                            alias_neg = node.create_alias_negotiation()
+                            #loop while we find an unused alias
+                            while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
+                                alias_neg = node.create_alias_negotiation()
+                            self.nodes_in_alias_negotiation.append((node,alias_neg))
+                            #also add it to the list of aliases negotiation
+                            list_alias_neg.append(alias_neg)
+                            c.managed_nodes.append(node)
+                            #now load the recorded outputs states for this node
+                            filename = self.path_to_nodes_files
+                            if self.path_to_nodes_files:
+                                filename+="/"
+                            filename+=str(node.ID)+".outputs"
+                            node.cp_node.load_outputs(filename)
+                            node.cp_node.write_outputs(filename,False)
+                        else:
+                            debug("unknown cmri_net_bus command")
+                        
+            #now poll all nodes
+            for node in c.managed_nodes:
+                node.poll()
+        #move forward for alias negotiation
+        frames_list=self.generate_frames_from_alias_neg()
+        self.prune_alias_negotiation()
+        self.nodes_db.sync()
+        return ev_list,frames_list    
+
 class Bus_manager:
     #buses constants
     #cmri_net_bus
@@ -155,10 +233,14 @@ class Bus_manager:
     can_bus_name = "CAN_BUS"
     can_bus_separator = ";"
 
+    #RR_duino_bus
+    RR_duino_bus_name = "RR_DUINO_BUS"
+    RR_duino_bus_separator = ";"
+
     #list of active buses
     buses=[]
     @staticmethod
-    def create_bus(client,msg,path_to_outputs_files):
+    def create_bus(client,msg,path_to_outputs_files=None):
         """
         create a bus based on the name provided in the msgs field of the client
         returns the bus if it has been found (or created if needed)
@@ -175,13 +257,22 @@ class Bus_manager:
                 debug("Found cmri net bus:",bus.name)
             bus.clients.append(client)
             return bus
-        elif  msg.startswith(Bus_manager.can_bus_name):
+        elif  msg.startswith(Bus_manager.RR_duino_bus_name):
             #create a cmri_can bus
+            bus = Bus_manager.find_bus_by_name(Bus_manager.RR_duino_bus_name)
+            if bus == None:
+                bus = RR_duino_net_bus()
+                Bus_manager.buses.append(bus)
+                debug("creating a RR_duino_net bus")
+            bus.clients.append(client)
+            return bus
+        elif  msg.startswith(Bus_manager.can_bus_name):
+            #create a can bus
             bus = Bus_manager.find_bus_by_name(Bus_manager.can_bus_name)
             if bus == None:
                 bus = Can_bus()
                 Bus_manager.buses.append(bus)
-                debug("creating a cmri can bus")
+                debug("creating a can bus")
             bus.clients.append(client)
             return bus
         return None
@@ -193,3 +284,11 @@ class Bus_manager:
                 return b
         return None
             
+def find_managed_node(aliasID):
+    for b in buses.Bus_manager.buses:
+        for c in b.clients:
+            for n in c.managed_nodes:
+                if n.aliasID == aliasID:
+                    return (n,c)
+    return None
+   

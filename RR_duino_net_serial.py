@@ -46,6 +46,10 @@ class RR_duino_node:
 
             command = build_show_cmd(self.address,True) #for turnouts now
             i+=1
+
+    def show_config():
+        res = "VERSION="+str(self.version)+" SENSORS="+json.dumps(self.sensors)+" TURNOUTS="+json.dumps(self.turnouts)
+        return res
             
 def decode_messages():
     global rcv_messages,rcv_RR_messages
@@ -142,6 +146,7 @@ def load_nodes():
 
 def to_managed(fullID):
     #send request to the server
+    s.send(("start_node "+str(fullID)+" "+onlines_nodes[ID].show_config()).encode('utf-8'))
     managed_nodes[fullID] = onlines_nodes[ID]
     del onlines_nodes[ID]
     

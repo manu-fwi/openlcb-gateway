@@ -1,4 +1,4 @@
-import openlcb_nodes,json
+import openlcb_cpnodes,json
 from openlcb_debug import *
 import time
 
@@ -54,7 +54,7 @@ class Nodes_db_cpnode:
             debug("missing fields in the node description",js)
             return None
         
-        return openlcb_nodes.Node_cpnode.from_json(js)
+        return openlcb_cpnodes.Node_cpnode.from_json(js)
 
     def sync(self):
         if not self.synced and self.last_sync+self.sync_period<time.time():
