@@ -177,8 +177,7 @@ class RR_duino_net_bus(Bus):
                         if node is None:
                             debug("Unknown node!! add=", RR_msg.get_address())
                         else:
-                            node.RR_duino_node.process_receive(RR_duino_msg)
-                            ev_list.extend(node.generate_events())
+                            ev_list.extend(node.process_receive(RR_duino_msg))
                     else:
                         #it is a bus message (new node...)
                         if words_list =="start_node":

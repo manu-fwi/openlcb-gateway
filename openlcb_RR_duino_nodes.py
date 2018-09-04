@@ -1,7 +1,7 @@
 from openlcb_cmri_cfg import hex_int
 from openlcb_protocol import *
 from openlcb_debug import *
-import openlcb_config
+import openlcb_config,openlcb_nodes
 
 class RR_duino_message:
     START=0xFF
@@ -129,6 +129,9 @@ class RR_duino_message:
     def set_error_code(self,err):
         self.raw_message.append(0x80+err)
 
+    def get_value(self):
+        return (self.raw_message[3] & 0x3F, self.raw_message[3] >> RR_duino_message.SUBADD_VALUE_BIT)
+    
     def get_list_of_values(self):
         #return a list of pairs (subaddress,value)
         #only valid for a r/w list command
@@ -383,9 +386,10 @@ class RR_duino_message:
         #so it must be complete (they are all 4 bytes commands)
         return True
     
-class RR_duino_node:
+class RR_duino_node(openlcb_nodes.Node):
     """
-    represents a RR_duino node
+    represents a RR_duino node which means it is an openlcb node (with memory, alias and so on
+    and also is linked to the real hardware (via the bus program helper) using the RR_duino protocol
     """
     def __init__(self,address,client=None):
         self.address = address
@@ -395,134 +399,30 @@ class RR_duino_node:
         res = "RR-duino Node,client="+str(self.client.name)+",add="+str(self.address)
         return res
 
+    def generate_events(self,subadds_values,turnouts = False):
+        debug("generate events",subadd_values,turnouts)
+        #FIXME
+        return []
+    
     def process_receive(self,msg):
-        debug("process receive=",msg.message)
-        message=msg.message
-        index = 0
-        n = 0
-        while n < self.nb_I and index <=1:
-            new_value = (message[index] >> (n%8))&0x01
-            #only register the new value if its different from the current one
-            if new_value != self.inputs[n][0]:
-                self.inputs[n][1] = self.inputs[n][0]  #current value becomes last value
-                self.inputs[n][0] = new_value
-            n+=1
-            if n % 8==0:
-                index +=1 #next byte
-        index = 2
-        n=0
-        while n<self.nb_IOX_inputs() and index < len(message):
-            self.inputs_IOX[n][1] = self.inputs_IOX[n][0]  #current value becomes last value
-            self.inputs_IOX[n][0] = (message[index] >> (n%8))&0x01
-            n+=1
-            if n % 8==0:
-                index +=1 #next byte
-        if n<self.nb_IOX_inputs():
-            debug("Error: number of inputs in Receive message not corresponding to setup")
-            
-    def write_outputs(self,filename,save=True):
-        #send outputs to node
-        bits = [io[0] for io in self.outputs]
-        bytes_value = bytearray((CPNode.pack_bits(bits),))
-        if len(bytes_value)==1:
-            bytes_value+=b"\0"
-        first_bit = 0
-        for i in self.IOX:
-            if i==1:
-                bits = [io[0] for io in self.outputs_IOX[first_bit:first_bit+8]]
-                bytes_value+=bytearray((CPNode.pack_bits(bits),))
-                debug("(",i,") bytes=",bytes_value)
-                first_bit += 8
-        debug("bytes_value",bytes_value)
-        cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
-        if self.client is not None:
-            self.client.queue(cmd)
-        #fixme do we need this?
-        #fixme but we should save the outputs states to file (to recover after a reboot/power cycle)
-        for io in self.outputs:
-            io[1]=io[0]  #value has been sent so sync last known value to that
-        for i in self.IOX:
-            if i==1:
-                for io in self.outputs_IOX[first_bit:first_bit+8]:
-                    io[1]=io[0]
-                    first_bit+=8
-        #save outputs states to file
-        if save:
-            with open(filename,"w") as file:
-                for io in self.outputs:
-                    file.write(str(io[0])+" ")
-                file.write('\n')
-                first_bit=0
-                for i in self.IOX:
-                    if i==1:
-                        for iox in self.outputs_IOX[first_bit:first_bit+8]:
-                            file.write(str(iox[0])+" ")
-                        file.write('\n')
-                        first_bit+=8
+        debug("process receive=",msg.to_wire_message())
 
-    def load_outputs(self,filename):
-        debug("loading outputs from file",filename)
-        exists=True
-        try:
-            file = open(filename,"r")
-        except IOError:
-            exists=False
-        if exists:
-            line = file.readline()
-            index = 0
-            for i in line.split():
-                if index==CPNode.total_IO - self.nb_I:
-                    debug("Too many outputs values in the file",filename)
-                    break
-                self.outputs[index][0]=int(i)
-                index+=1
-            if index<CPNode.total_IO - self.nb_I:
-                debug("Not enough outputs values in the file",filename)
-            if file:
-                line = file.readline()
-                index = 0
-                for i in line.split():
-                    if index==self.nb_IOX_outputs():
-                        debug("Too many outputs values in the file",filename)
-                        break
-                    self.outputs_IOX[index][0]=int(i)
-                    index+=1
-                if index<self.nb_IOX_outputs():
-                    debug("Not enough outputs values in the file",filename)
-            debug(self.outputs)
-            debug(self.outputs_IOX)
-            file.close()
-            
-    def set_output(self,index_out,value):
-        if index_out<CPNode.total_IO - self.nb_I:
-            self.outputs[index_out][0]=value
-        else:
-            debug("output index out of range")
-
-    def set_output_IOX(self, index_out,value):
-        if index_out<self.nb_IOX_outputs():
-            debug("setoutputIOX(",index_out,",",value,")")
-            self.outputs_IOX[index_out][0]=value
-        else:
-            debug("IOX output index out of range")    
-
-    def get_IO_nb(self):
-        res = CPNode.total_IO
-        for IO in self.IOX:
-            if IO>0:
-                res+=8
-        return res
-
-    @staticmethod
-    def pack_bits(bits_list): #will pack a list of bit values as a list of bytes, MSB is first bit and so on
-        res = 0
-        shift=0
-        for i in bits_list:
-            print("i=",i,"res=",res)            
-            res |= i << shift
-            shift+=1
-            print("i=",i,"res=",res)
-        return res
+        if not msg.is_answer():
+            debug("Broken protocol, the bus is receiving a command msg from the slaves!")
+            return []
+        if msg.get_error_code()!=0:
+            debug("Command error!")
+            return []
+        if msg.is_read_cmd():
+            if not msg.is_list():
+                return self.generate_events((msg.get_value()),msg.on_turnout())
+            elif not msg.is_all():
+                return self.generate_events(msg.get_list_of_values(),msg.on_turnout())
+            else:
+                debug("Read all not implemented yet")
+        #for now we only treat read messages
+        #FIXME
+        return []
 
 def find_node_from_add(add,nodes):
     for n in nodes:

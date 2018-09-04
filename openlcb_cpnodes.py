@@ -1,9 +1,10 @@
 import openlcb_cmri_cfg as cmri
 from openlcb_protocol import *
 from openlcb_debug import *
-import openlcb_config,openlcb_nodes
+import openlcb_config
+import openlcb_nodes as nodes
 
-class Node_cpnode(openlcb_nodes.Node):
+class Node_cpnode(nodes.Node):
     CDI_header="""<?xml version="1.0"?>
 <cdi xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
@@ -200,7 +201,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         
                 
     def create_memory(self):           
-        channels_mem=Mem_space([(0,1),(1,1)])  #node address and io config
+        channels_mem=nodes.Mem_space([(0,1),(1,1)])  #node address and io config
         offset = 2
         #loop over 16 channels (basic IO)
         for i in range(self.cp_node.total_IO*2): #2 events per IO line
@@ -215,7 +216,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 channels_mem.create_mem(offset,8)
                 channels_mem.set_mem(offset,b"\0"*8)    #default event
                 offset+=8
-        self.memory = {251:Mem_space([(0,1),(1,63),(64,64)]),
+        self.memory = {251:nodes.Mem_space([(0,1),(1,63),(64,64)]),
                        253:channels_mem}
         #self.memory[251].dump()
         #self.memory[253].dump()
@@ -230,8 +231,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     def get_IOX_CDI(self):
         
         res = Node_cpnode.CDI_IOX_repetition_beg.replace("%nbiox","16")
-        res+=Node_cpnode.CDI_IOX
-        res+=Node_cpnode.CDI_IOX_repetition_end
+        res+= Node_cpnode.CDI_IOX
+        res+= Node_cpnode.CDI_IOX_repetition_end
         return res
         
     def get_CDI(self):
