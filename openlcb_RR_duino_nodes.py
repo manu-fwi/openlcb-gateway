@@ -36,7 +36,7 @@ class RR_duino_message:
     SUBADD_LAST_IN_LIST_BIT=7
     
     #subaddress byte special bits positions
-    PIN_PULSE_PIN_BIT = 7
+    PIN_PULSE_BIT = 7
     PIN_PULLUP_BIT = 7
 
     #other constants
@@ -80,9 +80,9 @@ class RR_duino_message:
         if (self.raw_message[1] & 0b11111000) != (cmd & 0b11111000):
             return False
         #check if async bit was set in command
-        if cmd & (1 << CMD_ASYNC_BIT) != 0:
-            return self.raw_message[1] (1 << CMD_ASYNC_BIT) !=0
-        return TRUE
+        if cmd & (1 << RR_duino_message.CMD_ASYNC_BIT) != 0:
+            return self.raw_message[1] (1 << RR_duino_message.CMD_ASYNC_BIT) !=0
+        return True
     
     def is_last_answer(self):
         #return True if this message is the last answer (used mainly by show commands/async events reporting)
@@ -148,9 +148,9 @@ class RR_duino_message:
             sensor_type = RR_duino_message.SENSOR_OUTPUT
         else:
             if self.raw_message[index+1] & (1 << RR_duino_message.PIN_PULLUP_BIT) != 0:
-                sensor_type = RR_duino_message.SENSOR_INPUT_PULLUP
+                sensor_type = RR_duino_message.INPUT_SENSOR_PULLUP
             else:
-                sensor_type = RR_duino_message.SENSOR_INPUT
+                sensor_type = RR_duino_message.INPUT_SENSOR
         return (self.raw_message[index] & 0x3F, self.raw_message[index+1] & 0x7F, sensor_type)
     
     def get_list_of_sensors_config(self):
@@ -262,16 +262,16 @@ class RR_duino_message:
         #config = (subadd,servo_pin,straight_pos,thrown_pos [,relay_pin_1,relay_pin2,pulse pin 1,pulse pin 2])
         subadd = config[0]
         if len(config)>4:
-            subadd |= 1 << SUBADD_TURNOUT_RELAY_PINS_BIT
+            subadd |= 1 << RR_duino_message.SUBADD_TURNOUT_RELAY_PINS_BIT
         res = bytearray()
         res.extend((subadd,config[1],config[2],config[3]))
         if len(config)>4:
             relay_pins = [config[4]]
             if config[6]:
-                relay_pins[0] |= 1 << PIN_PULSE_PIN_BIT
+                relay_pins[0] |= 1 << RR_duino_message.PIN_PULSE_PIN_BIT
             relay_pin.append(config[5])
             if config[7]:
-                relay_pins[1] |= 1 << PIN_PULSE_PIN_BIT
+                relay_pins[1] |= 1 << RR_duino_message.PIN_PULSE_PIN_BIT
             res.extend((relay_pins))
         return res
 
@@ -291,7 +291,7 @@ class RR_duino_message:
     def build_show_cmd(add, on_turnout=False):
         c = 0b11001001
         if on_turnout:
-            c |= (1 << RR_duino_message.CMD_SENSOR_TURNOUT_BT)
+            c |= (1 << RR_duino_message.CMD_SENSOR_TURNOUT_BIT)
         return RR_duino_message(bytes((0xFF,c,add)))
     
     @staticmethod
@@ -301,6 +301,7 @@ class RR_duino_message:
         #returns None if message is invalid
 
         def is_cmd_add_message(msg):
+            debug("is_cmd_add_message")
             #checks if the message is only 3 bytes: start,command,address
             if msg.is_answer():
                 return False
@@ -322,7 +323,7 @@ class RR_duino_message:
         def next_turnout_config_pos(msg,index):
             #return the position of the next turnout config
             #index is the position of the current turnout config
-            if msg.raw_message[index] & (1 << SUBADD_TURNOUT_RELAY_PINS_BIT) != 0:
+            if msg.raw_message[index] & (1 << RR_duino_message.SUBADD_TURNOUT_RELAY_PINS_BIT) != 0:
                 return index+6
             else:
                 return index+4
@@ -333,13 +334,15 @@ class RR_duino_message:
                 last = current
                 current = next_turnout_config_pos(msg,last)
             return msg.raw_message[last] & 0x80 != 0
-                                
+
+        debug("is complete")
         if len(msg)==0:
             return False
         #length>0
-        if msg[0]!=RR_duino.RR_duino_message.START:
+        if msg[0]!=RR_duino_message.START:
             return None
         if len(msg)<3:
+            print("len(msg)<3")
             return False
         message = RR_duino_message(msg)
         if len(msg)==3:
@@ -348,19 +351,21 @@ class RR_duino_message:
         #length is > 3
         special_config = None
         if message.is_special_config_cmd():
-            special_config = message.get_config_cmd()
+            special_config = message.get_special_config()
         
         #treat the answer cases (must finish by 0x8x)
         if message.is_answer():
+            debug("is_answer")
             #exceptions: the show and version commands can have bytes with MSB!=0 before the end
-            if special_config is None or (special_config!=CMD_VERSION and special_config!=CMD_SHOW_SENSORS
-                                          and special_config!=CMD_SHOW_TURNOUTS):
+            if special_config is None or (special_config!=RR_duino_message.CMD_VERSION
+                                          and special_config!=RR_duino_message.CMD_SHOW_SENSORS
+                                          and special_config!=RR_duino_message.CMD_SHOW_TURNOUTS):
                 return msg[-1] & 0x80 != 0
             #Treat the case of CMD_VERSION
-            if special_config == CMD_VERSION:
+            if special_config == RR_duino_message.CMD_VERSION:
                 return len(msg)>=5 and (msg[-1] & 0x80 != 0)
             #Treat the CMD_SHOW_SENSORS:
-            if special_config == CMD_SHOW_SENSORS:
+            if special_config == RR_duino_message.CMD_SHOW_SENSORS:
                 return sensors_config_list_complete(message)
             return turnouts_config_list_complete(message)
         #it is a command of length >=4

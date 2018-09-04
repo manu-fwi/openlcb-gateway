@@ -4,7 +4,7 @@ class serial_bus:
     def __init__(self,port,baudrate):
         self.ser_port = serial.Serial()
         self.ser_port.port = port
-        self.ser_port.bnaudrate = baudrate
+        self.ser_port.baudrate = baudrate
         self.ser_port.timeout=0
         self.ser_port.write_timeout = 0
         self.to_send=b""
