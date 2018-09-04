@@ -154,6 +154,7 @@ class RR_duino_net_bus(Bus):
     
     def __init__(self):
         super().__init__(Bus_manager.RR_duino_net_bus_name)
+        self.nodes = {} #dict of fullID <-> nodes correspondance
         
     def process(self):
         #check all messages and return a list of events that has been generated in response
@@ -182,15 +183,13 @@ class RR_duino_net_bus(Bus):
                         #it is a bus message (new node...)
                         if words_list =="start_node":
                             fullID= int(words_list[1])
-                            if fullID in self.nodes_db.db:
-                                node = self.nodes_db.db[fullID]   #get node from db
+                            if fullID in self.nodes:
+                                debug("Nodes already managed!",fullID)
                             else:
-                                debug("Unknown node of full ID",fullID,", adding it to the DB")
-                                js = openlcb_nodes.Node_cpnode.DEFAULT_JSON
-                                js["fullID"]=fullID
-                                node = openlcb_nodes.Node_cpnode.from_json(js)
-                                self.nodes_db.db[fullID]=node
-                            node.cp_node.client = c
+                                #FIXME build node
+                                self.nodes[fullID]=node
+                            #CHECK: node.client = c
+                            
                             #create and register alias negotiation
                             alias_neg = node.create_alias_negotiation()
                             #loop while we find an unused alias
@@ -200,23 +199,12 @@ class RR_duino_net_bus(Bus):
                             #also add it to the list of aliases negotiation
                             list_alias_neg.append(alias_neg)
                             c.managed_nodes.append(node)
-                            #now load the recorded outputs states for this node
-                            filename = self.path_to_nodes_files
-                            if self.path_to_nodes_files:
-                                filename+="/"
-                            filename+=str(node.ID)+".outputs"
-                            node.cp_node.load_outputs(filename)
-                            node.cp_node.write_outputs(filename,False)
                         else:
                             debug("unknown cmri_net_bus command")
-                        
-            #now poll all nodes
-            for node in c.managed_nodes:
-                node.poll()
+
         #move forward for alias negotiation
         frames_list=self.generate_frames_from_alias_neg()
         self.prune_alias_negotiation()
-        self.nodes_db.sync()
         return ev_list,frames_list    
 
 class Bus_manager:
