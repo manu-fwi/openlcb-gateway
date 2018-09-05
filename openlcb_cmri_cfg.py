@@ -232,7 +232,7 @@ class CPNode (CMRI_node):
         debug("sending poll to cpNode (add=",self.address,")")
         cmd = CMRI_message(CMRI_message.POLL_M,self.address,b"")
         if self.client is not None:
-            self.client.queue(cmd)
+            self.client.queue(cmd.to_wire_message().encode('utf-8'))
         return True
 
     def process_receive(self,msg):
@@ -276,7 +276,7 @@ class CPNode (CMRI_node):
         debug("bytes_value",bytes_value)
         cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
         if self.client is not None:
-            self.client.queue(cmd)
+            self.client.queue(cmd.to_wire_message().encode('utf-8'))
         #fixme do we need this?
         #fixme but we should save the outputs states to file (to recover after a reboot/power cycle)
         for io in self.outputs:

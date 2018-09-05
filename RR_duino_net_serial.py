@@ -48,7 +48,7 @@ class RR_duino_node:
             i+=1
 
     def show_config(self,fullID):
-        res = json.dumps({"FULLID":fullID,"ADDRESS":self.address,"VERSION":self.version,"SENSORS":self.sensors,"TURNOUTS":self.turnouts})
+        res = json.dumps({"FULLID":fullID,"ADDRESS":self.address,"VERSION":self.version,"SENSORS":self.sensors,"TURNOUTS":self.turnouts})+";"
         debug("show_config=",res)
         return res
             

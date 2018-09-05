@@ -25,12 +25,12 @@ class Client:
     #and erase it from the buffer
     def next_msg(self):
         msg,sep,end = self.msgs.partition(self.msg_separator)
-        #print(msg, "/",sep,"/",end)
         if not sep:
             #print("sep!!")
             return ""
         debug("next message from ",self.address,msg+sep)
         self.msgs = end
+        debug("remaining messages",end)
         return msg+sep
 
     def queue(self,cmd):
@@ -40,8 +40,8 @@ class Client_bus(Client):
     """
     Same as Client plus the fact that the first line must be a "bus" descriptor plus the client name(cf openlcb_buses.py)
     """
-    def __init__(self,sock,add,path_to_nodes_files=""):
-        super().__init__(sock,add,openlcb_buses.Bus_manager.cmri_net_bus_separator) #initialize separator to None
+    def __init__(self,sock,add,path_to_nodes_files = None):
+        super().__init__(sock,add,openlcb_buses.Bus.BUS_MSG_SEPARATOR)
         self.bus = None
         self.managed_nodes=[]
         self.path_to_nodes_files=path_to_nodes_files
@@ -53,17 +53,13 @@ class Client_bus(Client):
         """
         msg = self.next_msg()
         if msg:
-            
-            l = msg[:len(msg)-1].split(' ')   #get rid of the separator and join all pieces to get the name back
-            self.name = ' '.join(l[1:])
+            bus_name,sep,end = msg.partition(" ")
+            name = end[:-1]      #get rid of the separator
+            self.name = name
             #create a bus corresponding to the received bus name
-            bus= openlcb_buses.Bus_manager.create_bus(self,l[0],self.path_to_nodes_files)
+            bus= openlcb_buses.Bus_manager.create_bus(self,bus_name,self.path_to_nodes_files)
             self.bus=bus
             return bus is not None
-
-    def queue(self,cmri_msg): #FIXME for now only cmri is handled
-        debug("queue<<",(cmri_msg.to_wire_message()+";").encode('utf-8'))
-        self.sock.send((cmri_msg.to_wire_message()+";").encode('utf-8'))
         
 def get_client_from_socket(clients,sock):
     for c in clients:
@@ -180,7 +176,7 @@ class Buses_server(Openlcb_server):
 
         clientsocket,addr = self.serversocket.accept()
         address = (str(addr).split("'"))[1]
-        debug("Got a connection to cmri net bus from", address)
+        debug("Got a connection to bus from", address)
         c = Client_bus(clientsocket,address,self.path_to_nodes_files)
         self.clients.append(c)
         self.unconnected_clients.append(c)
