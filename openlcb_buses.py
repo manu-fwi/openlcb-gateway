@@ -189,10 +189,10 @@ class RR_duino_net_bus(Bus):
                             if node_cfg["FULLID"] in c.managed_nodes:
                                 debug("Node already managed!",node_cfg["FULLID"])
                             else:
-                                node == RR_duino.RR_duino_node(node_cfg["FULLID"],node_cfg["ADDRESS"],node_cfg["VERSION"])
+                                node = RR_duino.RR_duino_node(node_cfg["FULLID"],node_cfg["ADDRESS"],node_cfg["VERSION"])
                                 node.sensors_cfg = node_cfg["SENSORS"]
                                 node.turnouts_cfg = node_cfg["TURNOUTS"]
-                                self.nodes[fullID]=node
+                                self.nodes[node_cfg["FULLID"]]=node
                                 #create and register alias negotiation
                                 alias_neg = node.create_alias_negotiation()
                                 #loop while we find an unused alias
@@ -210,7 +210,7 @@ class RR_duino_net_bus(Bus):
                             #format stop_node fullID
                             #FIXME: must stop the OpenLCB part of the node here
                             c.managed_nodes.pop(int(end))
-                            debug("Remove node ",fullID," from the managed nodes")
+                            debug("Remove node ",end," from the managed nodes")
                         else:
                             debug("unknown RR_duino_net_bus command")
 
