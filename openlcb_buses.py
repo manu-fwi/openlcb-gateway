@@ -166,12 +166,7 @@ class RR_duino_net_bus(Bus):
                 msg=msg[:len(msg)-1]  #remove the trailing ";"
                 if msg:
                     msg.lstrip() #get rid of leading spaces
-                    words_list = msg.split(' ')
-                    try:
-                        first_byte = int(words_list[0],16)
-                    except:
-                        first_byte=None
-                    if first_byte==RR_duino.RR_duino_message.START:
+                    if msg.starts_with(hex_int(RR_duino.RR_duino_message.START)):
                         #it is a RR_duino message, process it
                         RR_msg = RR_duino.from_wire_message(msg)
                         node = RR_duino.find_node_from_add(RR_msg.get_address(),c.managed_nodes)
@@ -181,12 +176,17 @@ class RR_duino_net_bus(Bus):
                             ev_list.extend(node.process_receive(RR_duino_msg))
                     else:
                         #it is a bus message (new node...)
-                        if words_list =="start_node":
-                            fullID= int(words_list[1])
-                            if fullID in self.nodes:
-                                debug("Nodes already managed!",fullID)
+                        #format: start_node fullID address version sensors_list turnouts_list
+                        begin,sep,end = msg.partition(" ")
+                        if begin=="start_node" and end!="":
+                            #fixme: exception might happen here
+                            node_cfg = json.loads(msg.end)
+                            if node_cfg["FULLID"] in self.nodes:
+                                debug("Nodes already managed!",node_cfg["FULLID"])
                             else:
-                                #FIXME build node
+                                node == RR_duino.RR_duino_node(node_cfg["FULLID"],node_cfg["ADDRESS"],node_cfg["VERSION"])
+                                node.sensors_cfg = node_cfg["SENSORS"]
+                                node.turnouts_cfg = node_cfg["TURNOUTS"]
                                 self.nodes[fullID]=node
                             #CHECK: node.client = c
                             

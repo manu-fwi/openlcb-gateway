@@ -47,8 +47,9 @@ class RR_duino_node:
             command = RR_duino.RR_duino_message.build_show_cmd(self.address,True) #for turnouts now
             i+=1
 
-    def show_config(self):
-        res = "VERSION="+str(self.version)+" SENSORS="+json.dumps(self.sensors)+" TURNOUTS="+json.dumps(self.turnouts)
+    def show_config(self,fullID):
+        res = json.dumps({"FULLID":fullID,"ADDRESS":self.address,"VERSION":self.version,"SENSORS":self.sensors,"TURNOUTS":self.turnouts})
+        debug("show_config=",res)
         return res
             
 def decode_messages():
@@ -152,7 +153,7 @@ def load_nodes():
 
 def to_managed(fullID):
     #send request to the server
-    s.send(("start_node "+str(fullID)+" "+online_nodes[ID].show_config()).encode('utf-8'))
+    s.send(("start_node "+online_nodes[ID].show_config(fullID)).encode('utf-8'))
     managed_nodes[fullID] = online_nodes[ID]
     
 if len(sys.argv)>=2:

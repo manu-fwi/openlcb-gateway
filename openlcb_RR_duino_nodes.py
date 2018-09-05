@@ -396,12 +396,15 @@ class RR_duino_node(openlcb_nodes.Node):
     represents a RR_duino node which means it is an openlcb node (with memory, alias and so on
     and also is linked to the real hardware (via the bus program helper) using the RR_duino protocol
     """
-    def __init__(self,address,client=None):
+    def __init__(self,ID,address,version):
+        super().__init__(ID)
         self.address = address
-        self.client = client
+        self.version = version
+        self.sensors_cfg=None
+        self.turnouts_cfg=None
 
     def __str__(self):
-        res = "RR-duino Node,client="+str(self.client.name)+",add="+str(self.address)
+        res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.version)
         return res
 
     def generate_events(self,subadds_values,turnouts = False):
