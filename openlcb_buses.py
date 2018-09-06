@@ -202,8 +202,6 @@ class RR_duino_net_bus(Bus):
                                 #also add it to the list of aliases negotiation
                                 list_alias_neg.append(alias_neg)
                                 c.managed_nodes.append(node)
-                                debug(node.sensors_cfg)
-                                debug(node.turnouts_cfg)
                         elif begin=="stop_node":
                             #get the node out the managed list (device is offline or config has changed, in the latter case
                             #there should be a start_node with the new config)
