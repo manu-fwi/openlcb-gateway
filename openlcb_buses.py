@@ -201,7 +201,8 @@ class RR_duino_net_bus(Bus):
                                     desc = RR_duino.RR_duino_node_desc(js)
                                     self.nodes_db.db[node_cfg["FULLID"]]=desc
                                 #build node
-                                node = RR_duino.RR_duino_node(node_cfg["FULLID"],
+                                node = RR_duino.RR_duino_node(c,
+                                                              node_cfg["FULLID"],
                                                               node_cfg["ADDRESS"],
                                                               node_cfg["VERSION"],
                                                               desc)

@@ -87,5 +87,5 @@ class Nodes_db_RR_duino_node(Nodes_db_node):
         if "fullID" not in js:
             debug("missing fields in the node description",js)
             return None
-        
-        return RR_duino.RR_duino_node_desc.from_json(js)
+        debug("load node from db",js)
+        return openlcb_RR_duino_nodes.RR_duino_node_desc(js)

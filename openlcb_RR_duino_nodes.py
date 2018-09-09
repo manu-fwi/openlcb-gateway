@@ -196,6 +196,7 @@ class RR_duino_message:
     def to_wire_message(self):
         if self.raw_message == None:
             return ""
+        wire_msg=""
         for b in self.raw_message:
             wire_msg += hex_int(b)+" "
 
@@ -293,6 +294,12 @@ class RR_duino_message:
         if on_turnout:
             c |= (1 << RR_duino_message.CMD_SENSOR_TURNOUT_BIT)
         return RR_duino_message(bytes((0xFF,c,add)))
+
+    @staticmethod
+    def build_simple_rw_cmd(add,subadd,value,read=True,for_sensor=True):
+        msg = RR_duino_message.build_rw_cmd_header(add,read,for_sensor,False)
+        msg.raw_message.extend(RR_duino_message.encode_subadd_value((subadd,value)))
+        return msg
     
     @staticmethod
     def is_complete_message(msg):
@@ -401,6 +408,7 @@ class RR_duino_node_desc:
             self.desc_dict["sensors_ev_list"]=[]
         if not "turnouts_ev_list" in self.desc_dict:
             self.desc_dict["turnouts_ev_list"]=[]
+        self.ID = self.desc_dict["fullID"]
 
     def to_json(self):
         return self.desc_dict
@@ -501,7 +509,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     SENSORS_SEGMENT = 1
     TURNOUTS_SEGMENT = 2
         
-    def __init__(self,ID,address,hwversion,desc):
+    def __init__(self,client,ID,address,hwversion,desc):
         super().__init__(ID)
         self.address = address
         self.hwversion = hwversion
@@ -510,6 +518,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.sensors_ev_list = []
         self.turnouts_ev_list= []
         self.desc = desc
+        self.client=client
 
     def __str__(self):
         res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.hwversion)
@@ -683,6 +692,40 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         #for now we only treat read messages
         #FIXME
         return []
+
+    def consume_event(self,ev,path=None):
+        index = 0
+        for ev_pair in self.sensors_ev_list:
+            val = -1
+            if ev.id == ev_pair[0]:
+                val = 0
+            elif ev.id == ev_pair[1]:
+                val = 1
+            if val>=0:
+                if self.sensors_cfg[index][2]==RR_duino_message.OUTPUT_SENSOR:
+                    debug("RR_duino node",self.desc.desc_dict["fullID"],"sensors consuming event",str(ev))
+                    self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
+                                                                           self.sensors_cfg[index][0],
+                                                                           val,
+                                                                           False).to_wire_message().encode('utf-8'))
+                else:
+                    debug("Error: received an event on an input sensors for RR_duino node",self.desc.desc_dict["fullID"])
+            index+=1
+        index = 0
+        for ev_pair in self.turnouts_ev_list:
+            for val in range(4):
+                if ev.id == ev_pair[val]:
+                    break
+            debug("turnouts consume event val=",val)
+            if val<4:
+                if val<2:
+                    debug("RR_duino node",self.desc.desc_dict["fullID"],"turnouts consuming event",str(ev))
+                    self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
+                                                                           self.turnouts_cfg[index][0],
+                                                                           val,False,False).to_wire_message().encode('utf-8'))
+                else:
+                    debug("Error: received an event on an turnouts inputs for RR_duino node",self.desc.desc_dict["fullID"]) 
+            index+=1
 
 def find_node_from_add(add,nodes):
     for n in nodes:

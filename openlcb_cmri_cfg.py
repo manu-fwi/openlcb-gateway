@@ -278,7 +278,6 @@ class CPNode (CMRI_node):
         if self.client is not None:
             self.client.queue(cmd.to_wire_message().encode('utf-8'))
         #fixme do we need this?
-        #fixme but we should save the outputs states to file (to recover after a reboot/power cycle)
         for io in self.outputs:
             io[1]=io[0]  #value has been sent so sync last known value to that
         for i in self.IOX:
