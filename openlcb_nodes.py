@@ -64,7 +64,7 @@ class Mem_space:
         If there are gaps between cells, it will put a dummy cell to fill it in
         If intersection is empty, returns None
         """
-        res = [(add,0)]  #dummy mem cell in case the requested address space begins in a gap
+        res = [(add,0,0,0)]  #dummy mem cell in case the requested address space begins in a gap
         intersection_size = 0
         previous = None
         for (cell_offset,cell_size) in self.mem.keys():
@@ -75,13 +75,14 @@ class Mem_space:
                 size_to_take = add+size - cell_offset
                 if size_to_take>cell_size:
                     size_to_take = cell_size
-                res.append((cell_offset,cell_size,begin,size_to_take))
-                intersection_size +=size_to_take
                 if not previous is None:
                     #check if there is a gap between the current cell and the previous one
                     if previous[0]+previous[1]<cell_offset:
-                        res.append((previous[0]+previous[1],cell_offset-(previous[0]+previous[1])))
+                        res.append((previous[0]+previous[1],cell_offset-(previous[0]+previous[1]),
+                                    0,cell_offset-(previous[0]+previous[1])))
                 previous =(cell_offset,cell_size)
+                res.append((cell_offset,cell_size,begin,size_to_take))
+                intersection_size +=size_to_take
             if intersection_size == size or add+size<cell_offset:
                 #intersection is complete or the current cell begins after the end of the requested area
                 break
@@ -96,6 +97,7 @@ class Mem_space:
             #beginning of the requested area begins before the first mem cell
             #adjust the size of the dummy cell to reach the  first memory cell
             res[1]=res[0][0]-add
+            res[3]=res[1]
         else:
             res.pop(0)
         debug("intersect=",res)
@@ -104,13 +106,18 @@ class Mem_space:
     def read_mem(self,add,size):
         res = bytearray()
         intersect = self.mem_intersect(add,size)
-        if not intersect:
+        if intersect is None:
             return None
         for (offset,size,intersect_beg,intersect_size) in intersect:
-            if self.mem[(offset,size)] is not None:
-                res.extend(self.mem[(offset,size)][intersect_beg:intersect_beg+intersect_size])
+            if (offset,size) in self.mem:
+                if self.mem[(offset,size)] is not None:
+                    res.extend(self.mem[(offset,size)][intersect_beg:intersect_beg+intersect_size])
+                else:
+                    return None
             else:
-                return None
+                #"dummy cell": this is added by the intersect function to handle reads across "gaps" of the memory layout
+                #just fill the answer with as many zeroes as needed (the size of the cell)
+                res.extend(b"\0"*size)
         return res
 
     def mem_valid(self,offset):
