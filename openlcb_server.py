@@ -196,15 +196,3 @@ class Buses_server(Openlcb_server):
         #clean the corresponding bus
         c.bus.clients.remove(c)
         c.sock.close()
-
-    def consume_event(self,ev):
-        """
-        All managed nodes receive the event and may consume it
-        """
-        for bus in openlcb_buses.Bus_manager.buses:
-            debug("bus=",bus.name,len(bus.clients))
-            for c in bus.clients:
-                debug("consume bus.clients")
-                for n in c.managed_nodes:
-                    debug("consume ev",ev.id,"managed nodes")
-                    n.consume_event(ev)

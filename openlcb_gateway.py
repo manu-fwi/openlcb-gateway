@@ -263,12 +263,14 @@ def produc_identified(msg,cli):
         return
     for b in buses.Bus_manager.buses:
         path=b.path_to_nodes_files
-        if path!="":
-            path+="/"
+        if path is not None:
+            if path!="":
+                path+="/"
+            path+=str(n.ID)+".outputs"    
         for c in b.clients:
             for n in c.managed_nodes:
                 #fixme we are using even for inhibited nodes, not sure we follow standard here
-                n.producer_identified(Event(ev_id),path+str(n.ID)+".outputs",valid==4)                    
+                n.producer_identified(Event(ev_id),path,valid==4)                    
                 
 def global_frame(cli,msg):
     first_b=int(msg[2:4],16)
@@ -313,12 +315,14 @@ def global_frame(cli,msg):
         debug("received event:",ev_id)
         for b in buses.Bus_manager.buses:
             path=b.path_to_nodes_files
-            if path!="":
-                path+="/"
+            if path is not None:
+                if path!="":
+                    path+="/"
+                path+=str(n.ID)+".outputs"
             for c in b.clients:
                 for n in c.managed_nodes:
                     if n.permitted:
-                        n.consume_event(Event(ev_id),path+str(n.ID)+".outputs")
+                        n.consume_event(Event(ev_id),path)
     elif var_field == 0x914 or var_field == 0x8F4: #identify producer/consumer
         #transfer to all other openlcb clients
         OLCB_serv.transfer(msg.encode('utf-8'),cli)
