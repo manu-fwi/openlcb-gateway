@@ -209,7 +209,7 @@ class Event:
 
     @staticmethod
     def from_str(s):  #from a hex dotted notation xx.xx.xx.xx.xx.xx.xx.xx
-        if s=="None":
+        if s is None or s=="None":
             return Event(b"\0"*8)
         l = s.split(".")
         if len(l)!=8:

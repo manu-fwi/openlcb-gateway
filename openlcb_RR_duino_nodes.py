@@ -47,7 +47,7 @@ class RR_duino_message:
     
     def __init__(self,raw_message=None):  # raw_message must be a bytearray
         self.raw_message = raw_message
-
+        
     def set_header(self,command,address):
         self.raw_message = bytearray((RR_duino_message.START,command,address))
 
@@ -390,7 +390,21 @@ class RR_duino_message:
         #here only simple commands remain: r/w on one device, delete config of one device
         #so it must be complete (they are all 4 bytes commands)
         return True
-    
+
+class RR_duino_node_desc:
+    #default dict to add new nodes to the DB when they have no description
+    DEFAULT_JSON = { "fullID":None }
+
+    def __init__(self,desc_dict):
+        self.desc_dict = dict(desc_dict)  #(shallow) copy the dict containing the node description
+        if not "sensors_ev_list" in self.desc_dict:
+            self.desc_dict["sensors_ev_list"]=[]
+        if not "turnouts_ev_list" in self.desc_dict:
+            self.desc_dict["turnouts_ev_list"]=[]
+
+    def to_json(self):
+        return self.desc_dict
+ 
 class RR_duino_node(openlcb_nodes.Node):
     """
     represents a RR_duino node which means it is an openlcb node (with memory, alias and so on
@@ -403,7 +417,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 <identification>
 <manufacturer>RR_duino_node-OLCB-GW</manufacturer>
 <model>Test</model>
-<hardwareVersion>%version</hardwareVersion>
+<hardwareVersion>%hwversion</hardwareVersion>
 </identification>
 <acdi/>
 
@@ -421,17 +435,17 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </string>
 </segment>
 
-<segment space="0">
+<segment space='0'>
 <name>Address of the device: %address</name>
 <description>The RR_duino node address (read only)</description>
 <group>
-<name>This node has %nsensors sensors and %nturnouts turnouts configure</name>
+<name>This node has %nsensors sensors and %nturnouts turnouts configured</name>
 </group>
+</segment>
+<segment space='1'>
 <group replication="%nsensors">
 <name>Sensors</name>
 <description>Each sensor on the device.</description>
-</segment>
-<segment space="1">
 <repname>Sensor</repname>
 <group>
 <name>Subaddress</name>
@@ -448,9 +462,10 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 <description>When this event arrives, the output will be switched to HIGH or if it is an Input this event is generated when it is HIGH.</description>
 </eventid>
 </group>
+</group>
 </segment>
-<segment space="2">
-</group><group replication="%nturnouts">
+<segment space='2'>
+<group replication="%nturnouts">
 <name>Turnouts</name>
 <description>Each sensor on the device.</description>
 <repname>Turnout</repname>
@@ -466,7 +481,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </eventid>
 <eventid>
 <name>Set turnout to thrown position</name>
-<description>When this event occurs, the turnout is set to straight position.</description>
+<description>When this event occurs, the turnout is set to thrown position.</description>
 </eventid>
 <eventid>
 <name>Turnout has reached the straight position</name>
@@ -475,37 +490,101 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 <eventid>
 <name>Turnout has reached thrown position</name>
 <description>When the turnout has reached the thrown position, this events is generated.</description>
-</eventid></group>
+</eventid>
+</group>
 </group>
 </segment>
 </cdi>
 \0"""
-    def __init__(self,ID,address,version):
+    #memory spaces
+    ADDRESS_SEGMENT = 0
+    SENSORS_SEGMENT = 1
+    TURNOUTS_SEGMENT = 2
+        
+    def __init__(self,ID,address,hwversion,desc):
         super().__init__(ID)
         self.address = address
-        self.version = version
+        self.hwversion = hwversion
         self.sensors_cfg=None
         self.turnouts_cfg=None
-        self.sensors_ev_list = None
-        self.turnouts_ev_list= None
+        self.sensors_ev_list = []
+        self.turnouts_ev_list= []
+        self.desc = desc
 
     def __str__(self):
-        res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.version)
+        res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.hwversion)
         return res
 
     def get_CDI(self):
-        CDI = RR_duino_node.CDI.replace("%address",str(self.address)).replace("%version",str(self.version))
+        CDI = RR_duino_node.CDI.replace("%address",str(self.address)).replace("%hwversion",str(self.hwversion))
         CDI = CDI.replace("%nsensors",str(len(self.sensors_cfg))).replace("%nturnouts",str(len(self.turnouts_cfg)))
-        return RR_duino_node.CDI
+        return CDI
 
+    def load_from_desc(self): #get events from the node desc
+        #load address, description
+        if "version" in self.desc.desc_dict:
+            version = self.desc.desc_dict["version"]
+        else:
+            version = 0
+        super().set_mem(251,0,bytes((version,)))  #bypass overloaded method for all parameters
+        if "name" in self.desc.desc_dict:
+            name = self.desc.desc_dict["name"]
+        else:
+            name = ""
+        super().set_mem(251,1,openlcb_nodes.normalize(name,63))
+        if "description" in self.desc.desc_dict:
+            description= self.desc.desc_dict["description"]
+        else:
+            description = ""
+        super().set_mem(251,64,openlcb_nodes.normalize(description,64))
+        #load sensors events
+        #increase the size of the description if needed
+        #this is needed when a node hardware has been reconfigured
+        #the nb of turnouts may have changed, hence the discrepancy
+        if len(self.desc.desc_dict["sensors_ev_list"]) < len(self.sensors_cfg):
+            for i in range(len(self.sensors_cfg)-len(self.desc.desc_dict["sensors_ev_list"])):
+                self.desc.desc_dict["sensors_ev_list"].append([str(Event.from_str(None))]*2)
+        index = 0
+        for ev_pair in self.desc.desc_dict["sensors_ev_list"]:
+            self.sensors_ev_list.append([Event.from_str(ev_pair[0]).id,Event.from_str(ev_pair[1]).id])
+            for i in range(2):
+                super().set_mem(RR_duino_node.SENSORS_SEGMENT,
+                                1+index*(1+8*2)+i*8,
+                                Event.from_str(ev_pair[i]).id) #set memory accordingly
+            index+=1
+        #decrease the size of the desc if needed
+        if index < len(self.desc.desc_dict["sensors_ev_list"]):
+            self.desc.desc_dict["sensors_ev_list"][index:]=[]
+            
+        #load turnouts events
+        #increase the size of the description if needed
+        #this is needed when a node hardware has been reconfigured
+        #the nb of turnouts may have changed, hence the discrepancy
+        if len(self.desc.desc_dict["turnouts_ev_list"]) < len(self.turnouts_cfg):
+            for i in range(len(self.turnouts_cfg)-len(self.desc.desc_dict["turnouts_ev_list"])):
+                self.desc.desc_dict["turnouts_ev_list"].append([str(Event.from_str(None))]*4)
+        index = 0
+        for ev_tuple in self.desc.desc_dict["turnouts_ev_list"]:
+            self.turnouts_ev_list.append([Event.from_str(ev_tuple[0]).id,
+                                          Event.from_str(ev_tuple[1]).id,
+                                          Event.from_str(ev_tuple[2]).id,
+                                          Event.from_str(ev_tuple[3]).id])
+            for i in range(4):
+                super().set_mem(RR_duino_node.TURNOUTS_SEGMENT,
+                                1+index*(1+8*4)+i*8,
+                                Event.from_str(ev_tuple[i]).id) #set memory accordingly
+            index+=1
+        #decrease the size of the desc if needed
+        if index < len(self.desc.desc_dict["turnouts_ev_list"]):
+            self.desc.desc_dict["turnouts_ev_list"][index:]=[]
+        self.memory[1].dump()
+        self.memory[2].dump()
+        
     def create_memory(self):
-        self.sensors_ev_list=[[b"\0"*8]*2]*len(self.sensors_cfg)
-        self.sensors_ev_list=[[b"\0"*8]*4]*len(self.turnouts_cfg)
-
         address_mem=openlcb_nodes.Mem_space([(0,1)])  #node address (R) and associated events (RW)
-        address_mem.set_mem(offset,bytes((self.address,)))  #set address
+        address_mem.set_mem(0,bytes((self.address,)))  #set address
         sensors_mem=openlcb_nodes.Mem_space()
-        offset = 1
+        offset = 0
         #loop over all sensors
         for sensor_cfg in self.sensors_cfg:
             sensors_mem.create_mem(offset,1)    #subaddress (R)
@@ -513,9 +592,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             offset+=1
             for j in range(2):
                 sensors_mem.create_mem(offset,8)       #event id        (RW)
-                sensors_mem.set_mem(offset,b"\0"*8)    #default event
                 offset+=8
         turnouts_mem=openlcb_nodes.Mem_space()
+        offset = 0
         #loop over all turnouts
         for turnout_cfg in self.turnouts_cfg:
             turnouts_mem.create_mem(offset,1)    #subaddress (R)
@@ -523,20 +602,20 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             offset+=1
             for j in range(4):
                 turnouts_mem.create_mem(offset,8)       #event id        (RW)
-                turnouts_mem.set_mem(offset,b"\0"*8)    #default event
                 offset+=8
 
         self.memory = {251:openlcb_nodes.Mem_space([(0,1),(1,63),(64,64)]),
                        0:address_mem,1:sensors_mem,2:turnouts_mem}
-        
+
     def set_mem(self,mem_sp,offset,buf):
-        if mem_sp == 0: #address
+        debug("SET MEM",mem_sp,offset,buf)
+        if mem_sp == RR_duino_node.ADDRESS_SEGMENT: #address
             if offset == 0:
                 debug("Trying to change address")
             else:
                 super().set_mem(mem_sp,offset,buf) #will error out
                 
-        elif mem_sp == 1: #sensors segment
+        elif mem_sp == RR_duino_node.SENSORS_SEGMENT: #sensors segment
             entry = offset//17
             pos_in_entry = offset % 17
             if pos_in_entry==0:
@@ -549,8 +628,13 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 super().set_mem(mem_sp,offset,buf)
                 debug("entry=",entry,"off=",offset,"index=",index)
                 self.sensors_ev_list[entry][index]=buf
+                #sync the description
+                self.desc.desc_dict["sensors_ev_list"][entry][index]=str(Event(buf))
+                debug("desc dict=",self.desc.desc_dict["sensors_ev_list"])
+                debug(self.sensors_ev_list[entry])
                 
-        elif mem_sp == 2:  #turnouts segment
+        elif mem_sp == RR_duino_node.TURNOUTS_SEGMENT:  #turnouts segment
+            debug("Set_mem on turnouts")
             entry = offset//33
             pos_in_entry = offset % 33
             if pos_in_entry==0:
@@ -560,7 +644,21 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 super().set_mem(mem_sp,offset,buf)
                 debug("entry=",entry,"off=",offset,"index=",index)
                 self.turnouts_ev_list[entry][index]=buf
-"""
+                #sync the description
+                self.desc.desc_dict["turnouts_ev_list"][entry][index]=str(Event(buf))
+                debug(self.desc.desc_dict["turnouts_ev_list"])
+                debug(self.turnouts_ev_list[entry])
+ 
+        elif mem_sp==251:  #idenitfication segment
+            super().set_mem(mem_sp,offset,buf)
+            if offset == 0:
+                self.desc.desc_dict["version"]=buf[0]
+            elif offset == 1:
+                self.desc.desc_dict["name"]=[buf.find(0)].decode('utf-8')
+            elif offset == 64:
+                self.desc.desc_dict["description"]=[buf.find(0)].decode('utf-8')
+
+
     def generate_events(self,subadds_values,turnouts = False):
         debug("generate events",subadd_values,turnouts)
         #FIXME

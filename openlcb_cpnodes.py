@@ -111,15 +111,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     #default dict to add new nodes to the DB when they have no description (used by cmri_net_bus)
     DEFAULT_JSON = { "fullID":None,"cmri_node_add":0 }
     @staticmethod
-    def from_json(js):
-        def normalize(s,length):
-            res = bytearray(s.encode('utf-8'))
-            if len(res)>length:
-                res=res[:length]
-            elif len(res)<length:
-                res.extend(b"\0"*(length-len(res)))
-            return res
-            
+    def from_json(js):            
         n = Node_cpnode(js["fullID"])
         if "IO_config" in js:
             nb_I = cmri.CPNode.decode_nb_inputs(js["IO_config"])
@@ -149,12 +141,12 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             name = js["name"]
         else:
             name = ""
-        n.set_mem(251,1,normalize(name,63))
+        n.set_mem(251,1,nodes.normalize(name,63))
         if "description" in js:
             description= js["description"]
         else:
             description = ""
-        n.set_mem(251,64,normalize(description,64))
+        n.set_mem(251,64,nodes.normalize(description,64))
         if "basic_events" in js:
             index=0
             for ev in js["basic_events"]:

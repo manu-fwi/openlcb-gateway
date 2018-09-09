@@ -8,10 +8,8 @@ Also contains the memory space management (as in CDI config)
 """
         
 """mem_space is a segment of memory you read from /write to using addresses
-It is made of triples: beginning address(offset), size and a write_callback function
-This function is called when the memory cell is written to with the following parameters:
-write_callback(offset,buf)
-where offset is the begining of the cell and buf is the buf which has just been written
+It is made of couples: beginning address(offset), size
+Important: to speed things up the memory cells creation must be made in ascending offset order
 """
 class Mem_space:
     def __init__(self,list=None):
@@ -28,19 +26,23 @@ class Mem_space:
         """returns the memory space (offset,size,buf) if memory must be updated
         or None if the write is incomplete: some writes are still expected for this memory space
         """
-        
+        debug("set_mem_partial",add,buf)
+        debug(self.dump())
         for (offset,size) in self.mem.keys():
             if add>=offset and add <offset+size:
                 if offset in self.mem_chunks:
                     self.mem_chunks[offset]+=buf
                 else:
                     self.mem_chunks[offset]=buf
+                debug("found",offset,size,self.mem_chunks[offset],len(self.mem_chunks[offset]))
                 if len(self.mem_chunks[offset])==size:
                     buf=self.mem_chunks[offset]
                     del self.mem_chunks[offset]
                     return (offset,size,buf)
                 elif len(self.mem_chunks[offset])>size:
                     del self.mem_chunks[offset]
+            elif add<offset:
+                break    
 
         return None
 
@@ -53,14 +55,38 @@ class Mem_space:
         return False
 
 
-    def read_mem(self,add):
-        for (offset,size) in self.mem.keys():
-            if add>=offset and add <offset+size:
-                if self.mem[(offset,size)] is not None:
-                    return self.mem[(offset,size)][add-offset:]
-                else:
-                    return None
-        return None
+    def mem_intersect(self,add,size):
+        """
+        Compute the interection of the mem with the requested space beginning at "add" and of size "size"
+        returns the list of (offsets,size,intersect_beg,intersect_end)
+        where (offset,size) describe the memory cell and intersect_off,intersect_size tell what part
+        of it is in the intersection
+        """
+        res = []
+        for (cell_offset,cell_size) in self.mem.keys():
+            if add<cell_offset+cell_size and add+size>cell_offset:
+                begin = add-cell_offset
+                if begin<0:
+                    begin = 0
+                size_to_take = add+size - cell_offset
+                if size_to_take>cell_size:
+                    size_to_take = cell_size
+                res.append((cell_offset,cell_size,begin,size_to_take))
+            elif add+size<=cell_offset:
+                break
+        return res
+                
+    def read_mem(self,add,size):
+        res = bytearray()
+        intersect = self.mem_intersect(add,size)
+        if not intersect:
+            return None
+        for (offset,size,intersect_beg,intersect_size) in intersect:
+            if self.mem[(offset,size)] is not None:
+                res.extend(self.mem[(offset,size)][intersect_beg:intersect_beg+intersect_size])
+            else:
+                return None
+        return res
 
     def mem_valid(self,offset):
         return offset not in self.mem_chunks
@@ -126,8 +152,8 @@ class Node:
         if res is not None:
             self.set_mem(mem_sp,res[0],res[2])
         
-    def read_mem(self,mem_sp,add):
-        return self.memory[mem_sp].read_mem(add)
+    def read_mem(self,mem_sp,add,size):
+        return self.memory[mem_sp].read_mem(add,size)
 
     def get_mem_size(self,mem_sp,offset):
         return self.memory[mem_sp].get_size()
@@ -151,6 +177,14 @@ def find_node(aliasID):
             return n
     return None
 
+def normalize(s,length):
+    res = bytearray(s.encode('utf-8'))
+    if len(res)>length:
+        res=res[:length]
+    elif len(res)<length:
+        res.extend(b"\0"*(length-len(res)))
+    return res
+            
 
 """
 append the new node if it was not known before (return True)

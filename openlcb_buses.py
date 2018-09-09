@@ -16,7 +16,7 @@ class Bus:
         self.name = name
         self.clients=[]       #client programs connected to the bus
         self.nodes_in_alias_negotiation=[]  #alias negotiations (node,alias_neg)
-        self.path_to_nodes_files=path_to_nodes_files
+        self.path_to_nodes_files=path_to_nodes_files  #path to files describing the nodes
 
     def __str__(self):
         return "Bus: "+self.name
@@ -70,11 +70,10 @@ class Cmri_net_bus(Bus):
     Message types (other than the CMRI message)
     - New node: "start_node" followed by: full_ID(8 bytes)
     """
-    separator = ";"
     nodes_db_file = "cmri_net_bus_db.cfg"
     def __init__(self,path_to_nodes_files):
         super().__init__(Bus_manager.cmri_net_bus_name,path_to_nodes_files)
-        self.nodes_db = nodes_db.Nodes_db_cpnode(Cmri_net_bus.nodes_db_file)
+        self.nodes_db = nodes_db.Nodes_db_cpnode(self.path_to_nodes_files+Cmri_net_bus.nodes_db_file)
         self.nodes_db.load_all_nodes()
 
         
@@ -153,10 +152,13 @@ class RR_duino_net_bus(Bus):
     - New node: "start_node" followed by: full_ID(8 bytes) and node config (version, sensors, turnouts)
     """
     separator = ";"
-    
+    nodes_db_file = "RR_duino_net_bus_db.cfg"
+
     def __init__(self):
         super().__init__(Bus_manager.RR_duino_net_bus_name)
         self.nodes = {} #dict of fullID <-> nodes correspondance
+        self.nodes_db = nodes_db.Nodes_db_RR_duino_node(RR_duino_net_bus.nodes_db_file)
+        self.nodes_db.load_all_nodes()
         
     def process(self):
         #check all messages and return a list of events that has been generated in response
@@ -189,9 +191,26 @@ class RR_duino_net_bus(Bus):
                             if node_cfg["FULLID"] in c.managed_nodes:
                                 debug("Node already managed!",node_cfg["FULLID"])
                             else:
-                                node = RR_duino.RR_duino_node(node_cfg["FULLID"],node_cfg["ADDRESS"],node_cfg["VERSION"])
+                                #check the nodes DB
+                                if node_cfg["FULLID"] in self.nodes_db.db:
+                                    desc = self.nodes_db.db[node_cfg["FULLID"]]   #get node from db
+                                else:
+                                    debug("Unknown node of full ID",node_cfg["FULLID"],", adding it to the DB")
+                                    js = RR_duino.RR_duino_node_desc.DEFAULT_JSON
+                                    js["fullID"]=node_cfg["FULLID"]
+                                    desc = RR_duino.RR_duino_node_desc(js)
+                                    self.nodes_db.db[node_cfg["FULLID"]]=desc
+                                #build node
+                                node = RR_duino.RR_duino_node(node_cfg["FULLID"],
+                                                              node_cfg["ADDRESS"],
+                                                              node_cfg["VERSION"],
+                                                              desc)
                                 node.sensors_cfg = node_cfg["SENSORS"]
                                 node.turnouts_cfg = node_cfg["TURNOUTS"]
+                                #build node memory and populate it from the DB
+                                node.create_memory()
+                                node.load_from_desc()
+                                debug("description dict=",node.desc.desc_dict)
                                 self.nodes[node_cfg["FULLID"]]=node
                                 #create and register alias negotiation
                                 alias_neg = node.create_alias_negotiation()
@@ -282,7 +301,7 @@ class Bus_manager:
         return None
             
 def find_managed_node(aliasID):
-    for b in buses.Bus_manager.buses:
+    for b in Bus_manager.buses:
         for c in b.clients:
             for n in c.managed_nodes:
                 if n.aliasID == aliasID:

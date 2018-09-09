@@ -38,7 +38,7 @@ def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
     if mem_sp not in src.memory:
         debug("memory unknown!!")
         return
-    mem = src.read_mem(mem_sp,add)
+    mem = src.read_mem(mem_sp,add,size)
     debug("memory read sends:",mem)
     if mem is None:
         debug("memory error")
@@ -54,7 +54,7 @@ def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
             debug("sending",d.data,"=",d.to_gridconnect())
             
 def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
-    #return True when write has completed (a full write is generally split in several chunks
+    #return True when write has completed (a full write is generally split in several chunks)
 
     debug("memory write")
     if buf[3]=="A" or buf[3]=="B":
@@ -105,7 +105,7 @@ def check_alias(alias):
     and reset alias negotiation for the node
     """
 
-    node_cli = find_managed_node(alias)
+    node_cli = buses.find_managed_node(alias)
     if node_cli is None:
         return None
     node = node_cli[0]
@@ -150,7 +150,7 @@ def can_control_frame(cli,msg):
         if new:
             list_alias_neg.append(alias_neg)
         #if we have a node in permitted state we send an AMD frame
-        node_cli = find_managed_node(src_id)
+        node_cli = buses.find_managed_node(src_id)
         if node_cli is not None:
             OLCB_serv.send(Frame.build_AMD(node_cli[0]))
 
@@ -288,7 +288,7 @@ def global_frame(cli,msg):
 
     elif var_field==0x828:#Protocol Support Inquiry
         dest_node_alias = int(msg[12:15],16)
-        dest_node,cli_dest = find_managed_node(dest_node_alias)
+        dest_node,cli_dest = buses.find_managed_node(dest_node_alias)
 
         if dest_node is not None:
             #FIXME: set correct bits
@@ -297,7 +297,7 @@ def global_frame(cli,msg):
 
     elif var_field == 0xDE8:#Simple Node Information Request
         dest_node_alias = int(msg[12:15],16)
-        dest_node,cli_dest = find_managed_node(dest_node_alias)
+        dest_node,cli_dest = buses.find_managed_node(dest_node_alias)
         if dest_node is not None:
             debug("sent SNIR Reply")
             #s.send((":X19A08"+hexp(gw_add.aliasID,3)+"N1"+hexp(src_id,3)+"04;").encode("utf-8"))#SNIR header
@@ -340,7 +340,7 @@ def process_datagram(cli,msg):
     s = cli.sock
     #for now we assume a one frame datagram
     dest_node_alias = int(msg[4:7],16)
-    dest_node,cli_dest = find_managed_node(dest_node_alias)
+    dest_node,cli_dest = buses.find_managed_node(dest_node_alias)
     if dest_node is None and node.permitted:   #not for us or the node is not ready yet
         debug("Frame is not for us!!")
         #forward to all other OLCB clients
