@@ -17,6 +17,7 @@ class Nodes_db_node:
         self.sync_period = 10 #10 s minimum between syncs to file
 
     def store_all_nodes(self):
+        debug("storing nodes DB")
         with open(self.file_name,'w') as file:
             db_list=[]
             for n in self.db:

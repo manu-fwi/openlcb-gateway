@@ -351,7 +351,6 @@ def process_datagram(cli,msg):
         address = int(msg[15:23],16)
         #if there is a write in progress then this datagram is part of it
         if memory_write(s,dest_node,src_node,address,msg):
-            debug(cli_dest,cli_dest.bus,cli_dest.bus.nodes_db)
             cli_dest.bus.nodes_db.synced = False
     elif msg[11:15]=="2043": #read command for CDI
         address = int(msg[15:23],16)

@@ -234,6 +234,7 @@ class RR_duino_net_bus(Bus):
         #move forward for alias negotiation
         frames_list=self.generate_frames_from_alias_neg()
         self.prune_alias_negotiation()
+        self.nodes_db.sync()
         return ev_list,frames_list    
 
 class Bus_manager:
