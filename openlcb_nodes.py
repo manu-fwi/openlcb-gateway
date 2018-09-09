@@ -60,9 +60,13 @@ class Mem_space:
         Compute the interection of the mem with the requested space beginning at "add" and of size "size"
         returns the list of (offsets,size,intersect_beg,intersect_end)
         where (offset,size) describe the memory cell and intersect_off,intersect_size tell what part
-        of it is in the intersection
+        of it is in the intersection.
+        If there are gaps between cells, it will put a dummy cell to fill it in
+        If intersection is empty, returns None
         """
-        res = []
+        res = [(add,0)]  #dummy mem cell in case the requested address space begins in a gap
+        intersection_size = 0
+        previous = None
         for (cell_offset,cell_size) in self.mem.keys():
             if add<cell_offset+cell_size and add+size>cell_offset:
                 begin = add-cell_offset
@@ -72,8 +76,29 @@ class Mem_space:
                 if size_to_take>cell_size:
                     size_to_take = cell_size
                 res.append((cell_offset,cell_size,begin,size_to_take))
-            elif add+size<=cell_offset:
+                intersection_size +=size_to_take
+                if not previous is None:
+                    #check if there is a gap between the current cell and the previous one
+                    if previous[0]+previous[1]<cell_offset:
+                        res.append((previous[0]+previous[1],cell_offset-(previous[0]+previous[1])))
+                previous =(cell_offset,cell_size)
+            if intersection_size == size or add+size<cell_offset:
+                #intersection is complete or the current cell begins after the end of the requested area
                 break
+        if len(res)==1:
+            #only the first dummy cell, so no intersection, invalid
+            return None
+        if intersection_size < size:
+            #add a last dummy cell as the requested area ends in a gap or after the last cell
+            res.append((res[-1][0]+res[-1][1],size-intersection_size))
+        #now check if the dummy cell at the beginning is necessary
+        if add < res[1][0]:
+            #beginning of the requested area begins before the first mem cell
+            #adjust the size of the dummy cell to reach the  first memory cell
+            res[1]=res[0][0]-add
+        else:
+            res.pop(0)
+        debug("intersect=",res)
         return res
                 
     def read_mem(self,add,size):

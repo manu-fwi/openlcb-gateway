@@ -654,9 +654,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             if offset == 0:
                 self.desc.desc_dict["version"]=buf[0]
             elif offset == 1:
-                self.desc.desc_dict["name"]=[buf.find(0)].decode('utf-8')
+                self.desc.desc_dict["name"]=buf[:buf.find(0)].decode('utf-8')
             elif offset == 64:
-                self.desc.desc_dict["description"]=[buf.find(0)].decode('utf-8')
+                self.desc.desc_dict["description"]=buf[:buf.find(0)].decode('utf-8')
 
 
     def generate_events(self,subadds_values,turnouts = False):
