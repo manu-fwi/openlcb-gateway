@@ -8,7 +8,9 @@ The gateway handles all the openlcb protocol from alias negotiations up to CDI a
 Todo:
 
 -improve the alias negotiation
+
 -better handling producer/consumer identify (ied)
+
 -make sure all relevant openlcb traffic is forwarded to all connected clients (works probably already but needs more testing)
 
 -a lot more than that I guess ;-)
