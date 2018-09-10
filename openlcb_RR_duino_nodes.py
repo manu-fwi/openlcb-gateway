@@ -712,14 +712,18 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     debug("Error: received an event on an input sensors for RR_duino node",self.desc.desc_dict["fullID"])
             index+=1
         index = 0
-        for ev_pair in self.turnouts_ev_list:
+        for ev_quad in self.turnouts_ev_list:
+            found = False
             for val in range(4):
-                if ev.id == ev_pair[val]:
+                print(ev_quad[val],"  ",ev.id)
+                if ev.id == ev_quad[val]:
+                    found = True
                     break
-            debug("turnouts consume event val=",val)
-            if val<4:
+            debug("turnouts consume event val=",val,found)
+            if found:
                 if val<2:
-                    debug("RR_duino node",self.desc.desc_dict["fullID"],"turnouts consuming event",str(ev))
+                    debug("RR_duino node",self.desc.desc_dict["fullID"],
+                          "turnouts consuming event",str(ev))
                     self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
                                                                            self.turnouts_cfg[index][0],
                                                                            val,False,False).to_wire_message().encode('utf-8'))
