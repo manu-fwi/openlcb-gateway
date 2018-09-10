@@ -10,7 +10,7 @@ class RR_duino_message:
     CMD_LAST_ANSW_BIT=1
     CMD_ASYNC_BIT=2
     CMD_SPECIAL_CONFIG_BIT=3
-    CMD_RW_BIT=4
+    CMD_RW_BIT=5
     CMD_SENSOR_TURNOUT_BIT=4
     CMD_CONFIG_DEL_BIT=5
     CMD_ALL_BIT=6
@@ -200,7 +200,7 @@ class RR_duino_message:
         for b in self.raw_message:
             wire_msg += hex_int(b)+" "
 
-        return wire_msg
+        return wire_msg[:-1]
 
     @staticmethod
     def wire_to_raw_message(msg):
@@ -224,11 +224,11 @@ class RR_duino_message:
         """
         build the command and address bytes for a rw command
         """
+        #set command bit
+        command = 1
         #set write bit if needed
-        if read:
-            command = 0
-        else:
-            command = 1 << RR_duino_message.CMD_RW_BIT
+        if not read:
+            command |= 1 << RR_duino_message.CMD_RW_BIT
         #set turnout bit if needed
         if not for_sensor:
             command |= 1 << RR_duino_message.CMD_SENSOR_TURNOUT_BIT
@@ -519,6 +519,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.turnouts_ev_list= []
         self.desc = desc
         self.client=client
+        self.async_events_pending = False
 
     def __str__(self):
         res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.hwversion)
@@ -689,6 +690,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 return self.generate_events(msg.get_list_of_values(),msg.on_turnout())
             else:
                 debug("Read all not implemented yet")
+        #check if async events are waiting
+        self.async_events_pending = self.async_events_pending or msg.async_events_pending()
         #for now we only treat read messages
         #FIXME
         return []
@@ -733,7 +736,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 
 def find_node_from_add(add,nodes):
     for n in nodes:
-        if n.RR_duino_node.address == add:
+        if n.address == add:
             return n
     return None
 

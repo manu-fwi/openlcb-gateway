@@ -34,7 +34,8 @@ class Client:
         return msg+sep
 
     def queue(self,cmd):
-        self.sock.send(cmd)
+        debug("client sending",cmd)
+        self.sock.send(cmd+";".encode('utf-8'))
 
 class Client_bus(Client):
     """

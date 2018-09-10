@@ -59,7 +59,7 @@ def decode_messages():
     print(rcv_messages)
     while sep==";":
         first,sep,end = rcv_messages.partition(";")
-        print(first,"/",sep,"/",end)
+        debug(first,"/",sep,"/",end)
         if sep!="":
             rcv_RR_messages.append(RR_duino.RR_duino_message.from_wire_message(first))
             rcv_messages = end
@@ -74,7 +74,7 @@ def process():
 
     if not rcv_RR_messages:
         return
-    print("start IO")
+    debug("start IO")
     msg = rcv_RR_messages.pop(0)
     ser.send(msg.raw_message)
     must_wait_answer = True
@@ -237,11 +237,12 @@ while True:
     process()
     if ser.available():     # we are receiving an answer
         message_to_send += ser.read()
+        debug("message_to_send=",message_to_send)
 
         if RR_duino.RR_duino_message.is_complete_message(message_to_send):
             #answer complete, send it to server
-            debug("received from serial and sending it to the server:",(RR_duino.RRduino_message.raw_to_wire_message(message_to_send)+";").encode('utf-8'))
-            s.send((RR_duino.RR_duino_message.raw_to_wire_message(message_to_send)+";").encode('utf-8'))
+            debug("received from serial and sending it to the server:",(RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
+            s.send((RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
             #discard the part we just sent
             message_to_send=b""
             must_wait_answer = False

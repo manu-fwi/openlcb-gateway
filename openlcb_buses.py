@@ -174,12 +174,12 @@ class RR_duino_net_bus(Bus):
                     debug("RR_duino_net_bus processing",msg)
                     if msg.startswith(hex_int(RR_duino.RR_duino_message.START)):
                         #it is a RR_duino message, process it
-                        RR_msg = RR_duino.from_wire_message(msg)
+                        RR_msg = RR_duino.RR_duino_message.from_wire_message(msg)
                         node = RR_duino.find_node_from_add(RR_msg.get_address(),c.managed_nodes)
                         if node is None:
                             debug("Unknown node!! add=", RR_msg.get_address())
                         else:
-                            ev_list.extend(node.process_receive(RR_duino_msg))
+                            ev_list.extend(node.process_receive(RR_msg))
                     else:
                         #it is a bus message (new node...)
                         #format: start_node fullID address version sensors_list turnouts_list
