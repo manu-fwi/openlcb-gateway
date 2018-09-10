@@ -138,6 +138,7 @@ class RR_duino_message:
         l = []
         for c in self.raw_message[3:-1]: #forget last byte (the list stop byte)
             l.append((c & 0x3F,c >> RR_duino_message.SUBADD_VALUE_BIT))
+        debug("list of values",l)
         return l
 
     def get_sensor_config(self,index):
@@ -294,6 +295,10 @@ class RR_duino_message:
         if on_turnout:
             c |= (1 << RR_duino_message.CMD_SENSOR_TURNOUT_BIT)
         return RR_duino_message(bytes((0xFF,c,add)))
+
+    @staticmethod
+    def build_async_cmd(add):
+        return RR_duino_message(bytes((0xFF,0b00000101,add)))
 
     @staticmethod
     def build_simple_rw_cmd(add,subadd,value,read=True,for_sensor=True):
@@ -519,7 +524,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.turnouts_ev_list= []
         self.desc = desc
         self.client=client
-        self.async_events_pending = False
+        self.retrieving_async_events = False
 
     def __str__(self):
         res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.hwversion)
@@ -659,7 +664,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 debug(self.desc.desc_dict["turnouts_ev_list"])
                 debug(self.turnouts_ev_list[entry])
  
-        elif mem_sp==251:  #idenitfication segment
+        elif mem_sp==251:  #identification segment
             super().set_mem(mem_sp,offset,buf)
             if offset == 0:
                 self.desc.desc_dict["version"]=buf[0]
@@ -669,7 +674,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 self.desc.desc_dict["description"]=buf[:buf.find(0)].decode('utf-8')
 
 
-    def generate_events(self,subadds_values,turnouts = False):
+    def generate_events(self,subadd_values,turnouts = False):
         debug("generate events",subadd_values,turnouts)
         #FIXME
         return []
@@ -690,8 +695,14 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 return self.generate_events(msg.get_list_of_values(),msg.on_turnout())
             else:
                 debug("Read all not implemented yet")
-        #check if async events are waiting
-        self.async_events_pending = self.async_events_pending or msg.async_events_pending()
+        #check if this is an answer to a "send async events" command
+        if self.retrieving_async_events:
+            if msg.is_last:
+                #last async answer so back to normal
+                self.retrieving_async_events = False
+        else:
+            #check if async events are waiting
+            self.retrieving_async_events = msg.async_events_pending()
         #for now we only treat read messages
         #FIXME
         return []

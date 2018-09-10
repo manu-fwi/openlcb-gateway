@@ -5,10 +5,10 @@ from openlcb_debug import *
 import openlcb_RR_duino_nodes as RR_duino
 
 #constants
-ANSWER_TIMEOUT=10  #time out for an answer
+ANSWER_TIMEOUT=0.1  #time out for an answer (100ms)
 
 class RR_duino_node:
-    PING_TIME_OUT = 10   # 10s between pings
+    PING_TIMEOUT = 1   # 10s between pings
     def __init__(self,address,version):
         self.address=address
         self.version=version
@@ -64,20 +64,51 @@ def decode_messages():
             rcv_RR_messages.append(RR_duino.RR_duino_message.from_wire_message(first))
             rcv_messages = end
 
-def process():
-    global rcv_RR_messages,ser,must_wait_answer
+def node_from_address(add):
+    for ID in fullID_add:
+        if fullID_add[ID].address == add:
+            return fullID_add[ID]
+    return None
 
-    if ser.sending() or must_wait_answer:  #if we are already sending or waiting for an answer
+def process():
+    global rcv_RR_messages,ser,waiting_answer_from
+
+    if ser.sending():
+        #if we are already sending
         #not much we can do, let's wait for IO to proceed
+        return
+    
+    if waiting_answer_from is not None:   #we are waiting for an answer
+        if time.time()>answer_clock+ANSWER_TIMEOUT:
+            #timeout for an aswer->node is down
+            debug("node of address", waiting_answer_from.address,"is down")
+            waiting_answer_from = None
+            #fixme: kill node on the gateway and out of the managed list
         return
     #no IO occuring let's begin a new one if there is any
 
-    if not rcv_RR_messages:
-        return
-    debug("start IO")
-    msg = rcv_RR_messages.pop(0)
-    ser.send(msg.raw_message)
-    must_wait_answer = True
+    if rcv_RR_messages:
+        msg = rcv_RR_messages.pop(0)
+        debug("Processing message from server", msg.to_wire_message())
+        ser.send(msg.raw_message)
+        waiting_answer_from = node_from_address(msg.get_address())
+        answer_clock = time.time()
+    else:
+        #no ongoing I/O on the bus check the node with older ping
+        older_ping = time.time()
+        node_to_ping = None
+        for ID in managed_nodes:
+            if managed_nodes[ID].last_ping < older_ping:
+                older_ping = managed_nodes[ID].last_ping
+                if older_ping < time.time()-RR_duino_node.PING_TIMEOUT:
+                    debug("times:",time.time(),older_ping, managed_nodes[ID].address)
+                    node_to_ping = managed_nodes[ID]
+        if node_to_ping is not None:
+            node_to_ping.last_ping = time.time()
+            msg = RR_duino.RR_duino_message.build_async_cmd(managed_nodes[ID].address)
+            ser.send(msg.raw_message)
+            must_wait_answer = managed_nodes[ID]
+            answer_clock = time.time()
 
 def load_config(filename):
     #Load config file (json formatted dict config, see below)
@@ -179,7 +210,8 @@ debug("Connected to serial port",config["serial_port"])
 rcv_messages=""  #last received messages ready to be cut and decoded
 rcv_RR_messages = []  #decoded cmri messages received from the gateway, waiting to be sent
 message_to_send=b""   #last incomplete message from the serial port
-must_wait_answer = False  #this is True when the last message sent or being sent needs an answer (like Poll message)
+waiting_answer_from = None #this is the node we are waiting an answer from
+answer_clock = 0
 
 time.sleep(1) #time for arduino serial port to settle down
 gateway_ip = config["openlcb_gateway_ip"]
@@ -208,8 +240,6 @@ print("connected to gateway!")
 s.settimeout(0)
 #create or connect to existing cmri_net_bus
 s.send(("RR_DUINO_NET_BUS RR_duino bus 1;").encode('utf-8'))
-
-#FIXME: send all nodes to gateway
 
 while True:
     if online_nodes:
@@ -245,6 +275,6 @@ while True:
             s.send((RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
             #discard the part we just sent
             message_to_send=b""
-            must_wait_answer = False
+            waiting_answer_from = None
         
 ser.close()

@@ -54,4 +54,4 @@ class serial_bus:
             try:
                 self.rcv_buffer +=  self.ser_port.read()
             except BaseException:
-                debug("execption while read serial")
+                print("exception while read serial")
