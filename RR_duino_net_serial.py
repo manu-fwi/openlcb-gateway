@@ -6,6 +6,7 @@ import openlcb_RR_duino_nodes as RR_duino
 
 #constants
 ANSWER_TIMEOUT=0.1  #time out for an answer (100ms)
+DEAD_NODES_TIME=5  #time between trials to wake up dead nodes
 
 class RR_duino_node:
     PING_TIMEOUT = 1   # 10s between pings
@@ -66,12 +67,18 @@ def decode_messages():
 
 def node_from_address(add):
     for ID in fullID_add:
-        if fullID_add[ID].address == add:
-            return fullID_add[ID]
+        if managed_nodes[ID].address == add:
+            return managed_nodes[ID]
+    return None
+
+def fullID_from_address(add):
+    for ID in fullID_add:
+        if fullID_add[ID] == add:
+            return ID
     return None
 
 def process():
-    global rcv_RR_messages,ser,waiting_answer_from
+    global rcv_RR_messages,ser,waiting_answer_from,answer_clock,last_dead_nodes_ping
 
     if ser.sending():
         #if we are already sending
@@ -79,20 +86,44 @@ def process():
         return
     
     if waiting_answer_from is not None:   #we are waiting for an answer
+        
         if time.time()>answer_clock+ANSWER_TIMEOUT:
             #timeout for an aswer->node is down
             debug("node of address", waiting_answer_from.address,"is down")
-            waiting_answer_from = None
             #fixme: kill node on the gateway and out of the managed list
+            ID = fullID_from_address(waiting_answer_from.address)
+            s.send(("stop_node "+str(ID)).encode('utf-8'))
+            dead_nodes[ID]=waiting_answer_from
+            waiting_answer_from = None
+            debug(managed_nodes.items())
+            del managed_nodes[ID]
         return
     #no IO occuring let's begin a new one if there is any
 
     if rcv_RR_messages:
         msg = rcv_RR_messages.pop(0)
+        if fullID_from_address(msg.get_address()) is None:
+            #ignore message to disappeared nodes
+            return
         debug("Processing message from server", msg.to_wire_message())
         ser.send(msg.raw_message)
         waiting_answer_from = node_from_address(msg.get_address())
         answer_clock = time.time()
+    elif time.time()>last_dead_nodes_ping+DEAD_NODES_TIME:
+        #try to wake up a "dead" node
+        node_to_ping = None
+        older_ping = time.time()
+        for ID in dead_nodes:
+            if dead_nodes[ID].last_ping < older_ping:
+                older_ping = dead_nodes[ID].last_ping
+                node_to_ping = dead_nodes[ID]
+        if node_to_ping is not None:
+            node_to_ping.last_ping = time.time()
+            msg = RR_duino.RR_duino_message.build_async_cmd(node_to_ping.address)
+            ser.send(msg.raw_message)
+            waiting_answer_from = node_to_ping
+            answer_clock = time.time()
+        last_dead_nodes_ping = time.time()
     else:
         #no ongoing I/O on the bus check the node with older ping
         older_ping = time.time()
@@ -104,10 +135,11 @@ def process():
                     debug("times:",time.time(),older_ping, managed_nodes[ID].address)
                     node_to_ping = managed_nodes[ID]
         if node_to_ping is not None:
+            debug("pinging")
             node_to_ping.last_ping = time.time()
-            msg = RR_duino.RR_duino_message.build_async_cmd(managed_nodes[ID].address)
+            msg = RR_duino.RR_duino_message.build_async_cmd(node_to_ping.address)
             ser.send(msg.raw_message)
-            must_wait_answer = managed_nodes[ID]
+            waiting_answer_from = node_to_ping
             answer_clock = time.time()
 
 def load_config(filename):
@@ -221,6 +253,9 @@ s =socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 #load nodes from files and bring them online
 #dict of fullID address correspondances
 fullID_add = {}
+#dict of fullID dead node correspondances (these were managed and died, we keep them and try to see if they wake up)
+dead_nodes={}
+last_dead_nodes_ping = time.time()
 #dict of fullID online node correspondances
 online_nodes = {}
 #dict of fullID <-> managed nodes (online and declared to the gateway)

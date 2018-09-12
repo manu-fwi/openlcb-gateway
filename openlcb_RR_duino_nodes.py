@@ -524,7 +524,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.turnouts_ev_list= []
         self.desc = desc
         self.client=client
-        self.retrieving_async_events = False
 
     def __str__(self):
         res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.hwversion)
@@ -695,16 +694,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 return self.generate_events(msg.get_list_of_values(),msg.on_turnout())
             else:
                 debug("Read all not implemented yet")
-        #check if this is an answer to a "send async events" command
-        if self.retrieving_async_events:
-            if msg.is_last:
-                #last async answer so back to normal
-                self.retrieving_async_events = False
-        else:
-            #check if async events are waiting
-            self.retrieving_async_events = msg.async_events_pending()
         #for now we only treat read messages
-        #FIXME
+        #FIXME: maybe we want to treat other messages?
         return []
 
     def consume_event(self,ev,path=None):
