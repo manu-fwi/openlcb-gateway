@@ -227,8 +227,16 @@ class RR_duino_net_bus(Bus):
                             #there should be a start_node with the new config)
                             #format stop_node fullID
                             #FIXME: must stop the OpenLCB part of the node here
-                            c.managed_nodes.pop(int(end))
-                            debug("Remove node ",end," from the managed nodes")
+                            found = False
+                            for n in c.managed_nodes:
+                                if n.ID==int(end):
+                                    found = True
+                                    break
+                            if not found:
+                                debug("Error:Node marked as dead not in managed nodes!!")
+                            else:
+                                debug("Remove node ",end," from the managed nodes")
+                                c.managed_nodes.remove(n)
                         else:
                             debug("unknown RR_duino_net_bus command")
 

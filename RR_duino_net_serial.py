@@ -49,7 +49,7 @@ class RR_duino_node:
             i+=1
 
     def show_config(self,fullID):
-        res = json.dumps({"FULLID":fullID,"ADDRESS":self.address,"VERSION":self.version,"SENSORS":self.sensors,"TURNOUTS":self.turnouts})+";"
+        res = json.dumps({"FULLID":fullID,"ADDRESS":self.address,"VERSION":self.version,"SENSORS":self.sensors,"TURNOUTS":self.turnouts})
         debug("show_config=",res)
         return res
             
@@ -67,7 +67,7 @@ def decode_messages():
 
 def node_from_address(add):
     for ID in fullID_add:
-        if managed_nodes[ID].address == add:
+        if ID in managed_nodes and managed_nodes[ID].address == add:
             return managed_nodes[ID]
     return None
 
@@ -87,12 +87,12 @@ def process():
     
     if waiting_answer_from is not None:   #we are waiting for an answer
         
-        if time.time()>answer_clock+ANSWER_TIMEOUT:
+        if time.time()>answer_clock+ANSWER_TIMEOUT and node_from_address(waiting_answer_from.address) is not None:
             #timeout for an aswer->node is down
             debug("node of address", waiting_answer_from.address,"is down")
             #fixme: kill node on the gateway and out of the managed list
             ID = fullID_from_address(waiting_answer_from.address)
-            s.send(("stop_node "+str(ID)).encode('utf-8'))
+            s.send(("stop_node "+str(ID)+";").encode('utf-8'))
             dead_nodes[ID]=waiting_answer_from
             waiting_answer_from = None
             debug(managed_nodes.items())
@@ -111,6 +111,7 @@ def process():
         answer_clock = time.time()
     elif time.time()>last_dead_nodes_ping+DEAD_NODES_TIME:
         #try to wake up a "dead" node
+        debug("trying to wake dead nodes up",dead_nodes.items())
         node_to_ping = None
         older_ping = time.time()
         for ID in dead_nodes:
@@ -120,9 +121,9 @@ def process():
         if node_to_ping is not None:
             node_to_ping.last_ping = time.time()
             msg = RR_duino.RR_duino_message.build_async_cmd(node_to_ping.address)
-            ser.send(msg.raw_message)
-            waiting_answer_from = node_to_ping
-            answer_clock = time.time()
+            if send_msg(msg) is not None:
+                online_nodes[ID]=node_to_ping
+                del dead_nodes[ID]
         last_dead_nodes_ping = time.time()
     else:
         #no ongoing I/O on the bus check the node with older ping
@@ -176,7 +177,7 @@ def send_msg(msg):
             begin = time.time()
             answer.extend(r)
             complete = RR_duino.RR_duino_message.is_complete_message(answer)
-            print(answer,complete)
+            debug(answer,complete)
 
     #check time out and answer begins by START and is the answer to the command we have sent
     if time.time()<begin+ANSWER_TIMEOUT:
@@ -216,7 +217,7 @@ def load_nodes():
 
 def to_managed(fullID):
     #send request to the server
-    s.send(("start_node "+online_nodes[ID].show_config(fullID)).encode('utf-8'))
+    s.send(("start_node "+online_nodes[ID].show_config(fullID)+";").encode('utf-8'))
     managed_nodes[fullID] = online_nodes[ID]
     
 if len(sys.argv)>=2:
