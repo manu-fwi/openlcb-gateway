@@ -220,7 +220,9 @@ def process_id_prod_consumer(cli,msg):
                         res = n.check_id_producer_event(Event(ev_id))
                     else: #identify consumer
                         res = n.check_id_consumer_event(Event(ev_id))
-                    debug("res=",res)
+                    #check id producer_event might return None
+                    # some nodes will answer later because they need to poll the hardware to do so
+                    #they have the responability to send the answer themselves
                     if res != None:
                         if res == Node.ID_PRO_CON_VALID:
                             if var_field == 0x914: #identify producer
@@ -247,6 +249,7 @@ def process_id_prod_consumer(cli,msg):
 def identify_events(msg,cli):
     var_field = int(msg[4:7],16)
     debug("identify events received")
+    #fixme
 
 def consum_identified(msg,cli):
     valid = int(msg[6:7],16) #4=valid, 5=invalid, 7=unknown

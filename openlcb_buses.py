@@ -244,6 +244,9 @@ class RR_duino_net_bus(Bus):
         frames_list=self.generate_frames_from_alias_neg()
         self.prune_alias_negotiation()
         self.nodes_db.sync()
+        #check deferred reads/writes
+        for n in c.managed_nodes:
+            n.check_defer()
         return ev_list,frames_list    
 
 class Bus_manager:

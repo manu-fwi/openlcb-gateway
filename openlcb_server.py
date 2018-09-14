@@ -86,6 +86,8 @@ class Openlcb_server:
 
         # queue up to 5 requests
         self.serversocket.listen(5)
+
+        #this socket enables us to send openlcb packets to everyone (buses or exterior openlcb network
         self.internal_sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.internal_sock.connect((self.address,self.port))
         

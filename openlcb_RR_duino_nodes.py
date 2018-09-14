@@ -91,6 +91,9 @@ class RR_duino_message:
     def is_read_cmd(self):
         return not self.is_config_cmd() and (self.raw_message[1] & (1 << RR_duino_message.CMD_RW_BIT))==0
 
+    def is_write_cmd(self):
+        return not self.is_config_cmd() and (self.raw_message[1] & (1 << RR_duino_message.CMD_RW_BIT))!=0
+
     def is_config_cmd(self):
         #returns True if this is a config command (might be a special config command)
         return (self.raw_message[1] & (1 << RR_duino_message.CMD_CONFIG_BIT))!=0
@@ -141,6 +144,27 @@ class RR_duino_message:
         debug("list of values",l)
         return l
 
+    def get_all_values(self,nb_values):
+        #return a list of values (0/1)
+        #only valid for a "read all" sensors or turnouts
+        l = []
+        byte_index = 3
+        b = self.raw_message[byte_index]
+        bit_pos = 0
+        for i in range(nb_values):
+            if bit_pos == 8:
+                bit_pos = 0
+                byte_index+=1
+                b = self.raw_message[byte_index] 
+                 #sanity check
+                if self.raw_message[byte_index] & 0x80 != 0:
+                    #stop: this byte is the error code, not all values are present
+                    return l
+            l.append((b >> bit_pos) & 0x01) #shift left and keep LSB only
+            bit_pos+=1
+        debug("list of all values",l)
+        return l
+        
     def get_sensor_config(self,index):
         #return a tuple (subaddress,pin,type)
         #only valid for a config sensor list command or a show sensor command answer
@@ -245,7 +269,7 @@ class RR_duino_message:
 
     @staticmethod
     def encode_subadd_value(pair):
-        if pair[1]==0:
+        if pair[1] is None or pair[1]==0:
             return bytes((pair[0],))
         else:
             return bytes((pair[0] | (1 << RR_duino_message.SUBADD_VALUE_BIT),))
@@ -301,7 +325,7 @@ class RR_duino_message:
         return RR_duino_message(bytes((0xFF,0b00000101,add)))
 
     @staticmethod
-    def build_simple_rw_cmd(add,subadd,value,read=True,for_sensor=True):
+    def build_simple_rw_cmd(add,subadd,read=True,for_sensor=True,value=None):
         msg = RR_duino_message.build_rw_cmd_header(add,read,for_sensor,False)
         msg.raw_message.extend(RR_duino_message.encode_subadd_value((subadd,value)))
         return msg
@@ -417,7 +441,60 @@ class RR_duino_node_desc:
 
     def to_json(self):
         return self.desc_dict
- 
+
+class Deferred_read:
+    DEFER_TIME = 0.5 #seconds
+    def __init__(self,add,turnouts = False):
+        self.turnouts = turnouts  #type of peripherals
+        self.subadds = []  #list of subaddresses
+        self.clock = None
+        self.address = add
+        
+    def add(self,subadd):
+        if subadd in self.subadds:
+            #do not add it twice
+            return
+        self.subadds.append(subadd)
+        if self.clock is None:
+            self.clock = time.time()
+
+    def build_msg(self):
+        if self.subadds.is_empty():
+            return None
+        if len(self.subadds)==1:
+            #special case, only one reading
+            return RR_duino_message.build_simple_rw_cmd(add,subadds[0],True,!turnouts)
+        else:
+            msg = RR_duino_message.build_rw_cmd_header(add,True,!turnouts,True)  #get the header ready
+            msg.raw_message.extend(self.subadds)
+            msg.raw_message.append(0x80) #list termination
+            return msg
+        
+    def check_time(self):
+        if self.clock is None:
+            return None
+        if time.time()>self.clock+Deferred_read.DEFER_TIME:
+            return self.build_msg()
+        return None
+    
+    def reset(self):
+        self.clock = None
+        self.subadds = []
+
+class Deferred_write(Deferred_read):
+    def __init__(self,add,turnouts=False):
+        super().__init__(add,turnouts)
+
+    def add(self,subadd,value):
+        super().add(RR_duino_message.encode_subbad_value((subadd,value)))
+
+    def build_msg(self):
+        msg = super().build_msg()
+        if msg is None:
+            return None
+        msg.raw_message[1] |= 1 << RR_duino_message.CMD_RW_BIT   #set write bit
+        return msg
+    
 class RR_duino_node(openlcb_nodes.Node):
     """
     represents a RR_duino node which means it is an openlcb node (with memory, alias and so on
@@ -513,6 +590,12 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     ADDRESS_SEGMENT = 0
     SENSORS_SEGMENT = 1
     TURNOUTS_SEGMENT = 2
+    #deferred rw
+    DEFER_READ_SENSORS = 0
+    DEFER_READ_TURNOUTS = 1
+    DEFER_WRITE_SENSORS = 2
+    DEFER_WRITE_TURNOUTS = 3
+    
         
     def __init__(self,client,ID,address,hwversion,desc):
         super().__init__(ID)
@@ -524,6 +607,16 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.turnouts_ev_list= []
         self.desc = desc
         self.client=client
+        #deferred reads and writes to keep offload some messages off the RR_duino bus
+        #only used for reads and writes caused by producer identify and consumer identified events
+        self.defer_rw = [Deferred_read(address),Deferred_read(address,True),
+                         Deferred_write(address),Deferred_write(address,True)]
+        #producer identify are answered when then corresponding deferred reads are treated
+        #this is a list of (turnout,index,value) where turnout is True for a turnout and False for a sensor
+        #index is the sensor index and value is the value of the sensor
+        #correspondig to the event in the identify producer received
+        #each read received will be checked to see if a corresponding producer identifier message can be answered
+        self.waiting_prod_id = []
 
     def __str__(self):
         res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.hwversion)
@@ -673,10 +766,60 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 self.desc.desc_dict["description"]=buf[:buf.find(0)].decode('utf-8')
 
 
+    def check_defer(self):
+        for defer in self.defer_rw:
+            msg = defer.check_time()
+            if msg is not None:
+                defer.reset()
+                self.client.queue(msg.to_wire_message().encode('utf-8'))            
+
     def generate_events(self,subadd_values,turnouts = False):
         debug("generate events",subadd_values,turnouts)
-        #FIXME
-        return []
+        ev_lst=[]
+        #first check for the waiting producer identified
+        index_to_delete=dequeue()
+        index=0
+        for (subadd,value) in subadd_values:
+            for (ev_turnout,ev_subadd,ev_val) in self.waiting_prod_id:
+                if (ev_turnout,subadd)==(turnouts,subadd):
+                    if ev_val-2 == value:  #we only use the position reached events part
+                        MTI = Frame.MTI_PROD_ID_VAL
+                    else:
+                        MTI = Frame.MTI_PROD_ID_INVAL
+                    debug("producer identified:",subadd,value,turnouts)
+                    if ev_turnout:
+                        ev_lst.append(Frame.build_from_event(self,self.turnouts_ev_list[i][ev_val],MTI))
+                    else:
+                        ev_lst.append(Frame.build_from_event(self,self.sensors_ev_list[i][ev_val],MTI))
+                    index_to_delete.appendleft(index)
+            index+=1
+        #delete all read results already used
+        for i in index_to_delete:
+            subadd_values.pop(i)
+
+        for (subadd,value) in subadd_values:
+            if turnouts:
+                index=0
+                for (subadd_cfg,dummy,dummy) in self.turnouts_cfg:
+                    if subadd_cfg==subadd:
+                        debug("Event for:",subadd,value,turnouts)
+                        #we use value+2 to send the event "turnout has reached position value"
+                        ev_lst.append(Frame.build_from_event(self,
+                                                             self.turnouts_ev_list[i][value+2],
+                                                             0x5B4))
+                        break
+                    index+=1
+            else:
+                index=0
+                for (subadd_cfg,dummy,dummy) in self.sensors_cfg:
+                    if subadd_cfg==subadd:
+                        debug("Event for:",subadd,value,turnouts)
+                        ev_lst.append(Frame.build_from_event(self,
+                                                             self.sensors_ev_list[i][value],
+                                                             0x5B4))
+                        break
+                    index+=1
+        return ev_lst
     
     def process_receive(self,msg):
         debug("process receive=",msg.to_wire_message())
@@ -694,10 +837,12 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 return self.generate_events(msg.get_list_of_values(),msg.on_turnout())
             else:
                 debug("Read all not implemented yet")
-        #for now we only treat read messages
-        #FIXME: maybe we want to treat other messages?
+        elif msg.is_write_cmd():
+            #just check the error status
+            if msg.get_error_code()!=0:
+                debug("Last write on node",self.ID,"has failed, error code",msg.get_error_code())
         return []
-
+        
     def consume_event(self,ev,path=None):
         index = 0
         for ev_pair in self.sensors_ev_list:
@@ -711,8 +856,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     debug("RR_duino node",self.desc.desc_dict["fullID"],"sensors consuming event",str(ev))
                     self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
                                                                            self.sensors_cfg[index][0],
-                                                                           val,
-                                                                           False).to_wire_message().encode('utf-8'))
+                                                                           False,
+                                                                           True,
+                                                                           val).to_wire_message().encode('utf-8'))
                 else:
                     debug("Error: received an event on an input sensors for RR_duino node",self.desc.desc_dict["fullID"])
             index+=1
@@ -731,10 +877,47 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                           "turnouts consuming event",str(ev))
                     self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
                                                                            self.turnouts_cfg[index][0],
-                                                                           val,False,False).to_wire_message().encode('utf-8'))
+                                                                           False,
+                                                                           False,
+                                                                           val).to_wire_message().encode('utf-8'))
                 else:
                     debug("Error: received an event on an turnouts inputs for RR_duino node",self.desc.desc_dict["fullID"]) 
             index+=1
+
+    def check_id_producer_event(self,ev):
+        """
+        check if the event ev is coherent with one input state
+        This is used to reply to "identify producer" event
+        Return None and will send the answer later
+        """
+        index = 0
+        for ev_pair in self.sensors_ev_list:
+            if self.sensors_cfg[i][2]!=OUTPUT_SENSOR: #must be an input
+                val = -1
+                if ev.id == ev_pair[0]:
+                    val = 0
+                elif ev.id == ev_pair[1]:
+                    val = 1
+                if val!=-1:
+                    #found the input corresponding to the event
+                    #place a deferred read and register the event to be answered later
+                    self.defer_rw[RR_duino_node.DEFER_READ_SENSORS].add(self.sensors_cfg[i][0])
+                    self.waiting_prod_identified.append((False,i,val))
+            index += 1
+                index = 0
+        for ev_quad in self.turnouts_ev_list:
+            found=False
+            for val in range(4):
+                if ev.id == ev_pair[i]:
+                    found=True
+                    break
+            if found and val>=2:
+                #only for the event indicating that the turnout has reached its position
+                #place a deferred read and register the event to be answered later
+                self.defer_rw[RR_duino_node.DEFER_READ_TURNOUTS].add(self.turnouts_cfg[i][0])
+                self.waiting_prod_identified.append((True,i,val))
+            index += 1
+        return None
 
 def find_node_from_add(add,nodes):
     for n in nodes:
