@@ -12,7 +12,7 @@ def send_fields(sock,src_node,MTI,fields,dest_node):
     frames = create_addressed_frame_list(src_node,dest_node,MTI,("\0".join(fields)).encode('utf-8'),True)
     for f in frames:
         sock.send(f.to_gridconnect())
-        debug("--->",f.to_gridconnect().decode('utf-8'))
+        debug("--->",f.to_gridconnect())
 
 def send_CDI(s,src_node,dest_node,address,size):
     data = bytearray((0x20,0x53))
@@ -452,7 +452,7 @@ while not done:
     #That is: the server will process these answers after all previous incoming frames
     for ev in ev_list:
         OLCB_serv.internal_sock.send(ev.to_gridconnect())
-        debug("sent to internal"+ev.to_gridconnect())
+        debug("sent to internal",ev.to_gridconnect())
 
     #frames are different as they really should not be treated by the gateway
     #for example if we generate a CID and send it to us, that would invalidate the alias

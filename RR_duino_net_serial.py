@@ -5,7 +5,7 @@ from openlcb_debug import *
 import openlcb_RR_duino_nodes as RR_duino
 
 #constants
-ANSWER_TIMEOUT=0.1  #time out for an answer (100ms)
+ANSWER_TIMEOUT=0.05  #time out for an answer (50ms)
 DEAD_NODES_TIME=5  #time between trials to wake up dead nodes
 
 class RR_duino_node:
@@ -86,10 +86,10 @@ def process():
         return
     
     if waiting_answer_from is not None:   #we are waiting for an answer
-        
         if time.time()>answer_clock+ANSWER_TIMEOUT and node_from_address(waiting_answer_from.address) is not None:
             #timeout for an aswer->node is down
             debug("node of address", waiting_answer_from.address,"is down")
+            debug(answer_clock,time.time(),waiting_answer_from.address)
             #fixme: kill node on the gateway and out of the managed list
             ID = fullID_from_address(waiting_answer_from.address)
             s.send(("stop_node "+str(ID)+";").encode('utf-8'))

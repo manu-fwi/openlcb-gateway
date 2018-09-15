@@ -1,7 +1,7 @@
 from openlcb_cmri_cfg import hex_int
 from openlcb_protocol import *
 from openlcb_debug import *
-import openlcb_config,openlcb_nodes
+import openlcb_config,openlcb_nodes,collections
 
 class RR_duino_message:
     START=0xFF
@@ -463,9 +463,9 @@ class Deferred_read:
             return None
         if len(self.subadds)==1:
             #special case, only one reading
-            return RR_duino_message.build_simple_rw_cmd(add,subadds[0],True,!turnouts)
+            return RR_duino_message.build_simple_rw_cmd(add,subadds[0],True,not turnouts)
         else:
-            msg = RR_duino_message.build_rw_cmd_header(add,True,!turnouts,True)  #get the header ready
+            msg = RR_duino_message.build_rw_cmd_header(add,True,not turnouts,True)  #get the header ready
             msg.raw_message.extend(self.subadds)
             msg.raw_message.append(0x80) #list termination
             return msg
@@ -777,7 +777,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         debug("generate events",subadd_values,turnouts)
         ev_lst=[]
         #first check for the waiting producer identified
-        index_to_delete=dequeue()
+        index_to_delete=collections.deque()
         index=0
         for (subadd,value) in subadd_values:
             for (ev_turnout,ev_subadd,ev_val) in self.waiting_prod_id:
@@ -800,12 +800,13 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         for (subadd,value) in subadd_values:
             if turnouts:
                 index=0
-                for (subadd_cfg,dummy,dummy) in self.turnouts_cfg:
+                for turn_cfg in self.turnouts_cfg:
+                    subadd_cfg = turn_cfg[0]
                     if subadd_cfg==subadd:
                         debug("Event for:",subadd,value,turnouts)
                         #we use value+2 to send the event "turnout has reached position value"
                         ev_lst.append(Frame.build_from_event(self,
-                                                             self.turnouts_ev_list[i][value+2],
+                                                             self.turnouts_ev_list[index][value+2],
                                                              0x5B4))
                         break
                     index+=1
@@ -815,7 +816,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     if subadd_cfg==subadd:
                         debug("Event for:",subadd,value,turnouts)
                         ev_lst.append(Frame.build_from_event(self,
-                                                             self.sensors_ev_list[i][value],
+                                                             self.sensors_ev_list[index][value],
                                                              0x5B4))
                         break
                     index+=1
@@ -904,7 +905,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     self.defer_rw[RR_duino_node.DEFER_READ_SENSORS].add(self.sensors_cfg[i][0])
                     self.waiting_prod_identified.append((False,i,val))
             index += 1
-                index = 0
+        index = 0
         for ev_quad in self.turnouts_ev_list:
             found=False
             for val in range(4):
