@@ -170,7 +170,7 @@ class RR_duino_message:
         #only valid for a config sensor list command or a show sensor command answer
 
         if self.raw_message[index] & (1 << RR_duino_message.SUBADD_SENSOR_IO_BIT) != 0:
-            sensor_type = RR_duino_message.SENSOR_OUTPUT
+            sensor_type = RR_duino_message.OUTPUT_SENSOR
         else:
             if self.raw_message[index+1] & (1 << RR_duino_message.PIN_PULLUP_BIT) != 0:
                 sensor_type = RR_duino_message.INPUT_SENSOR_PULLUP
