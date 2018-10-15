@@ -607,7 +607,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.turnouts_ev_list= []
         self.desc = desc
         self.client=client
-        #deferred reads and writes to keep offload some messages off the RR_duino bus
+        #deferred reads and writes to offload some messages off the RR_duino bus
         #only used for reads and writes caused by producer identify and consumer identified events
         self.defer_rw = [Deferred_read(address),Deferred_read(address,True),
                          Deferred_write(address),Deferred_write(address,True)]
@@ -925,5 +925,3 @@ def find_node_from_add(add,nodes):
         if n.address == add:
             return n
     return None
-
-    

@@ -5,7 +5,7 @@ from openlcb_debug import *
 import openlcb_RR_duino_nodes as RR_duino
 
 #constants
-ANSWER_TIMEOUT=0.05  #time out for an answer (50ms)
+ANSWER_TIMEOUT=0.2  #time out for an answer (50ms)
 DEAD_NODES_TIME=5  #time between trials to wake up dead nodes
 
 class RR_duino_node:
@@ -16,12 +16,13 @@ class RR_duino_node:
         self.sensors = []  #list of sensors config (subaddress,pin,type)
         self.turnouts = [] #list of turnouts config (subaddress,servo_pin,straight pos,thrown pos [,relay pin 1, relay pin 2,pulse pin 1, pulse pin 2])
         self.last_ping = 0
-        self.config_OK = False
 
     def get_config(self):
         #get list of sensors and turnouts
         debug("Getting config from node at ",self.address)
         command =RR_duino.RR_duino_message.build_show_cmd(self.address)
+        self.sensors=[]
+        self.turnouts=[]
         i=0
         error = False
         while (i<2) and not error:
@@ -43,11 +44,11 @@ class RR_duino_node:
                             self.turnouts.extend(m.get_list_of_turnouts_config())
                             debug("Turnouts list=",self.turnouts)
                     self.last_ping = time.time()
-                    self.config_OK = True
 
             command = RR_duino.RR_duino_message.build_show_cmd(self.address,True) #for turnouts now
             i+=1
-
+        return not error
+    
     def show_config(self,fullID):
         res = json.dumps({"FULLID":fullID,"ADDRESS":self.address,"VERSION":self.version,"SENSORS":self.sensors,"TURNOUTS":self.turnouts})
         debug("show_config=",res)
@@ -198,27 +199,28 @@ def load_nodes():
     for ID in fullID_add_json:
         fullID_add[int(ID)]=fullID_add_json[ID]
         
-    #try all addresses and ask each responding node to load its config from EEPROM
+    #try all addresses and ask each responding node to load its version
     for fullID in fullID_add:
-        answer = send_msg(RR_duino.RR_duino_message.build_load_from_eeprom(fullID_add[fullID]))
+        answer = send_msg(RR_duino.RR_duino_message.build_version_cmd(fullID_add[fullID]))
         if answer is not None and answer.get_error_code()==0:
-            #new node online, set it up
-            answer = send_msg(RR_duino.RR_duino_message.build_save_to_eeprom(fullID_add[fullID]))
-            if answer is not None and answer.get_error_code()==0:
-                answer = send_msg(RR_duino.RR_duino_message.build_version_cmd(fullID_add[fullID]))
-                if answer is not None and answer.get_error_code()==0:
-                    #add the node to the online list
-                    new_node = RR_duino_node(fullID_add[fullID],answer.get_version())
-                    online_nodes[fullID]=new_node
-    #for all online nodes, load their config: sensors and turnouts
-    for fullID in online_nodes:
-        n = online_nodes[fullID]
-        n.get_config()
+            #add the node to the online list
+            new_node = RR_duino_node(fullID_add[fullID],answer.get_version())
+            online_nodes[fullID]=new_node
 
 def to_managed(fullID):
-    #send request to the server
-    s.send(("start_node "+online_nodes[ID].show_config(fullID)+";").encode('utf-8'))
-    managed_nodes[fullID] = online_nodes[ID]
+    #get an online node and put it in managed state by uploading its config (load from eeprom and set save to eeprom flag)
+    #and sending a request to the server to add it
+    #return True if everything went OK or False otherwise
+
+    answer = send_msg(RR_duino.RR_duino_message.build_load_from_eeprom(fullID_add[fullID]))
+    if answer is not None and answer.get_error_code()==0:
+        answer = send_msg(RR_duino.RR_duino_message.build_save_to_eeprom(fullID_add[fullID]))
+    if answer is None or answer.get_error_code()!=0:
+        return False
+    if not online_nodes[fullID].get_config():
+        return False
+    s.send(("start_node "+online_nodes[fullID].show_config(fullID)+";").encode('utf-8'))
+    return True
     
 if len(sys.argv)>=2:
     config = load_config(sys.argv[1])
@@ -282,8 +284,8 @@ while True:
         #try to put all online nodes with good config to "managed" state (declare to gateway)
         online_to_del = []
         for ID in online_nodes:
-            if online_nodes[ID].config_OK:
-                to_managed(ID)
+            if to_managed(ID):
+                managed_nodes[ID]=online_nodes[ID]
                 online_to_del.append(ID)
         for ID in online_to_del:
             del online_nodes[ID]
