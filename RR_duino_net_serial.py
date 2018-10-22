@@ -5,11 +5,11 @@ from openlcb_debug import *
 import openlcb_RR_duino_nodes as RR_duino
 
 #constants
-ANSWER_TIMEOUT=0.2  #time out for an answer (50ms)
+ANSWER_TIMEOUT=0.2  #time out for an answer (200ms)
 DEAD_NODES_TIME=5  #time between trials to wake up dead nodes
 
 class RR_duino_node:
-    PING_TIMEOUT = 1   # 10s between pings
+    PING_TIMEOUT = 0.05   # 50ms between pings
     def __init__(self,address,version):
         self.address=address
         self.version=version
@@ -166,7 +166,8 @@ def send_msg(msg):
     #return answer or None if timed out
     #this should be called when no message is processed on the serial bus
     global ser
-    
+
+    t = time.time()
     ser.send(msg.raw_message)
     answer = bytearray()
     begin = time.time()
@@ -179,7 +180,8 @@ def send_msg(msg):
             answer.extend(r)
             complete = RR_duino.RR_duino_message.is_complete_message(answer)
             debug(answer,complete)
-
+    t=time.time()-t
+    print("timed:",t*1000)
     #check time out and answer begins by START and is the answer to the command we have sent
     if time.time()<begin+ANSWER_TIMEOUT:
         answer_msg =  RR_duino.RR_duino_message(answer)
@@ -308,6 +310,7 @@ while True:
         debug("message_to_send=",message_to_send)
 
         if RR_duino.RR_duino_message.is_complete_message(message_to_send):
+            print("timed:",(time.time()-answer_clock)*1000)
             #answer complete, send it to server
             debug("received from serial and sending it to the server:",(RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
             s.send((RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
