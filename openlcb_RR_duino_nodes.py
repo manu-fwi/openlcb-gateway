@@ -434,9 +434,9 @@ class RR_duino_node_desc:
     def __init__(self,desc_dict):
         self.desc_dict = dict(desc_dict)  #(shallow) copy the dict containing the node description
         if not "sensors_ev_list" in self.desc_dict:
-            self.desc_dict["sensors_ev_list"]=[]
+            self.desc_dict["sensors_ev_dict"]={}
         if not "turnouts_ev_list" in self.desc_dict:
-            self.desc_dict["turnouts_ev_list"]=[]
+            self.desc_dict["turnouts_ev_dict"]={}
         self.ID = self.desc_dict["fullID"]
 
     def to_json(self):
@@ -603,8 +603,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.hwversion = hwversion
         self.sensors_cfg=None
         self.turnouts_cfg=None
-        self.sensors_ev_list = []
-        self.turnouts_ev_list= []
+        #dictionnaries: subaddress <-> corresponding events list
+        self.sensors_ev_dict = {}
+        self.turnouts_ev_dict= {}
         self.desc = desc
         self.client=client
         #deferred reads and writes to offload some messages off the RR_duino bus
@@ -645,31 +646,51 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             description = ""
         super().set_mem(251,64,openlcb_nodes.normalize(description,64))
         #load sensors events
-        #increase the size of the description if needed
+        #delete desc which are not related to existing subaddresses (they have been deleted for example)
+        if self.desc.desc_dict["sensors_ev_dict"] is not None:
+            for subadd in self.desc.desc_dict["sensors_ev_dict"]:
+                found = False
+                for (s,dummy,dummy) in self.sensors_cfg:
+                    if s == subadd:
+                        found = True
+                        break
+                if not found:
+                    del self.desc.desc_dict["sensors_ev_dict"][subadd]
+        #add missing descriptions if needed
         #this is needed when a node hardware has been reconfigured
-        #the nb of turnouts may have changed, hence the discrepancy
-        if len(self.desc.desc_dict["sensors_ev_list"]) < len(self.sensors_cfg):
-            for i in range(len(self.sensors_cfg)-len(self.desc.desc_dict["sensors_ev_list"])):
-                self.desc.desc_dict["sensors_ev_list"].append([str(Event.from_str(None))]*2)
+        #the nb of turnouts/sensors may have changed, hence the discrepancy
+        if self.sensors_cfg is not None:
+            for (subadd,dummy,dummy) in self.sensors_cfg:
+                if subadd not in self.desc.desc_dict["sensors_ev_dict"]:
+                    self.desc.desc_dict["sensors_ev_dict"][subadd]=([str(Event.from_str(None))]*2)
+        
         index = 0
-        for ev_pair in self.desc.desc_dict["sensors_ev_list"]:
-            self.sensors_ev_list.append([Event.from_str(ev_pair[0]).id,Event.from_str(ev_pair[1]).id])
+        for subadd in self.desc.desc_dict["sensors_ev_dict"]:
+            ev_pair = self.desc.desc_dict["sensors_ev_dict"][subadd]
+            self.sensors_ev_dict[subadd]=([Event.from_str(ev_pair[0]).id,Event.from_str(ev_pair[1]).id])
             for i in range(2):
                 super().set_mem(RR_duino_node.SENSORS_SEGMENT,
                                 1+index*(1+8*2)+i*8,
                                 Event.from_str(ev_pair[i]).id) #set memory accordingly
             index+=1
-        #decrease the size of the desc if needed
-        if index < len(self.desc.desc_dict["sensors_ev_list"]):
-            self.desc.desc_dict["sensors_ev_list"][index:]=[]
             
         #load turnouts events
-        #increase the size of the description if needed
+        if self.desc.desc_dict["turnouts_ev_dict"] is not None:
+            for subadd in self.desc.desc_dict["turnouts_ev_dict"]:
+                found = False
+                for cfg in self.turnouts_cfg:
+                    if cfg[0]==subadd:
+                        found = True
+                        break
+                if not found:
+                    del self.desc.desc_dict["turnouts_ev_dict"][subadd]
+        #add missing descriptions if needed
         #this is needed when a node hardware has been reconfigured
         #the nb of turnouts may have changed, hence the discrepancy
-        if len(self.desc.desc_dict["turnouts_ev_list"]) < len(self.turnouts_cfg):
-            for i in range(len(self.turnouts_cfg)-len(self.desc.desc_dict["turnouts_ev_list"])):
-                self.desc.desc_dict["turnouts_ev_list"].append([str(Event.from_str(None))]*4)
+        if self.turnouts_cfg is not None:
+            for cfg in self.turnouts_cfg:
+                if cfg[0] not in self.desc.desc_dict["turnouts_ev_dict"]:
+                    self.desc.desc_dict["turnouts_ev_list"][cfg[0]]=([str(Event.from_str(None))]*4)
         index = 0
         for ev_tuple in self.desc.desc_dict["turnouts_ev_list"]:
             self.turnouts_ev_list.append([Event.from_str(ev_tuple[0]).id,
@@ -681,9 +702,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                                 1+index*(1+8*4)+i*8,
                                 Event.from_str(ev_tuple[i]).id) #set memory accordingly
             index+=1
-        #decrease the size of the desc if needed
-        if index < len(self.desc.desc_dict["turnouts_ev_list"]):
-            self.desc.desc_dict["turnouts_ev_list"][index:]=[]
         self.memory[1].dump()
         self.memory[2].dump()
         
