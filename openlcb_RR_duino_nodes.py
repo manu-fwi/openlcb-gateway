@@ -601,8 +601,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         super().__init__(ID)
         self.address = address
         self.hwversion = hwversion
-        self.sensors_cfg=None
-        self.turnouts_cfg=None
+        #dict subaddresses <-> config
+        self.sensors_cfg={}
+        self.turnouts_cfg={}
         #dictionnaries: subaddress <-> corresponding events list
         self.sensors_ev_dict = {}
         self.turnouts_ev_dict= {}
@@ -612,12 +613,11 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         #only used for reads and writes caused by producer identify and consumer identified events
         self.defer_rw = [Deferred_read(address),Deferred_read(address,True),
                          Deferred_write(address),Deferred_write(address,True)]
-        #producer identify are answered when then corresponding deferred reads are treated
-        #this is a list of (turnout,index,value) where turnout is True for a turnout and False for a sensor
-        #index is the sensor index and value is the value of the sensor
-        #correspondig to the event in the identify producer received
+        #producer identify are answered when the corresponding deferred reads are treated
+        #this is a list of (turnout,subadd,value) where turnout is True for a turnout and False for a sensor
+        #and value is the value of the sensor correspondig to the event in the identify producer received
         #each read received will be checked to see if a corresponding producer identifier message can be answered
-        self.waiting_prod_id = []
+        self.waiting_prod_identified = []
 
     def __str__(self):
         res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.hwversion)
@@ -649,20 +649,14 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         #delete desc which are not related to existing subaddresses (they have been deleted for example)
         if self.desc.desc_dict["sensors_ev_dict"] is not None:
             for subadd in self.desc.desc_dict["sensors_ev_dict"]:
-                found = False
-                for (s,dummy,dummy) in self.sensors_cfg:
-                    if s == subadd:
-                        found = True
-                        break
-                if not found:
+                if subadd not in self.sensors_cfg:
                     del self.desc.desc_dict["sensors_ev_dict"][subadd]
         #add missing descriptions if needed
         #this is needed when a node hardware has been reconfigured
         #the nb of turnouts/sensors may have changed, hence the discrepancy
-        if self.sensors_cfg is not None:
-            for (subadd,dummy,dummy) in self.sensors_cfg:
-                if subadd not in self.desc.desc_dict["sensors_ev_dict"]:
-                    self.desc.desc_dict["sensors_ev_dict"][subadd]=([str(Event.from_str(None))]*2)
+        for subadd in self.sensors_cfg:
+            if subadd not in self.desc.desc_dict["sensors_ev_dict"]:
+                self.desc.desc_dict["sensors_ev_dict"][subadd]=([str(Event.from_str(None))]*2)
         
         index = 0
         for subadd in self.desc.desc_dict["sensors_ev_dict"]:
@@ -677,20 +671,14 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         #load turnouts events
         if self.desc.desc_dict["turnouts_ev_dict"] is not None:
             for subadd in self.desc.desc_dict["turnouts_ev_dict"]:
-                found = False
-                for cfg in self.turnouts_cfg:
-                    if cfg[0]==subadd:
-                        found = True
-                        break
-                if not found:
+                if subadd not in self.turnouts_cfg:
                     del self.desc.desc_dict["turnouts_ev_dict"][subadd]
         #add missing descriptions if needed
         #this is needed when a node hardware has been reconfigured
         #the nb of turnouts may have changed, hence the discrepancy
-        if self.turnouts_cfg is not None:
-            for cfg in self.turnouts_cfg:
-                if cfg[0] not in self.desc.desc_dict["turnouts_ev_dict"]:
-                    self.desc.desc_dict["turnouts_ev_list"][cfg[0]]=([str(Event.from_str(None))]*4)
+        for subadd in self.turnouts_cfg:
+            if subadd not in self.desc.desc_dict["turnouts_ev_dict"]:
+                self.desc.desc_dict["turnouts_ev_list"][cfg[0]]=([str(Event.from_str(None))]*4)
         index = 0
         for ev_tuple in self.desc.desc_dict["turnouts_ev_list"]:
             self.turnouts_ev_list.append([Event.from_str(ev_tuple[0]).id,
@@ -711,9 +699,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         sensors_mem=openlcb_nodes.Mem_space()
         offset = 0
         #loop over all sensors
-        for sensor_cfg in self.sensors_cfg:
+        for subadd in self.sensors_cfg:
             sensors_mem.create_mem(offset,1)    #subaddress (R)
-            sensors_mem.set_mem(offset,bytes((sensor_cfg[0],)))  #set subaddress
+            sensors_mem.set_mem(offset,bytes((subadd,)))  #set subaddress
             offset+=1
             for j in range(2):
                 sensors_mem.create_mem(offset,8)       #event id        (RW)
@@ -721,9 +709,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         turnouts_mem=openlcb_nodes.Mem_space()
         offset = 0
         #loop over all turnouts
-        for turnout_cfg in self.turnouts_cfg:
+        for subadd in self.turnouts_cfg:
             turnouts_mem.create_mem(offset,1)    #subaddress (R)
-            turnouts_mem.set_mem(offset,bytes((turnout_cfg[0],)))  #set subaddress
+            turnouts_mem.set_mem(offset,bytes((subadd,)))  #set subaddress
             offset+=1
             for j in range(4):
                 turnouts_mem.create_mem(offset,8)       #event id        (RW)
@@ -741,7 +729,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 super().set_mem(mem_sp,offset,buf) #will error out
                 
         elif mem_sp == RR_duino_node.SENSORS_SEGMENT: #sensors segment
-            entry = offset//17
             pos_in_entry = offset % 17
             if pos_in_entry==0:
                 debug("Trying to change subaddress")
@@ -751,28 +738,29 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 else:
                     index = 1
                 super().set_mem(mem_sp,offset,buf)
-                debug("entry=",entry,"off=",offset,"index=",index)
-                self.sensors_ev_list[entry][index]=buf
+                subadd = self.memory[mem_sp].read_mem(offset-pos_in_entry,1)[0]
+                debug("subadd=",subadd,"off=",offset,"index=",index)
+                self.sensors_ev_dict[subadd][index]=buf
                 #sync the description
-                self.desc.desc_dict["sensors_ev_list"][entry][index]=str(Event(buf))
-                debug("desc dict=",self.desc.desc_dict["sensors_ev_list"])
-                debug(self.sensors_ev_list[entry])
+                self.desc.desc_dict["sensors_ev_dict"][subadd][index]=str(Event(buf))
+                debug("desc dict=",self.desc.desc_dict["sensors_ev_dict"])
+                debug(self.sensors_ev_dict[subadd])
                 
         elif mem_sp == RR_duino_node.TURNOUTS_SEGMENT:  #turnouts segment
             debug("Set_mem on turnouts")
-            entry = offset//33
             pos_in_entry = offset % 33
             if pos_in_entry==0:
                 debug("Trying to change subaddress")
             else:
+                subadd = self.memory[mem_sp].read_mem(offset-pos_in_entry,1)[0]
                 index = (pos_in_entry - 1)//8
                 super().set_mem(mem_sp,offset,buf)
-                debug("entry=",entry,"off=",offset,"index=",index)
-                self.turnouts_ev_list[entry][index]=buf
+                debug("subadd=",subadd,"off=",offset,"index=",index)
+                self.turnouts_ev_dict[subadd][index]=buf
                 #sync the description
-                self.desc.desc_dict["turnouts_ev_list"][entry][index]=str(Event(buf))
-                debug(self.desc.desc_dict["turnouts_ev_list"])
-                debug(self.turnouts_ev_list[entry])
+                self.desc.desc_dict["turnouts_ev_dict"][subadd][index]=str(Event(buf))
+                debug(self.desc.desc_dict["turnouts_ev_dict"])
+                debug(self.turnouts_ev_dict[subadd])
  
         elif mem_sp==251:  #identification segment
             super().set_mem(mem_sp,offset,buf)
@@ -796,9 +784,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         ev_lst=[]
         #first check for the waiting producer identified
         index_to_delete=collections.deque()
-        index=0
         for (subadd,value) in subadd_values:
-            for (ev_turnout,ev_subadd,ev_val) in self.waiting_prod_id:
+            for (ev_turnout,ev_subadd,ev_val) in self.waiting_prod_identified:
                 if (ev_turnout,subadd)==(turnouts,subadd):
                     if ev_val-2 == value:  #we only use the position reached events part
                         MTI = Frame.MTI_PROD_ID_VAL
@@ -806,38 +793,28 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                         MTI = Frame.MTI_PROD_ID_INVAL
                     debug("producer identified:",subadd,value,turnouts)
                     if ev_turnout:
-                        ev_lst.append(Frame.build_from_event(self,self.turnouts_ev_list[i][ev_val],MTI))
+                        ev_lst.append(Frame.build_from_event(self,self.turnouts_ev_dict[subadd][ev_val],MTI))
                     else:
-                        ev_lst.append(Frame.build_from_event(self,self.sensors_ev_list[i][ev_val],MTI))
+                        ev_lst.append(Frame.build_from_event(self,self.sensors_ev_dict[subadd][ev_val],MTI))
                     index_to_delete.appendleft(index)
-            index+=1
         #delete all read results already used
         for i in index_to_delete:
             subadd_values.pop(i)
 
         for (subadd,value) in subadd_values:
             if turnouts:
-                index=0
-                for turn_cfg in self.turnouts_cfg:
-                    subadd_cfg = turn_cfg[0]
-                    if subadd_cfg==subadd:
-                        debug("Event for:",subadd,value,turnouts)
-                        #we use value+2 to send the event "turnout has reached position value"
-                        ev_lst.append(Frame.build_from_event(self,
-                                                             self.turnouts_ev_list[index][value+2],
-                                                             0x5B4))
-                        break
-                    index+=1
+                if subadd in self.turnouts_cfg:
+                    debug("Event for:",subadd,value,turnouts)
+                    #we use value+2 to send the event "turnout has reached position value"
+                    ev_lst.append(Frame.build_from_event(self,
+                                                         self.turnouts_ev_dict[subadd][value+2],
+                                                         0x5B4))
             else:
-                index=0
-                for (subadd_cfg,dummy,dummy) in self.sensors_cfg:
-                    if subadd_cfg==subadd:
-                        debug("Event for:",subadd,value,turnouts)
-                        ev_lst.append(Frame.build_from_event(self,
-                                                             self.sensors_ev_list[index][value],
-                                                             0x5B4))
-                        break
-                    index+=1
+                if subadd in self.sensors_cfg:
+                    debug("Event for:",subadd,value,turnouts)
+                    ev_lst.append(Frame.build_from_event(self,
+                                                         self.sensors_ev_dict[subadd][value],
+                                                         0x5B4))
         return ev_lst
     
     def process_receive(self,msg):
@@ -864,25 +841,25 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         
     def consume_event(self,ev,path=None):
         index = 0
-        for ev_pair in self.sensors_ev_list:
+        for subadd in self.sensors_ev_dict:
+            ev_pair = self.sensors_ev_dict[subadd]
             val = -1
             if ev.id == ev_pair[0]:
                 val = 0
             elif ev.id == ev_pair[1]:
                 val = 1
             if val>=0:
-                if self.sensors_cfg[index][2]==RR_duino_message.OUTPUT_SENSOR:
+                if self.sensors_cfg[subadd][2]==RR_duino_message.OUTPUT_SENSOR:
                     debug("RR_duino node",self.desc.desc_dict["fullID"],"sensors consuming event",str(ev))
                     self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
-                                                                           self.sensors_cfg[index][0],
+                                                                           subadd,
                                                                            False,
                                                                            True,
                                                                            val).to_wire_message().encode('utf-8'))
                 else:
                     debug("Error: received an event on an input sensors for RR_duino node",self.desc.desc_dict["fullID"])
-            index+=1
-        index = 0
-        for ev_quad in self.turnouts_ev_list:
+        for subadd in self.turnouts_ev_dict:
+            ev_quad = self.turnouts_ev_dict[subadd]
             found = False
             for val in range(4):
                 print(ev_quad[val],"  ",ev.id)
@@ -895,13 +872,12 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     debug("RR_duino node",self.desc.desc_dict["fullID"],
                           "turnouts consuming event",str(ev))
                     self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
-                                                                           self.turnouts_cfg[index][0],
+                                                                           subadd,
                                                                            False,
                                                                            False,
                                                                            val).to_wire_message().encode('utf-8'))
                 else:
-                    debug("Error: received an event on an turnouts inputs for RR_duino node",self.desc.desc_dict["fullID"]) 
-            index+=1
+                    debug("Error: received an event on an turnouts inputs for RR_duino node",self.desc.desc_dict["fullID"])
 
     def check_id_producer_event(self,ev):
         """
@@ -909,9 +885,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         This is used to reply to "identify producer" event
         Return None and will send the answer later
         """
-        index = 0
-        for ev_pair in self.sensors_ev_list:
-            if self.sensors_cfg[i][2]!=OUTPUT_SENSOR: #must be an input
+        for subadd in self.sensors_ev_dict:
+            ev_pair= sensors_ev_dict[subadd]
+            if self.sensors_cfg[subadd][1]!=OUTPUT_SENSOR: #must be an input
                 val = -1
                 if ev.id == ev_pair[0]:
                     val = 0
@@ -920,22 +896,19 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 if val!=-1:
                     #found the input corresponding to the event
                     #place a deferred read and register the event to be answered later
-                    self.defer_rw[RR_duino_node.DEFER_READ_SENSORS].add(self.sensors_cfg[i][0])
-                    self.waiting_prod_identified.append((False,i,val))
-            index += 1
-        index = 0
-        for ev_quad in self.turnouts_ev_list:
-            found=False
-            for val in range(4):
-                if ev.id == ev_pair[i]:
+                    self.defer_rw[RR_duino_node.DEFER_READ_SENSORS].add(subadd)
+                    self.waiting_prod_identified.append((False,subadd,val))
+        for subadd in self.turnouts_ev_dict:
+            ev_quad = self.turnouts_ev_dict[subadd]
+            for val in range(2,4):
+                if ev.id == ev_quad[val]:
                     found=True
                     break
-            if found and val>=2:
+            if found:
                 #only for the event indicating that the turnout has reached its position
                 #place a deferred read and register the event to be answered later
-                self.defer_rw[RR_duino_node.DEFER_READ_TURNOUTS].add(self.turnouts_cfg[i][0])
-                self.waiting_prod_identified.append((True,i,val))
-            index += 1
+                self.defer_rw[RR_duino_node.DEFER_READ_TURNOUTS].add(subadd)
+                self.waiting_prod_identified.append((True,subadd,val))
         return None
 
 def find_node_from_add(add,nodes):
