@@ -13,12 +13,13 @@ class RR_duino_node:
     def __init__(self,address,version):
         self.address=address
         self.version=version
-        self.sensors = []  #list of sensors config (subaddress,pin,type)
-        self.turnouts = [] #list of turnouts config (subaddress,servo_pin,straight pos,thrown pos [,relay pin 1, relay pin 2,pulse pin 1, pulse pin 2])
+        self.sensors = {}  #dict of sensors config subaddress <-> (pin,type)
+        self.turnouts = {} #dict of turnouts
+        #config subaddress <->(servo_pin,straight pos,thrown pos [,relay pin 1, relay pin 2,pulse pin 1, pulse pin 2])
         self.last_ping = 0
 
     def get_config(self):
-        #get list of sensors and turnouts
+        #get dict of sensors and turnouts
         debug("Getting config from node at ",self.address)
         command =RR_duino.RR_duino_message.build_show_cmd(self.address)
         self.sensors=[]

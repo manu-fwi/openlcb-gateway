@@ -206,8 +206,11 @@ class RR_duino_net_bus(Bus):
                                                               node_cfg["ADDRESS"],
                                                               node_cfg["VERSION"],
                                                               desc)
-                                node.sensors_cfg = node_cfg["SENSORS"]
-                                node.turnouts_cfg = node_cfg["TURNOUTS"]
+                                #convert lists of configs to dictionnaries
+                                for (subadd,pin,IOtype) in node_cfg["SENSORS"]:
+                                    node.sensors_cfg[subadd]=(pin,IOtype)
+                                for turn in node_cfg["TURNOUTS"]:
+                                    node.turnouts_cfg[turn[0]]=turn[1:]
                                 #build node memory and populate it from the DB
                                 node.create_memory()
                                 node.load_from_desc()

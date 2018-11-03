@@ -661,7 +661,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         index = 0
         for subadd in self.desc.desc_dict["sensors_ev_dict"]:
             ev_pair = self.desc.desc_dict["sensors_ev_dict"][subadd]
-            self.sensors_ev_dict[subadd]=([Event.from_str(ev_pair[0]).id,Event.from_str(ev_pair[1]).id])
+            self.sensors_ev_dict[subadd]=[Event.from_str(ev_pair[0]).id,
+                                          Event.from_str(ev_pair[1]).id]
             for i in range(2):
                 super().set_mem(RR_duino_node.SENSORS_SEGMENT,
                                 1+index*(1+8*2)+i*8,
@@ -678,13 +679,14 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         #the nb of turnouts may have changed, hence the discrepancy
         for subadd in self.turnouts_cfg:
             if subadd not in self.desc.desc_dict["turnouts_ev_dict"]:
-                self.desc.desc_dict["turnouts_ev_list"][cfg[0]]=([str(Event.from_str(None))]*4)
+                self.desc.desc_dict["turnouts_ev_dict"][subadd]=([str(Event.from_str(None))]*4)
         index = 0
-        for ev_tuple in self.desc.desc_dict["turnouts_ev_list"]:
-            self.turnouts_ev_list.append([Event.from_str(ev_tuple[0]).id,
-                                          Event.from_str(ev_tuple[1]).id,
-                                          Event.from_str(ev_tuple[2]).id,
-                                          Event.from_str(ev_tuple[3]).id])
+        for subadd in self.desc.desc_dict["turnouts_ev_dict"]:
+            ev_tuple = self.desc.desc_dict["turnouts_ev_dict"][subadd]
+            self.turnouts_ev_dict[subadd]=[Event.from_str(ev_tuple[0]).id,
+                                           Event.from_str(ev_tuple[1]).id,
+                                           Event.from_str(ev_tuple[2]).id,
+                                           Event.from_str(ev_tuple[3]).id]
             for i in range(4):
                 super().set_mem(RR_duino_node.TURNOUTS_SEGMENT,
                                 1+index*(1+8*4)+i*8,
@@ -700,6 +702,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         offset = 0
         #loop over all sensors
         for subadd in self.sensors_cfg:
+            print(subadd)
             sensors_mem.create_mem(offset,1)    #subaddress (R)
             sensors_mem.set_mem(offset,bytes((subadd,)))  #set subaddress
             offset+=1
@@ -849,7 +852,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             elif ev.id == ev_pair[1]:
                 val = 1
             if val>=0:
-                if self.sensors_cfg[subadd][2]==RR_duino_message.OUTPUT_SENSOR:
+                if self.sensors_cfg[subadd][1]==RR_duino_message.OUTPUT_SENSOR:
                     debug("RR_duino node",self.desc.desc_dict["fullID"],"sensors consuming event",str(ev))
                     self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
                                                                            subadd,
