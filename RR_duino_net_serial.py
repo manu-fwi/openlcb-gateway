@@ -59,10 +59,8 @@ def decode_messages():
     global rcv_messages,rcv_RR_messages
 
     sep = ";"
-    print(rcv_messages)
     while sep==";":
         first,sep,end = rcv_messages.partition(";")
-        debug(first,"/",sep,"/",end)
         if sep!="":
             rcv_RR_messages.append(RR_duino.RR_duino_message.from_wire_message(first))
             rcv_messages = end
@@ -168,7 +166,6 @@ def send_msg(msg):
     #this should be called when no message is processed on the serial bus
     global ser
 
-    t = time.time()
     ser.send(msg.raw_message)
     answer = bytearray()
     begin = time.time()
@@ -180,9 +177,6 @@ def send_msg(msg):
             begin = time.time()
             answer.extend(r)
             complete = RR_duino.RR_duino_message.is_complete_message(answer)
-            debug(answer,complete)
-    t=time.time()-t
-    print("timed:",t*1000)
     #check time out and answer begins by START and is the answer to the command we have sent
     if time.time()<begin+ANSWER_TIMEOUT:
         answer_msg =  RR_duino.RR_duino_message(answer)
@@ -275,9 +269,9 @@ while not connected:
         s.connect((gateway_ip,gateway_port))
         connected = True
     except ConnectionError:
-        print("connection error, retrying in 1 sec")
+        debug("connection error, retrying in 1 sec")
         time.sleep(1)
-print("connected to gateway!")
+debug("connected to gateway!")
 s.settimeout(0)
 #create or connect to existing cmri_net_bus
 s.send(("RR_DUINO_NET_BUS RR_duino bus 1;").encode('utf-8'))
@@ -311,7 +305,6 @@ while True:
         debug("message_to_send=",message_to_send)
 
         if RR_duino.RR_duino_message.is_complete_message(message_to_send):
-            print("timed:",(time.time()-answer_clock)*1000)
             #answer complete, send it to server
             debug("received from serial and sending it to the server:",(RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
             s.send((RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
