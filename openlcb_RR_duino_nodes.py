@@ -689,8 +689,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                                 1+index*(1+8*4)+i*8,
                                 Event.from_str(ev_tuple[i]).id) #set memory accordingly
             index+=1
-        self.memory[1].dump()
-        self.memory[2].dump()
+        #self.memory[1].dump()
+        #self.memory[2].dump()
         
     def create_memory(self):
         address_mem=openlcb_nodes.Mem_space([(0,1)])  #node address (R) and associated events (RW)

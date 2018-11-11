@@ -105,10 +105,9 @@ def check_alias(alias):
     and reset alias negotiation for the node
     """
 
-    node_cli = buses.find_managed_node(alias)
+    node,node_cli = buses.find_managed_node(alias)
     if node_cli is None:
         return None
-    node = node_cli[0]
     node.permitted = False
     #reset the alias negotiation
     alias_neg = node.create_alias_negotiation()
@@ -150,9 +149,9 @@ def can_control_frame(cli,msg):
         if new:
             list_alias_neg.append(alias_neg)
         #if we have a node in permitted state we send an AMD frame
-        node_cli = buses.find_managed_node(src_id)
-        if node_cli is not None:
-            OLCB_serv.send(Frame.build_AMD(node_cli[0]))
+        dest_node,node_cli = buses.find_managed_node(src_id)
+        if dest_node is not None:
+            OLCB_serv.send(Frame.build_AMD(dest_node))
 
     elif first_b&0x7==0:
         if var_field==0x700:
@@ -204,9 +203,9 @@ def can_control_frame(cli,msg):
         elif var_field>=0x710 and var_field<=0x713:
             debug("Unknown Frame")
     debug(hexp(src_id,3))
-    if data_needed and not data_present:
-        debug("Data needed but none is present!")
-        return
+#    if data_needed and not data_present:
+#        debug("Data needed but none is present!")
+#        return
 
 def process_id_prod_consumer(cli,msg):
     var_field = int(msg[4:7],16)
@@ -299,6 +298,9 @@ def global_frame(cli,msg):
             #FIXME: set correct bits
             s.send((":X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;").encode("utf-8"))
             debug("sent--->:X19668"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+hexp(SPSP|SNIP|CDIP,6)+"000000;")
+        else:
+            #transfer to all other openlcb clients
+            OLCB_serv.transfer(msg.encode('utf-8'),cli)
 
     elif var_field == 0xDE8:#Simple Node Information Request
         dest_node_alias = int(msg[12:15],16)
@@ -310,6 +312,9 @@ def global_frame(cli,msg):
             #FIXME:
             src_node = find_node(src_id)
             send_fields(s,dest_node,0xA08,mfg_name_hw_sw_version,src_node)
+        else:
+            #transfer to all other openlcb clients
+            OLCB_serv.transfer(msg.encode('utf-8'),cli)
 
     elif var_field == 0x5B4: #PCER (event)
         #transfer to all other openlcb clients
@@ -340,6 +345,9 @@ def global_frame(cli,msg):
     elif var_field==0x544 or var_field==0x545 or var_field==0x547: #producer identified
         OLCB_serv.transfer(msg.encode('utf-8'),cli)
         produc_identified(msg,cli)
+    else:
+        #transfer to all other openlcb clients
+        OLCB_serv.transfer(msg.encode('utf-8'),cli)
 
 
 def process_datagram(cli,msg):

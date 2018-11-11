@@ -322,5 +322,5 @@ def find_managed_node(aliasID):
             for n in c.managed_nodes:
                 if n.aliasID == aliasID:
                     return (n,c)
-    return None
+    return (None,None)
    
