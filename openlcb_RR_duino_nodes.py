@@ -76,12 +76,12 @@ class RR_duino_message:
         #fixme
         if not self.is_answer():
             return False
+        #check if async bit was set in command
+        if cmd & (1 << RR_duino_message.CMD_ASYNC_BIT) != 0:
+            return (self.raw_message[1] & (1 << RR_duino_message.CMD_ASYNC_BIT)) !=0
         #check base command code
         if (self.raw_message[1] & 0b11111000) != (cmd & 0b11111000):
             return False
-        #check if async bit was set in command
-        if cmd & (1 << RR_duino_message.CMD_ASYNC_BIT) != 0:
-            return self.raw_message[1] & (1 << RR_duino_message.CMD_ASYNC_BIT) !=0
         return True
     
     def is_last_answer(self):
