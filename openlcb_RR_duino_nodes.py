@@ -76,12 +76,12 @@ class RR_duino_message:
         #fixme
         if not self.is_answer():
             return False
+        #check if async bit was set in command
+        if cmd & (1 << RR_duino_message.CMD_ASYNC_BIT) != 0:
+            return (self.raw_message[1] & (1 << RR_duino_message.CMD_ASYNC_BIT)) !=0
         #check base command code
         if (self.raw_message[1] & 0b11111000) != (cmd & 0b11111000):
             return False
-        #check if async bit was set in command
-        if cmd & (1 << RR_duino_message.CMD_ASYNC_BIT) != 0:
-            return self.raw_message[1] & (1 << RR_duino_message.CMD_ASYNC_BIT) !=0
         return True
     
     def is_last_answer(self):
@@ -337,7 +337,6 @@ class RR_duino_message:
         #returns None if message is invalid
 
         def is_cmd_add_message(msg):
-            debug("is_cmd_add_message")
             #checks if the message is only 3 bytes: start,command,address
             if msg.is_answer():
                 return False
@@ -371,7 +370,6 @@ class RR_duino_message:
                 current = next_turnout_config_pos(msg,last)
             return msg.raw_message[last] & 0x80 != 0
 
-        debug("is complete")
         if len(msg)==0:
             return False
         #length>0
@@ -391,7 +389,6 @@ class RR_duino_message:
         
         #treat the answer cases (must finish by 0x8x)
         if message.is_answer():
-            debug("is_answer")
             #exceptions: the show and version commands can have bytes with MSB!=0 before the end
             if special_config is None or (special_config!=RR_duino_message.CMD_VERSION
                                           and special_config!=RR_duino_message.CMD_SHOW_SENSORS
@@ -692,8 +689,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                                 1+index*(1+8*4)+i*8,
                                 Event.from_str(ev_tuple[i]).id) #set memory accordingly
             index+=1
-        self.memory[1].dump()
-        self.memory[2].dump()
+        #self.memory[1].dump()
+        #self.memory[2].dump()
         
     def create_memory(self):
         address_mem=openlcb_nodes.Mem_space([(0,1)])  #node address (R) and associated events (RW)
@@ -860,7 +857,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                                                                            True,
                                                                            val).to_wire_message().encode('utf-8'))
                 else:
-                    debug("Error: received an event on an input sensors for RR_duino node",self.desc.desc_dict["fullID"])
+                    debug("Error: received an event on an input sensors for RR_duino node",
+                          self.desc.desc_dict["fullID"])
         for subadd in self.turnouts_ev_dict:
             ev_quad = self.turnouts_ev_dict[subadd]
             found = False
@@ -880,7 +878,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                                                                            False,
                                                                            val).to_wire_message().encode('utf-8'))
                 else:
-                    debug("Error: received an event on an turnouts inputs for RR_duino node",self.desc.desc_dict["fullID"])
+                    debug("Error: received an event on an turnouts inputs for RR_duino node",
+                          self.desc.desc_dict["fullID"])
 
     def check_id_producer_event(self,ev):
         """
