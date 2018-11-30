@@ -497,7 +497,7 @@ class RR_duino_node(openlcb_nodes.Node):
     represents a RR_duino node which means it is an openlcb node (with memory, alias and so on
     and also is linked to the real hardware (via the bus program helper) using the RR_duino protocol
     """
-    CDI="""<?xml version="1.0"?>
+    CDI_header="""<?xml version="1.0"?>
 <cdi xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 
@@ -528,8 +528,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 <group>
 <name>This node has %nsensors sensors and %nturnouts turnouts configured</name>
 </group>
-</segment>
-<segment space='1'>
+</segment>"""
+    CDI_sensors ="""<segment space='1'>
 <group replication="%nsensors">
 <name>Sensors</name>
 <description>Each sensor on the device.</description>
@@ -550,8 +550,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </eventid>
 </group>
 </group>
-</segment>
-<segment space='2'>
+</segment>"""
+    CDI_turnouts="""<segment space='2'>
 <group replication="%nturnouts">
 <name>Turnouts</name>
 <description>Each sensor on the device.</description>
@@ -580,8 +580,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </eventid>
 </group>
 </group>
-</segment>
-</cdi>
+</segment>"""
+    CDI_footer="""</cdi>
 \0"""
     #memory spaces
     ADDRESS_SEGMENT = 0
@@ -621,9 +621,14 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         return res
 
     def get_CDI(self):
-        CDI = RR_duino_node.CDI.replace("%address",str(self.address)).replace("%hwversion",str(self.hwversion))
-        CDI = CDI.replace("%nsensors",str(len(self.sensors_cfg))).replace("%nturnouts",str(len(self.turnouts_cfg)))
-        return CDI
+        CDI = RR_duino_node.CDI_header.replace("%address",str(self.address)).replace("%hwversion",str(self.hwversion))
+        if len(self.sensors_cfg)>0:
+            CDI += RR_duino_node.CDI_sensors.replace("%nsensors",str(len(self.sensors_cfg)))
+
+        if len(self.turnouts_cfg)>0:
+            CDI+= RR_duino_node.CDI_turnouts.replace("%nturnouts",str(len(self.turnouts_cfg)))
+            
+        return CDI+RR_duino_node.CDI_footer
 
     def load_from_desc(self): #get events from the node desc
         #load address, description
@@ -693,7 +698,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         #self.memory[2].dump()
         
     def create_memory(self):
-        address_mem=openlcb_nodes.Mem_space([(0,1)])  #node address (R) and associated events (RW)
+        address_mem=openlcb_nodes.Mem_space([(0,1)])  #node address (R) 
         address_mem.set_mem(0,bytes((self.address,)))  #set address
         sensors_mem=openlcb_nodes.Mem_space()
         offset = 0
