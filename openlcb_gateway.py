@@ -459,8 +459,11 @@ while not done:
     #FIXME: I think this ensures that the frames chronology is OK
     #That is: the server will process these answers after all previous incoming frames
     for ev in ev_list:
-        OLCB_serv.internal_sock.send(ev.to_gridconnect())
-        debug("sent to internal",ev.to_gridconnect())
+        print("data=",ev.data,ev.data==b"0"*8)
+        if ev.data != b"\0"*8:
+            OLCB_serv.internal_sock.send(ev.to_gridconnect())
+            debug("sent to internal",ev.to_gridconnect())
+            #quit()
 
     #frames are different as they really should not be treated by the gateway
     #for example if we generate a CID and send it to us, that would invalidate the alias
