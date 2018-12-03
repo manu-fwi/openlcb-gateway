@@ -167,11 +167,11 @@ class RR_duino_net_bus(Bus):
         for c in self.clients:
             msg = c.next_msg()
             if msg:
-                debug("rr_duino new msg=",msg)
+                #debug("rr_duino new msg=",msg)
                 msg=msg[:len(msg)-1]  #remove the trailing ";"
                 if msg:
                     msg.lstrip() #get rid of leading spaces
-                    debug("RR_duino_net_bus processing",msg)
+                    #debug("RR_duino_net_bus processing",msg)
                     if msg.startswith(hex_int(RR_duino.RR_duino_message.START)):
                         #it is a RR_duino message, process it
                         RR_msg = RR_duino.RR_duino_message.from_wire_message(msg)

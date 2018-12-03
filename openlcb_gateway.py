@@ -356,8 +356,8 @@ def process_datagram(cli,msg):
     #for now we assume a one frame datagram
     dest_node_alias = int(msg[4:7],16)
     dest_node,cli_dest = buses.find_managed_node(dest_node_alias)
-    if dest_node is None and node.permitted:   #not for us or the node is not ready yet
-        debug("Frame is not for us!!")
+    if dest_node is None and dest_node.permitted:   #not for us or the node is not ready yet
+        debug("Frame is not for us or node is not ready!!")
         #forward to all other OLCB clients
         OLCB_serv.transfer(msg.encode('utf-8'),cli)
         return
@@ -459,11 +459,8 @@ while not done:
     #FIXME: I think this ensures that the frames chronology is OK
     #That is: the server will process these answers after all previous incoming frames
     for ev in ev_list:
-        print("data=",ev.data,ev.data==b"0"*8)
-        if ev.data != b"\0"*8:
-            OLCB_serv.internal_sock.send(ev.to_gridconnect())
-            debug("sent to internal",ev.to_gridconnect())
-            #quit()
+        OLCB_serv.internal_sock.send(ev.to_gridconnect())
+        debug("sent to internal",ev.to_gridconnect())
 
     #frames are different as they really should not be treated by the gateway
     #for example if we generate a CID and send it to us, that would invalidate the alias
