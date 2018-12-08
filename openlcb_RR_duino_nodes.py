@@ -141,7 +141,7 @@ class RR_duino_message:
         l = []
         for c in self.raw_message[3:-1]: #forget last byte (the list stop byte)
             l.append((c & 0x3F,c >> RR_duino_message.SUBADD_VALUE_BIT))
-        debug("list of values",l)
+        #debug("list of values",l)
         return l
 
     def get_all_values(self,nb_values):
@@ -162,7 +162,7 @@ class RR_duino_message:
                     return l
             l.append((b >> bit_pos) & 0x01) #shift left and keep LSB only
             bit_pos+=1
-        debug("list of all values",l)
+        #debug("list of all values",l)
         return l
         
     def get_sensor_config(self,index):
@@ -376,7 +376,7 @@ class RR_duino_message:
         if msg[0]!=RR_duino_message.START:
             return None
         if len(msg)<3:
-            print("len(msg)<3")
+            #print("len(msg)<3")
             return False
         message = RR_duino_message(msg)
         if len(msg)==3:
@@ -430,9 +430,11 @@ class RR_duino_node_desc:
 
     def __init__(self,desc_dict):
         self.desc_dict = dict(desc_dict)  #(shallow) copy the dict containing the node description
-        if not "sensors_ev_list" in self.desc_dict:
+        if not "sensors_ev_dict" in self.desc_dict:
+            debug("no sensors_ev_dict")
             self.desc_dict["sensors_ev_dict"]={}
-        if not "turnouts_ev_list" in self.desc_dict:
+        if not "turnouts_ev_dict" in self.desc_dict:
+            debug("no turnouts_ev_dict")
             self.desc_dict["turnouts_ev_dict"]={}
         self.ID = self.desc_dict["fullID"]
 
@@ -605,6 +607,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.sensors_ev_dict = {}
         self.turnouts_ev_dict= {}
         self.desc = desc
+        debug("rr_duino constrcutor, desc=",desc.desc_dict)
         self.client=client
         #deferred reads and writes to offload some messages off the RR_duino bus
         #only used for reads and writes caused by producer identify and consumer identified events
@@ -649,51 +652,70 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         super().set_mem(251,64,openlcb_nodes.normalize(description,64))
         #load sensors events
         #delete desc which are not related to existing subaddresses (they have been deleted for example)
+        debug("before pruning desc",self.desc.desc_dict["sensors_ev_dict"])
         if self.desc.desc_dict["sensors_ev_dict"] is not None:
+            subadd_to_del=[]
             for subadd in self.desc.desc_dict["sensors_ev_dict"]:
-                if subadd not in self.sensors_cfg:
-                    del self.desc.desc_dict["sensors_ev_dict"][subadd]
+                if int(subadd) not in self.sensors_cfg:
+                    subadd_to_del.append(subadd)
+            for subadd in subadd_to_del:
+                del self.desc.desc_dict["sensors_ev_dict"][subadd]
         #add missing descriptions if needed
         #this is needed when a node hardware has been reconfigured
         #the nb of turnouts/sensors may have changed, hence the discrepancy
+        debug("before missing desc",self.desc.desc_dict["sensors_ev_dict"])
         for subadd in self.sensors_cfg:
-            if subadd not in self.desc.desc_dict["sensors_ev_dict"]:
-                self.desc.desc_dict["sensors_ev_dict"][subadd]=([str(Event.from_str(None))]*2)
+            if str(subadd) not in self.desc.desc_dict["sensors_ev_dict"]:
+                self.desc.desc_dict["sensors_ev_dict"][str(subadd)]=([str(Event.from_str(None))]*2)
+        debug("before using desc",self.desc.desc_dict["sensors_ev_dict"])
         
         index = 0
         for subadd in self.desc.desc_dict["sensors_ev_dict"]:
             ev_pair = self.desc.desc_dict["sensors_ev_dict"][subadd]
-            self.sensors_ev_dict[subadd]=[Event.from_str(ev_pair[0]).id,
-                                          Event.from_str(ev_pair[1]).id]
+            self.sensors_ev_dict[int(subadd)]=[Event.from_str(ev_pair[0]).id,
+                                               Event.from_str(ev_pair[1]).id]
             for i in range(2):
                 super().set_mem(RR_duino_node.SENSORS_SEGMENT,
                                 1+index*(1+8*2)+i*8,
                                 Event.from_str(ev_pair[i]).id) #set memory accordingly
             index+=1
+        debug("before using desc",self.desc.desc_dict["sensors_ev_dict"])
+        debug("before using desc",self.sensors_ev_dict)
             
         #load turnouts events
+        debug("before pruning desc",self.desc.desc_dict["turnouts_ev_dict"],self.turnouts_cfg)
+
         if self.desc.desc_dict["turnouts_ev_dict"] is not None:
+            subadd_to_del=[]
             for subadd in self.desc.desc_dict["turnouts_ev_dict"]:
-                if subadd not in self.turnouts_cfg:
-                    del self.desc.desc_dict["turnouts_ev_dict"][subadd]
+                if int(subadd) not in self.turnouts_cfg:
+                    debug("delete subadd=",subadd)
+                    subadd_to_del.append(subadd)
+            for subadd in subadd_to_del:
+                del self.desc.desc_dict["turnouts_ev_dict"][subadd]
         #add missing descriptions if needed
         #this is needed when a node hardware has been reconfigured
         #the nb of turnouts may have changed, hence the discrepancy
+        debug("before missing desc",self.desc.desc_dict["turnouts_ev_dict"])
         for subadd in self.turnouts_cfg:
-            if subadd not in self.desc.desc_dict["turnouts_ev_dict"]:
-                self.desc.desc_dict["turnouts_ev_dict"][subadd]=([str(Event.from_str(None))]*4)
+            if str(subadd) not in self.desc.desc_dict["turnouts_ev_dict"]:
+                self.desc.desc_dict["turnouts_ev_dict"][str(subadd)]=([str(Event.from_str(None))]*4)
         index = 0
+        debug("before using desc",self.desc.desc_dict["turnouts_ev_dict"])
         for subadd in self.desc.desc_dict["turnouts_ev_dict"]:
             ev_tuple = self.desc.desc_dict["turnouts_ev_dict"][subadd]
-            self.turnouts_ev_dict[subadd]=[Event.from_str(ev_tuple[0]).id,
-                                           Event.from_str(ev_tuple[1]).id,
-                                           Event.from_str(ev_tuple[2]).id,
-                                           Event.from_str(ev_tuple[3]).id]
+            self.turnouts_ev_dict[int(subadd)]=[Event.from_str(ev_tuple[0]).id,
+                                                Event.from_str(ev_tuple[1]).id,
+                                                Event.from_str(ev_tuple[2]).id,
+                                                Event.from_str(ev_tuple[3]).id]
             for i in range(4):
                 super().set_mem(RR_duino_node.TURNOUTS_SEGMENT,
                                 1+index*(1+8*4)+i*8,
                                 Event.from_str(ev_tuple[i]).id) #set memory accordingly
             index+=1
+        debug("end using desc",self.desc.desc_dict["turnouts_ev_dict"])
+        debug("end using desc",self.turnouts_ev_dict)
+        
         #self.memory[1].dump()
         #self.memory[2].dump()
         
@@ -810,6 +832,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             if turnouts:
                 if subadd in self.turnouts_cfg:
                     debug("Event for:",subadd,value,turnouts)
+                    if self.turnouts_ev_dict[subadd][value+2]==b"\0"*8:
+                        #do not send 0.0.0.0.0.0.0.0 events
+                        continue
                     #we use value+2 to send the event "turnout has reached position value"
                     ev_lst.append(Frame.build_from_event(self,
                                                          self.turnouts_ev_dict[subadd][value+2],
@@ -817,13 +842,16 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             else:
                 if subadd in self.sensors_cfg:
                     debug("Event for:",subadd,value,turnouts)
+                    if self.sensors_ev_dict[subadd][value]==b"\0"*8:
+                        #do not send 0.0.0.0.0.0.0.0 events
+                        continue
                     ev_lst.append(Frame.build_from_event(self,
                                                          self.sensors_ev_dict[subadd][value],
                                                          0x5B4))
         return ev_lst
     
     def process_receive(self,msg):
-        debug("process receive=",msg.to_wire_message())
+        #debug("process receive=",msg.to_wire_message())
 
         if not msg.is_answer():
             debug("Broken protocol, the bus is receiving a command msg from the slaves!")

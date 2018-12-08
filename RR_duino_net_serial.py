@@ -105,7 +105,7 @@ def process():
         if fullID_from_address(msg.get_address()) is None:
             #ignore message to disappeared nodes
             return
-        debug("Processing message from server", msg.to_wire_message())
+        #debug("Processing message from server", msg.to_wire_message())
         ser.send(msg.raw_message)
         waiting_answer_from = node_from_address(msg.get_address())
         answer_clock = time.time()
@@ -133,10 +133,10 @@ def process():
             if managed_nodes[ID].last_ping < older_ping:
                 older_ping = managed_nodes[ID].last_ping
                 if older_ping < time.time()-RR_duino_node.PING_TIMEOUT:
-                    debug("times:",time.time(),older_ping, managed_nodes[ID].address)
+                    #debug("times:",time.time(),older_ping, managed_nodes[ID].address)
                     node_to_ping = managed_nodes[ID]
         if node_to_ping is not None:
-            debug("pinging")
+            #debug("pinging")
             node_to_ping.last_ping = time.time()
             msg = RR_duino.RR_duino_message.build_async_cmd(node_to_ping.address)
             ser.send(msg.raw_message)
@@ -290,23 +290,23 @@ while True:
     rcv_msg_list=[]
     try:
         buf=s.recv(200).decode('utf-8') #byte array: the raw cmri message
-        debug(buf)
+        #debug(buf)
     except BlockingIOError:
         pass
     if len(buf)>0:
         rcv_messages+=buf
-        debug("raw message=",buf)
+        #debug("raw message=",buf)
         decode_messages()
         
     ser.process_IO()
     process()
     if ser.available():     # we are receiving an answer
         message_to_send += ser.read()
-        debug("message_to_send=",message_to_send)
+        #debug("message_to_send=",message_to_send)
 
         if RR_duino.RR_duino_message.is_complete_message(message_to_send):
             #answer complete, send it to server
-            debug("received from serial and sending it to the server:",(RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
+            #debug("received from serial and sending it to the server:",(RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
             s.send((RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
             #discard the part we just sent
             message_to_send=b""

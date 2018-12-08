@@ -40,7 +40,7 @@ class serial_bus:
     def process_IO(self):
         if self.to_send:  #still sending
             if self.to_send_pos < len(self.to_send):
-                print("sending msg=",self.to_send[self.to_send_pos:])
+                #print("sending msg=",self.to_send[self.to_send_pos:])
                 try:
                     nb = self.ser_port.write(self.to_send[self.to_send_pos:])
                     self.to_send_pos += nb
@@ -49,7 +49,7 @@ class serial_bus:
             else:
                 self.to_send = b""
                 self.to_send_pos = 0
-                print("sending is done")
+                #print("sending is done")
         else:   #see if we have received something
             try:
                 self.rcv_buffer +=  self.ser_port.read()

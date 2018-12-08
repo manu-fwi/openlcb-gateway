@@ -28,13 +28,13 @@ class Client:
         if not sep:
             #print("sep!!")
             return ""
-        debug("next message from ",self.address,msg+sep)
+        #debug("next message from ",self.address,msg+sep)
         self.msgs = end
-        debug("remaining messages",end)
+        #debug("remaining messages",end)
         return msg+sep
 
     def queue(self,cmd):
-        debug("client sending",cmd)
+        #debug("client sending",cmd)
         self.sock.send(cmd+";".encode('utf-8'))
 
 class Client_bus(Client):
@@ -142,12 +142,12 @@ class Openlcb_server:
                 m = s.recv(200).decode('utf-8')
             except socket.error:
                 debug("recv error")
-            debug(len(m)," => ",m)
+            #debug(len(m)," => ",m)
             if not m:
                 #ready to read and empty msg means deconnection
                 self.deconnect_client(c)
             else:
-                debug("new msg=",m)
+                #debug("new msg=",m)
                 c.new_msg(m)
 
     #send a frame (CID or event for ex) to all clients of the server but the emitter (if not None)
