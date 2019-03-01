@@ -665,11 +665,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         for subadd in self.sensors_cfg:
             if str(subadd) not in self.desc.desc_dict["sensors_ev_dict"]:
                 self.desc.desc_dict["sensors_ev_dict"][str(subadd)]=([str(Event.from_str(None))]*2)
-<<<<<<< HEAD
-        debug("before using desc",self.desc.desc_dict["sensors_ev_dict"])
-=======
->>>>>>> 5a55c1d102d48b05d14fe94c5e5eb67075574b86
-        
+
         index = 0
         for subadd in self.desc.desc_dict["sensors_ev_dict"]:
             ev_pair = self.desc.desc_dict["sensors_ev_dict"][subadd]
@@ -684,19 +680,10 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         debug("before using desc",self.sensors_ev_dict)
             
         #load turnouts events
-<<<<<<< HEAD
-        debug("before pruning desc",self.desc.desc_dict["turnouts_ev_dict"],self.turnouts_cfg)
-=======
->>>>>>> 5a55c1d102d48b05d14fe94c5e5eb67075574b86
-
         if self.desc.desc_dict["turnouts_ev_dict"] is not None:
             subadd_to_del=[]
             for subadd in self.desc.desc_dict["turnouts_ev_dict"]:
                 if int(subadd) not in self.turnouts_cfg:
-<<<<<<< HEAD
-                    debug("delete subadd=",subadd)
-=======
->>>>>>> 5a55c1d102d48b05d14fe94c5e5eb67075574b86
                     subadd_to_del.append(subadd)
             for subadd in subadd_to_del:
                 del self.desc.desc_dict["turnouts_ev_dict"][subadd]
@@ -720,11 +707,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                                 1+index*(1+8*4)+i*8,
                                 Event.from_str(ev_tuple[i]).id) #set memory accordingly
             index+=1
-<<<<<<< HEAD
-        debug("end using desc",self.desc.desc_dict["turnouts_ev_dict"])
-        debug("end using desc",self.turnouts_ev_dict)
-=======
->>>>>>> 5a55c1d102d48b05d14fe94c5e5eb67075574b86
         
         #self.memory[1].dump()
         #self.memory[2].dump()

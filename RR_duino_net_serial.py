@@ -26,6 +26,7 @@ class RR_duino_node:
         self.turnouts=[]
         i=0
         error = False
+        pending_answers = False
         while (i<2) and not error:
             answer = []
             done = False
@@ -37,17 +38,21 @@ class RR_duino_node:
                     error = True
                 else:
                     done = answer[-1].is_last_answer()
-                    for m in answer:
-                        if i==0:
-                            self.sensors.extend(m.get_list_of_sensors_config())
-                            debug("Sensors list=",self.sensors)
-                        else:
-                            self.turnouts.extend(m.get_list_of_turnouts_config())
-                            debug("Turnouts list=",self.turnouts)
-                    self.last_ping = time.time()
+            if not error:
+                for m in answer:
+                    if i==0:
+                        self.sensors.extend(m.get_list_of_sensors_config())
+                        debug("Sensors list=",self.sensors)
+                    else:
+                        self.turnouts.extend(m.get_list_of_turnouts_config())
+                        debug("Turnouts list=",self.turnouts)
 
             command = RR_duino.RR_duino_message.build_show_cmd(self.address,True) #for turnouts now
             i+=1
+        if not pending_answer:  #reset ping time if no answer is pending, otherwise decrease by PING_TIMEOUT/5
+            self.last_ping = time.time()
+        else:
+            self.last_ping -= RR_duino_node.PING_TIMEOUT/5
         return not error
     
     def show_config(self,fullID):
@@ -87,7 +92,7 @@ def process():
     
     if waiting_answer_from is not None:   #we are waiting for an answer
         if time.time()>answer_clock+ANSWER_TIMEOUT and node_from_address(waiting_answer_from.address) is not None:
-            #timeout for an aswer->node is down
+            #timeout for an answer->node is down
             debug("node of address", waiting_answer_from.address,"is down")
             debug(answer_clock,time.time(),waiting_answer_from.address)
             #fixme: kill node on the gateway and out of the managed list
@@ -98,8 +103,8 @@ def process():
             debug(managed_nodes.items())
             del managed_nodes[ID]
         return
-    #no IO occuring let's begin a new one if there is any
 
+    #no IO occuring let's begin a new one if there is any
     if rcv_RR_messages:
         msg = rcv_RR_messages.pop(0)
         if fullID_from_address(msg.get_address()) is None:
@@ -109,22 +114,6 @@ def process():
         ser.send(msg.raw_message)
         waiting_answer_from = node_from_address(msg.get_address())
         answer_clock = time.time()
-    elif time.time()>last_dead_nodes_ping+DEAD_NODES_TIME:
-        #try to wake up a "dead" node
-        debug("trying to wake dead nodes up",dead_nodes.items())
-        node_to_ping = None
-        older_ping = time.time()
-        for ID in dead_nodes:
-            if dead_nodes[ID].last_ping < older_ping:
-                older_ping = dead_nodes[ID].last_ping
-                node_to_ping = dead_nodes[ID]
-        if node_to_ping is not None:
-            node_to_ping.last_ping = time.time()
-            msg = RR_duino.RR_duino_message.build_async_cmd(node_to_ping.address)
-            if send_msg(msg) is not None:
-                online_nodes[ID]=node_to_ping
-                del dead_nodes[ID]
-        last_dead_nodes_ping = time.time()
     else:
         #no ongoing I/O on the bus check the node with older ping
         older_ping = time.time()
@@ -142,6 +131,23 @@ def process():
             ser.send(msg.raw_message)
             waiting_answer_from = node_to_ping
             answer_clock = time.time()
+        #no node to ping, try to wake dead nodes up:
+        elif time.time()>last_dead_nodes_ping+DEAD_NODES_TIME:
+            #try to wake up a "dead" node
+            debug("trying to wake dead nodes up",dead_nodes.items())
+            node_to_ping = None
+            older_ping = time.time()
+            for ID in dead_nodes:
+                if dead_nodes[ID].last_ping < older_ping:
+                    older_ping = dead_nodes[ID].last_ping
+                    node_to_ping = dead_nodes[ID]
+            if node_to_ping is not None:
+                node_to_ping.last_ping = time.time()
+                msg = RR_duino.RR_duino_message.build_async_cmd(node_to_ping.address)
+                if send_msg(msg) is not None:
+                    online_nodes[ID]=node_to_ping
+                    del dead_nodes[ID]
+            last_dead_nodes_ping = time.time()
 
 def load_config(filename):
     #Load config file (json formatted dict config, see below)
@@ -240,7 +246,7 @@ while not connected:
 debug("Connected to serial port",config["serial_port"])
 
 rcv_messages=""  #last received messages ready to be cut and decoded
-rcv_RR_messages = []  #decoded cmri messages received from the gateway, waiting to be sent
+rcv_RR_messages = []  #decoded RR_duino messages received from the gateway, waiting to be sent
 message_to_send=b""   #last incomplete message from the serial port
 waiting_answer_from = None #this is the node we are waiting an answer from
 answer_clock = 0
@@ -287,7 +293,6 @@ while True:
         for ID in online_to_del:
             del online_nodes[ID]
     buf=b""
-    rcv_msg_list=[]
     try:
         buf=s.recv(200).decode('utf-8') #byte array: the raw cmri message
         #debug(buf)
@@ -297,7 +302,8 @@ while True:
         rcv_messages+=buf
         #debug("raw message=",buf)
         decode_messages()
-        
+
+    #process serial I/O
     ser.process_IO()
     process()
     if ser.available():     # we are receiving an answer
@@ -306,8 +312,12 @@ while True:
 
         if RR_duino.RR_duino_message.is_complete_message(message_to_send):
             #answer complete, send it to server
-            #debug("received from serial and sending it to the server:",(RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
-            s.send((RR_duino.RR_duino_message(message_to_send).to_wire_message()+";").encode('utf-8'))
+            msg = RR_duino.RR_duino_message(message_to_send)
+            #debug("received from serial and sending it to the server:",(msg.to_wire_message()+";").encode('utf-8'))
+            s.send((msg.to_wire_message()+";").encode('utf-8'))
+            if msg.async_events_pending():
+                #pending answers so decrease last ping time to boost its priority
+                waiting_answer_from.last_ping -= RR_duino_node.PING_TIMEOUT / 5
             #discard the part we just sent
             message_to_send=b""
             waiting_answer_from = None
