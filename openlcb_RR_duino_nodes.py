@@ -934,6 +934,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     self.defer_rw[RR_duino_node.DEFER_READ_SENSORS].add(subadd)
                     self.waiting_prod_identified.append((False,subadd,val))
         for subadd in self.turnouts_ev_dict:
+            found = False
             ev_quad = self.turnouts_ev_dict[subadd]
             for val in range(2,4):
                 if ev.id == ev_quad[val]:
@@ -946,6 +947,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 self.waiting_prod_identified.append((True,subadd,val))
         return None
 
+    def check_id_consumer_event(self,ev):
+        #FIXME
+        return openlcb_nodes.Node.ID_PRO_CON_UNKNOWN
 def find_node_from_add(add,nodes):
     for n in nodes:
         if n.address == add:
