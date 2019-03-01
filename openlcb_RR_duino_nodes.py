@@ -431,10 +431,8 @@ class RR_duino_node_desc:
     def __init__(self,desc_dict):
         self.desc_dict = dict(desc_dict)  #(shallow) copy the dict containing the node description
         if not "sensors_ev_dict" in self.desc_dict:
-            debug("no sensors_ev_dict")
             self.desc_dict["sensors_ev_dict"]={}
         if not "turnouts_ev_dict" in self.desc_dict:
-            debug("no turnouts_ev_dict")
             self.desc_dict["turnouts_ev_dict"]={}
         self.ID = self.desc_dict["fullID"]
 
@@ -667,7 +665,10 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         for subadd in self.sensors_cfg:
             if str(subadd) not in self.desc.desc_dict["sensors_ev_dict"]:
                 self.desc.desc_dict["sensors_ev_dict"][str(subadd)]=([str(Event.from_str(None))]*2)
+<<<<<<< HEAD
         debug("before using desc",self.desc.desc_dict["sensors_ev_dict"])
+=======
+>>>>>>> 5a55c1d102d48b05d14fe94c5e5eb67075574b86
         
         index = 0
         for subadd in self.desc.desc_dict["sensors_ev_dict"]:
@@ -683,13 +684,19 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         debug("before using desc",self.sensors_ev_dict)
             
         #load turnouts events
+<<<<<<< HEAD
         debug("before pruning desc",self.desc.desc_dict["turnouts_ev_dict"],self.turnouts_cfg)
+=======
+>>>>>>> 5a55c1d102d48b05d14fe94c5e5eb67075574b86
 
         if self.desc.desc_dict["turnouts_ev_dict"] is not None:
             subadd_to_del=[]
             for subadd in self.desc.desc_dict["turnouts_ev_dict"]:
                 if int(subadd) not in self.turnouts_cfg:
+<<<<<<< HEAD
                     debug("delete subadd=",subadd)
+=======
+>>>>>>> 5a55c1d102d48b05d14fe94c5e5eb67075574b86
                     subadd_to_del.append(subadd)
             for subadd in subadd_to_del:
                 del self.desc.desc_dict["turnouts_ev_dict"][subadd]
@@ -713,8 +720,11 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                                 1+index*(1+8*4)+i*8,
                                 Event.from_str(ev_tuple[i]).id) #set memory accordingly
             index+=1
+<<<<<<< HEAD
         debug("end using desc",self.desc.desc_dict["turnouts_ev_dict"])
         debug("end using desc",self.turnouts_ev_dict)
+=======
+>>>>>>> 5a55c1d102d48b05d14fe94c5e5eb67075574b86
         
         #self.memory[1].dump()
         #self.memory[2].dump()
@@ -770,8 +780,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 self.sensors_ev_dict[subadd][index]=buf
                 #sync the description
                 self.desc.desc_dict["sensors_ev_dict"][subadd][index]=str(Event(buf))
-                debug("desc dict=",self.desc.desc_dict["sensors_ev_dict"])
-                debug(self.sensors_ev_dict[subadd])
                 
         elif mem_sp == RR_duino_node.TURNOUTS_SEGMENT:  #turnouts segment
             debug("Set_mem on turnouts")
@@ -786,8 +794,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 self.turnouts_ev_dict[subadd][index]=buf
                 #sync the description
                 self.desc.desc_dict["turnouts_ev_dict"][subadd][index]=str(Event(buf))
-                debug(self.desc.desc_dict["turnouts_ev_dict"])
-                debug(self.turnouts_ev_dict[subadd])
  
         elif mem_sp==251:  #identification segment
             super().set_mem(mem_sp,offset,buf)
@@ -807,7 +813,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 self.client.queue(msg.to_wire_message().encode('utf-8'))            
 
     def generate_events(self,subadd_values,turnouts = False):
-        debug("generate events",subadd_values,turnouts)
+        #debug("generate events",subadd_values,turnouts)
         ev_lst=[]
         #first check for the waiting producer identified
         index_to_delete=collections.deque()
@@ -831,6 +837,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         for (subadd,value) in subadd_values:
             if turnouts:
                 if subadd in self.turnouts_cfg:
+                    if self.turnouts_ev_dict[subadd][value+2]==b"\0"*8:
+                        #do not send 0.0.0.0.0.0.0.0 events
+                        continue
                     debug("Event for:",subadd,value,turnouts)
                     if self.turnouts_ev_dict[subadd][value+2]==b"\0"*8:
                         #do not send 0.0.0.0.0.0.0.0 events
@@ -841,6 +850,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                                                          0x5B4))
             else:
                 if subadd in self.sensors_cfg:
+                    if self.sensors_ev_dict[subadd][value]==b"\0"*8:
+                        #do not send 0.0.0.0.0.0.0.0 events
+                        continue
                     debug("Event for:",subadd,value,turnouts)
                     if self.sensors_ev_dict[subadd][value]==b"\0"*8:
                         #do not send 0.0.0.0.0.0.0.0 events
