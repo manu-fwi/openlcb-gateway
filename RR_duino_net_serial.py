@@ -166,6 +166,19 @@ def load_config(filename):
     
     return config
 
+def poll_net():
+    global rcv_messages
+    buf=b""
+    try:
+        buf=s.recv(200).decode('utf-8') #byte array: the raw cmri message
+        #debug(buf)
+    except BlockingIOError:
+        pass
+    if len(buf)>0:
+        rcv_messages+=buf
+        return True
+    return False
+
 def send_msg(msg):
     #send a message to the serial port and wait for the answer (or timeout)
     #return answer or None if timed out
@@ -176,6 +189,7 @@ def send_msg(msg):
     answer = bytearray()
     begin = time.time()
     complete = False
+    #wait for answer completion (or time out)
     while not complete and time.time()<begin+ANSWER_TIMEOUT: #not complete yet
         ser.process_IO()
         r = ser.read()
@@ -183,6 +197,9 @@ def send_msg(msg):
             begin = time.time()
             answer.extend(r)
             complete = RR_duino.RR_duino_message.is_complete_message(answer)
+        #check net connection also
+        poll_net()
+        
     #check time out and answer begins by START and is the answer to the command we have sent
     if time.time()<begin+ANSWER_TIMEOUT:
         answer_msg =  RR_duino.RR_duino_message(answer)
@@ -292,15 +309,8 @@ while True:
                 online_to_del.append(ID)
         for ID in online_to_del:
             del online_nodes[ID]
-    buf=b""
-    try:
-        buf=s.recv(200).decode('utf-8') #byte array: the raw cmri message
-        #debug(buf)
-    except BlockingIOError:
-        pass
-    if len(buf)>0:
-        rcv_messages+=buf
-        #debug("raw message=",buf)
+
+    if poll_net():
         decode_messages()
 
     #process serial I/O
