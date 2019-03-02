@@ -280,7 +280,7 @@ def global_frame(cli,msg):
     src_id = int(msg[7:10],16)
     s = cli.sock
     
-    if var_field==0x490:
+    if var_field==0x490:   #global verify ID
         #forward to all other clients
         OLCB_serv.transfer(msg.encode('utf-8'),cli)
         for b in buses.Bus_manager.buses:
@@ -356,23 +356,26 @@ def process_datagram(cli,msg):
     #for now we assume a one frame datagram
     dest_node_alias = int(msg[4:7],16)
     dest_node,cli_dest = buses.find_managed_node(dest_node_alias)
-    if dest_node is None and dest_node.permitted:   #not for us or the node is not ready yet
+    if dest_node is None or not dest_node.permitted:   #not for us or the node is not ready yet
         debug("Frame is not for us or node is not ready!!")
         #forward to all other OLCB clients
         OLCB_serv.transfer(msg.encode('utf-8'),cli)
         return
     src_node = find_node(src_id)
+    
     if dest_node.current_write is not None:
         address = int(msg[15:23],16)
         #if there is a write in progress then this datagram is part of it
         if memory_write(s,dest_node,src_node,address,msg):
             cli_dest.bus.nodes_db.synced = False
+            
     elif msg[11:15]=="2043": #read command for CDI
         address = int(msg[15:23],16)
         debug("read command, address=",int(msg[15:23],16))
         s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
         debug("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
         send_CDI(s,dest_node,src_node,address,int(msg[23:25],16))
+        
     elif msg[11:14]=="200" or msg[11:14]=="204": #read/write command
         s.send((":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode('utf-8'))
         debug("datagram received ok sent --->",(":X19A28"+hexp(dest_node.aliasID,3)+"N0"+hexp(src_id,3)+";").encode("utf-8"))
