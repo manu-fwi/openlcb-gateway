@@ -71,10 +71,12 @@ class Cmri_net_bus(Bus):
     - New node: "start_node" followed by: full_ID(8 bytes)
     """
     nodes_db_file = "cmri_net_bus_db.cfg"
+    POLL_TIMEOUT = 0.3  #poll every 300ms
     def __init__(self,path_to_nodes_files):
         super().__init__(Bus_manager.cmri_net_bus_name,path_to_nodes_files)
         self.nodes_db = nodes_db.Nodes_db_cpnode(self.path_to_nodes_files+Cmri_net_bus.nodes_db_file)
         self.nodes_db.load_all_nodes()
+        self.last_poll = time.time()
 
         
     def process(self):
@@ -132,9 +134,10 @@ class Cmri_net_bus(Bus):
                         else:
                             debug("unknown cmri_net_bus command")
                         
-            #now poll all nodes
-            for node in c.managed_nodes:
-                node.poll()
+            #now poll all nodes if needed
+            if time.time() > self.last_poll+Cmri_net_bus.POLL_TIMEOUT:
+                for node in c.managed_nodes:
+                    node.poll()
         #move forward for alias negotiation
         frames_list=self.generate_frames_from_alias_neg()
         self.prune_alias_negotiation()
