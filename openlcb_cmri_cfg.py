@@ -139,6 +139,64 @@ class CMRI_message:
             msg += hex_int(b)+" "
         #print("raw_to_wire=",msg,len(msg))
         return msg[:len(msg)-1]
+
+class bits_list:
+    """
+    list of bits, two values per bits: first is current state, second is previous one
+    """
+    def __init__(self):
+        self.bits_states=[]
+
+    def build(self,nb_of_bits):
+        self.bits_states = [[-1,-1] for i in range(nb_of_bits)]
+
+    def has_changed(self): #returns True if one bit has a current state different from the previous state)
+        for states in self.bits_states:
+            if states[0]!=states[1]:
+                return True
+        return False
+
+    def indeices_of_changes(self):
+        #returns a list of all indices of bits that have different current and previous states
+        res = []
+        for index in len(self.bits_states):
+            if self.bits_states[index][0]!=self.bits_states[index][0]:
+                res.append(index)
+        return res
+
+class inputs_list(bits_list):   #list of inputs states (current and last state)
+    def __init__(self):
+        super().__init__(self)
+
+    def from_bytes(self,bytes_list): #set the inputs last state from a list of bytes (unpacks LSB first)
+        index = 0
+        for byte in bytes_list:
+            for i in range(8):
+                #saves current state as last state
+                self.bits_states[index][1]=self.bits_states[index][0]
+                #set current state
+                self.bits_states[index][0] = (byte >> i)&1
+                index+=1
+
+class outputs_list(bits_list): #list of inputs states (current and last state)
+    def __init__(self):
+        super().__init__(self)
+
+    def to_bytes(self): #pack the inputs last state to a list of bytes (unpacks LSB first) (returns a bytearray)
+        index = 0
+        res = bytearray()
+        while index < len(self.bits_states):
+            #new byte
+            res.append(0)
+            for i in range(8):
+                #set bit in last byte
+                res[-1] |= (self.bits_states[index][0] >> i)
+                index+=1
+        return res
+
+    def set_bit(self,index,value): #set bit value and save previous one as last known state
+        self.bits_states[index][1] = self.bits_states[index][0]
+        self.bits_states[index][0]=value
     
 class CMRI_node:
     """
@@ -146,13 +204,26 @@ class CMRI_node:
     The base class only has address and client (the client holds the connection to the external
     program providing the connection to the real bus
     """
-    def __init__(self,address,client=None):
+    def __init__(self,address,read_period,client=None):
         self.address = address
         self.client = client
+        self.last_poll = time.time()-self.read_period
+
+    def read_inputs(self):  #returns True if poll has been sent or False otherwise
+        #send poll to cpNode
+        if time.time()<self.last_poll+CPNode.read_period:
+            return False
+        self.last_poll=time.time()
+        debug("sending poll to cpNode (add=",self.address,")")
+        cmd = CMRI_message(CMRI_message.POLL_M,self.address,b"")
+        if self.client is not None:
+            self.client.queue(cmd.to_wire_message().encode('utf-8'))
+        return True
+    
 
 class CPNode (CMRI_node):
     total_IO = 16
-    read_period = 2 #in seconds
+    read_period = 1 #in seconds
     IOX_max = 16   #max number of IO ports (*8 to get max number of IO lines)
 
     @staticmethod
@@ -178,7 +249,7 @@ class CPNode (CMRI_node):
         return None
     
     def __init__(self,address,nb_I,client=None):
-        super().__init__(address)
+        super().__init__(address,CPNode.read_period,client)
         self.nb_I = nb_I
         self.IOX=[0]*16   #16 boards max
         self.last_input_read = time.time() #timestamp used to trigger a periodic input read
@@ -381,7 +452,7 @@ class CPNode (CMRI_node):
 #                          ex: 0,0 0,1 0,-1
 #
 
-def decode_cmri_node_cfg(args_list):
+def decode_cpnode_cfg(args_list):
     node = None
     print(args_list)
     if args_list[1]=='C':
@@ -436,7 +507,7 @@ def load_cmri_cfg(client,filename):
                     return
                 args = split_args(line)
                 print("args=",args)
-                cpnode = decode_cmri_node_cfg(args[4:])
+                cpnode = decode_cpnode_cfg(args[4:])
                 if cpnode is not None:
                     cpnode.client = client
                     node = openlcb_nodes.Node_cpnode(int(args[0],16))    #full ID (Hex)
@@ -449,5 +520,12 @@ def load_cmri_cfg(client,filename):
                     client.managed_nodes.append(node)
             line = f.readline()
 
+
+class CMRI_SUSIC(CMRI_node):
+    read_period = 1 #in seconds
+    
+    def __init__(self,address,client=None):
+        super().__init__(address,CMRI_SUSIC.read_period,client)
+        
 def hex_int(i):   #same as hex but withouth the leading "0x"
     return hex(i)[2:] 
