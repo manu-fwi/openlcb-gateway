@@ -538,6 +538,24 @@ class CMRI_SUSIC(CMRI_node):
         if save:
             with open(filename,"w") as file:
                 file.write(str(self.outputs)
-        
+
+    def process_receive(self,msg):
+        debug("process receive=",msg.message)
+        message=msg.message
+        index = 0
+        n = 0
+        while n < len(self.inputs.bits_states) and index < len(message):
+            new_value = (message[index] >> (n%8))&0x01
+            #only register the new value if its different from the current one
+            if new_value != self.inputs[n][0]:
+                self.inputs[n][1] = self.inputs[n][0]  #current value becomes last value
+                self.inputs[n][0] = new_value
+            n+=1
+            if n % 8==0:
+                index +=1 #next byte
+
+        if n<len(self.intputs.bits_states):
+            debug("Error: number of inputs in Receive message not corresponding to setup")
+
 def hex_int(i):   #same as hex but withouth the leading "0x"
     return hex(i)[2:] 
