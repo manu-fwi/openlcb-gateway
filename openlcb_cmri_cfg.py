@@ -255,12 +255,14 @@ class CPNode (CMRI_node):
         self.last_input_read = time.time() #timestamp used to trigger a periodic input read
         #inputs states pair (first is current state, second is last state)
         #state = -1: never polled
-        self.inputs=[[-1,-1] for i in range(nb_I)]
-        self.inputs_IOX = []
+        self.inputs=inputs_list()
+        self.inputs.build(nb_I)
+        self.inputs_IOX = inputs_list()
         #outputs states (first is desired state, second is last known state)
         #state=-1: never been set: FIXME do we need this?
-        self.outputs=[[0,-1] for i in range(CPNode.total_IO-nb_I)]
-        self.outputs_IOX=[]
+        self.outputs=outputs_list()
+        self.outputs.build(CPNode.total_IO-nb_I)
+        self.outputs_IOX=outputs_list()
         self.last_poll = time.time()-CPNode.read_period
         self.last_receive = time.time()-CPNode.read_period
         self.client = client
