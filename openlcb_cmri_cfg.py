@@ -293,19 +293,7 @@ class CPNode (CMRI_node):
                 self.outputs_IOX.extend([[0,-1] for k in range(8)])
             elif self.IOX[i]==2:
                 self.inputs_IOX.extend([[-1,-1] for k in range(8)])  #extend bits array
-                   
         
-    def read_inputs(self):  #returns True if poll has been sent or False otherwise
-        #send poll to cpNode
-        if time.time()<self.last_poll+CPNode.read_period:
-            return False
-        self.last_poll=time.time()
-        debug("sending poll to cpNode (add=",self.address,")")
-        cmd = CMRI_message(CMRI_message.POLL_M,self.address,b"")
-        if self.client is not None:
-            self.client.queue(cmd.to_wire_message().encode('utf-8'))
-        return True
-
     def process_receive(self,msg):
         debug("process receive=",msg.message)
         message=msg.message
@@ -340,7 +328,7 @@ class CPNode (CMRI_node):
         for i in self.IOX:
             if i==1:
                 bits = [io[0] for io in self.outputs_IOX[first_bit:first_bit+8]]
-                bytes_value+=bytearray((CPNode.pack_bits(bits),))
+                #bytes_value+=bytearray((CPNode.pack_bits(bits),)) FIXME
                 debug("(",i,") bytes=",bytes_value)
                 first_bit += 8
         debug("bytes_value",bytes_value)
