@@ -156,7 +156,7 @@ class bits_list:
                 return True
         return False
 
-    def indeices_of_changes(self):
+    def indices_of_changes(self):
         #returns a list of all indices of bits that have different current and previous states
         res = []
         for index in len(self.bits_states):
@@ -524,8 +524,26 @@ def load_cmri_cfg(client,filename):
 class CMRI_SUSIC(CMRI_node):
     read_period = 1 #in seconds
     
-    def __init__(self,address,client=None):
+    def __init__(self,address,node_type,cards_sets,client=None):
         super().__init__(address,CMRI_SUSIC.read_period,client)
+        self.cards_sets = cards_sets
+        self.node_type = node_type
+        self.build_bits_states()
+        
+    def build_bits_states(self):
+        if self.node_type=="N":
+            nb_bits_per_card=24
+        elif self.node_type=="X":
+            nb_bits_per_card=32
+        nb_inputs=0
+        nb_outputs=0
+        for c in self.cards_sets:
+            nb_inputs+=c & 0x01 + c & 0x04 + c & 0x10 + c & 0x40
+            nb_outputs+=c & 0x02 + c & 0x08 + c & 0x20 + c & 0x80
+        self.inputs = inputs_list()
+        self.inputs.build(nb_bits_per_card*nb_inputs)
+        self.outputs = outputs_list()
+        self.outputs.build(nb_bits_per_card*nb_outputs)
         
 def hex_int(i):   #same as hex but withouth the leading "0x"
     return hex(i)[2:] 
