@@ -197,6 +197,12 @@ class outputs_list(bits_list): #list of inputs states (current and last state)
     def set_bit(self,index,value): #set bit value and save previous one as last known state
         self.bits_states[index][1] = self.bits_states[index][0]
         self.bits_states[index][0]=value
+
+    def __str__(self):
+        res=""
+        for bit in self.bits_states:
+            res+=str(bit[0])+" "
+        return res
     
 class CMRI_node:
     """
@@ -334,9 +340,9 @@ class CPNode (CMRI_node):
                 debug("(",i,") bytes=",bytes_value)
                 first_bit += 8
         debug("bytes_value",bytes_value)
-        cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
         if self.client is not None:
-            self.client.queue(cmd.to_wire_message().encode('utf-8'))
+            cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
+           self.client.queue(cmd.to_wire_message().encode('utf-8'))
         #fixme do we need this?
         for io in self.outputs:
             io[1]=io[0]  #value has been sent so sync last known value to that
@@ -522,6 +528,16 @@ class CMRI_SUSIC(CMRI_node):
         self.inputs.build(nb_bits_per_card*nb_inputs)
         self.outputs = outputs_list()
         self.outputs.build(nb_bits_per_card*nb_outputs)
+
+    def write_outputs(self,filename,save=True):
+        if self.client is not None:
+            cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
+            self.client.queue(cmd.to_wire_message().encode('utf-8'))
+        
+        #save outputs states to file
+        if save:
+            with open(filename,"w") as file:
+                file.write(str(self.outputs)
         
 def hex_int(i):   #same as hex but withouth the leading "0x"
     return hex(i)[2:] 
