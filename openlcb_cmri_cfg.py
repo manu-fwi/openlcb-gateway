@@ -166,7 +166,7 @@ class bits_list:
 
 class inputs_list(bits_list):   #list of inputs states (current and last state)
     def __init__(self):
-        super().__init__(self)
+        super().__init__()
 
     def from_bytes(self,bytes_list): #set the inputs last state from a list of bytes (unpacks LSB first)
         index = 0
@@ -180,7 +180,7 @@ class inputs_list(bits_list):   #list of inputs states (current and last state)
 
 class outputs_list(bits_list): #list of inputs states (current and last state)
     def __init__(self):
-        super().__init__(self)
+        super().__init__()
 
     def to_bytes(self): #pack the inputs last state to a list of bytes (unpacks LSB first) (returns a bytearray)
         index = 0
@@ -190,7 +190,7 @@ class outputs_list(bits_list): #list of inputs states (current and last state)
             res.append(0)
             for i in range(8):
                 #set bit in last byte
-                res[-1] |= (self.bits_states[index][0] >> i)
+                res[-1] |= (self.bits_states[index][0] << i)
                 index+=1
         return res
 
@@ -333,8 +333,7 @@ class CPNode (CMRI_node):
             
     def write_outputs(self,filename,save=True):
         #send outputs to node
-        bits = [io[0] for io in self.outputs]
-        bytes_value = bytearray((CPNode.pack_bits(bits),))
+        bytes_value = self.outputs.to_bytes()
         if len(bytes_value)==1:
             bytes_value+=b"\0"
         first_bit = 0
@@ -421,17 +420,6 @@ class CPNode (CMRI_node):
         for IO in self.IOX:
             if IO>0:
                 res+=8
-        return res
-
-    @staticmethod
-    def pack_bits(bits_list): #will pack a list of bit values as a list of bytes, MSB is first bit and so on
-        res = 0
-        shift=0
-        for i in bits_list:
-            print("i=",i,"res=",res)            
-            res |= i << shift
-            shift+=1
-            print("i=",i,"res=",res)
         return res
 
 #
