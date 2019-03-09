@@ -150,6 +150,16 @@ class bits_list:
     def build(self,nb_of_bits):
         self.bits_states = [[-1,-1] for i in range(nb_of_bits)]
 
+    def set_bit(self,index,value): #set bit value and save previous one as last known state
+        self.bits_states[index][1] = self.bits_states[index][0]
+        self.bits_states[index][0]=value
+
+    def __str__(self):
+        res=""
+        for bit in self.bits_states:
+            res+=str(bit[0])+" "
+        return res
+
     def has_changed(self): #returns True if one bit has a current state different from the previous state)
         for states in self.bits_states:
             if states[0]!=states[1]:
@@ -192,16 +202,6 @@ class outputs_list(bits_list): #list of inputs states (current and last state)
                 #set bit in last byte
                 res[-1] |= (self.bits_states[index][0] << i)
                 index+=1
-        return res
-
-    def set_bit(self,index,value): #set bit value and save previous one as last known state
-        self.bits_states[index][1] = self.bits_states[index][0]
-        self.bits_states[index][0]=value
-
-    def __str__(self):
-        res=""
-        for bit in self.bits_states:
-            res+=str(bit[0])+" "
         return res
     
 class CMRI_node:
@@ -538,6 +538,28 @@ class CMRI_SUSIC(CMRI_node):
         if save:
             with open(filename,"w") as file:
                 file.write(str(self.outputs))
+                
+    def load_outputs(self,filename):
+        debug("loading outputs from file",filename)
+        exists=True
+        try:
+            file = open(filename,"r")
+        except IOError:
+            exists=False
+        if exists:
+            line = file.readline()
+            index = 0
+            for i in line.split():
+                if index==len(self.outputs):
+                    debug("Too many outputs values in the file",filename)
+                    break
+                self.outputs[index][0]=int(i)
+                index+=1
+            if index<len(self.outputs):
+                debug("Not enough outputs values in the file",filename)
+            debug(self.outputs)
+            debug(self.outputs_IOX)
+            file.close()
 
     def process_receive(self,msg):
         debug("process receive=",msg.message)
@@ -548,8 +570,7 @@ class CMRI_SUSIC(CMRI_node):
             new_value = (message[index] >> (n%8))&0x01
             #only register the new value if its different from the current one
             if new_value != self.inputs[n][0]:
-                self.inputs[n][1] = self.inputs[n][0]  #current value becomes last value
-                self.inputs[n][0] = new_value
+                self.inputs.set_bit(n,new_value)
             n+=1
             if n % 8==0:
                 index +=1 #next byte
