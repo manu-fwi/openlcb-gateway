@@ -522,8 +522,8 @@ class CMRI_SUSIC(CMRI_node):
         nb_inputs=0
         nb_outputs=0
         for c in self.cards_sets:
-            nb_inputs+=c & 0x01 + c & 0x04 + c & 0x10 + c & 0x40
-            nb_outputs+=c & 0x02 + c & 0x08 + c & 0x20 + c & 0x80
+            nb_inputs+=bit_value(c,0) + bit_value(c,2) + bit_value(c,4)+bit_value(c,6)
+            nb_outputs+=bit_value(c,1) + bit_value(c,3) + bit_value(c,5)+bit_value(c,7)
         self.inputs = inputs_list()
         self.inputs.build(nb_bits_per_card*nb_inputs)
         self.outputs = outputs_list()
@@ -559,3 +559,7 @@ class CMRI_SUSIC(CMRI_node):
 
 def hex_int(i):   #same as hex but withouth the leading "0x"
     return hex(i)[2:] 
+
+def bit_value(c,bit_n):
+    return (c & (1 << bit_n)) >> bit_n
+
