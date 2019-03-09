@@ -160,7 +160,7 @@ class bits_list:
         #returns a list of all indices of bits that have different current and previous states
         res = []
         for index in len(self.bits_states):
-            if self.bits_states[index][0]!=self.bits_states[index][0]:
+            if self.bits_states[index][0]!=self.bits_states[index][1]:
                 res.append(index)
         return res
 
@@ -182,7 +182,7 @@ class outputs_list(bits_list): #list of inputs states (current and last state)
     def __init__(self):
         super().__init__()
 
-    def to_bytes(self): #pack the inputs last state to a list of bytes (unpacks LSB first) (returns a bytearray)
+    def to_bytes(self): #pack the outputs last state to a list of bytes (unpacks LSB first) (returns a bytearray)
         index = 0
         res = bytearray()
         while index < len(self.bits_states):
@@ -537,7 +537,7 @@ class CMRI_SUSIC(CMRI_node):
         #save outputs states to file
         if save:
             with open(filename,"w") as file:
-                file.write(str(self.outputs)
+                file.write(str(self.outputs))
 
     def process_receive(self,msg):
         debug("process receive=",msg.message)
