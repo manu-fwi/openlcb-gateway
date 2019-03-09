@@ -505,7 +505,7 @@ def load_cmri_cfg(client,filename):
             line = f.readline()
 
 
-class CMRI_SUSIC(CMRI_node):
+class SUSIC(CMRI_node):
     read_period = 1 #in seconds
     
     def __init__(self,address,node_type,cards_sets,client=None):

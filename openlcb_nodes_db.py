@@ -78,6 +78,31 @@ class Nodes_db_cpnode(Nodes_db_node):
         
         return openlcb_cpnodes.Node_cpnode.from_json(js)
 
+"""
+Format: a (json) list each element of which is a node description
+Format for a node description: json format with the following fields
+"fullID" (integer)
+"cmri_node_add" (integer)
+"version" (integer)
+"name" (string)
+"description" (string)
+"type" (character)
+"cards_sets" (list of integers)
+"events" pairs of events (8 bytes, hex noted, separated by '.')
+"""
+
+class Nodes_db_SUSIC(Nodes_db_node):  
+    def __init__(self,filename):
+        super().__init__(filename)
+        
+    def load_node(self,js):
+        
+        if "fullID" not in js or "cmri_node_add" not in js or "type" not in js or "cards_sets" not in js:
+            debug("missing fields in the node description",js)
+            return None
+        
+        return openlcb_susic.Node_SUSIC.from_json(js)
+    
 class Nodes_db_RR_duino_node(Nodes_db_node):  
     def __init__(self,filename):
         super().__init__(filename)
