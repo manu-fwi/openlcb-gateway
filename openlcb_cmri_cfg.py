@@ -509,7 +509,7 @@ class SUSIC(CMRI_node):
     read_period = 1 #in seconds
     
     def __init__(self,address,node_type,cards_sets,client=None):
-        super().__init__(address,CMRI_SUSIC.read_period,client)
+        super().__init__(address,SUSIC.read_period,client)
         self.cards_sets = cards_sets
         self.node_type = node_type
         self.build_bits_states()
