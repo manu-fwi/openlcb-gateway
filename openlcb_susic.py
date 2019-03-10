@@ -73,7 +73,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     CDI_footer = """</segment>
 </cdi>
 \0"""
-    CDI_IOX = """<group>
+    CDI_IO = """<group>
 <name>IOX expansions</name>
 <int size="1">
 <default>1</default>
@@ -101,12 +101,12 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </group>
 </group>
 """
-    CDI_IOX_repetition_beg="""<group replication="%nbiox">
+    CDI_IO_repetition_beg="""<group replication="%nbio">
 <name> IOX expansions</name>
 <description> Each group describes and IOX card I/O group</description>
 <repname>Card </repname>
 """
-    CDI_IOX_repetition_end="""</group>
+    CDI_IO_repetition_end="""</group>
 """
     #default dict to add new nodes to the DB when they have no description (used by cmri_net_bus)
     DEFAULT_JSON = { "fullID":None,"cmri_node_add":0 }
@@ -117,7 +117,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             node_type="N"
         if "cards_sets" not in js:
             js["cards_sets"]=[]
-        n.cp_node = cmri.SUSIC(js["cmri_node_add"], js["type"],js["cards_sets"])
+        n.susic = cmri.SUSIC(js["cmri_node_add"], js["type"],js["cards_sets"])
         n.create_memory()
         n.set_mem(253,0,bytes((js["cmri_node_add"],)))
         n.set_mem(253,1,bytes((js["IO_config"],)))
@@ -192,21 +192,13 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         
                 
     def create_memory(self):           
-        channels_mem=nodes.Mem_space([(0,1),(1,1)])  #node address and io config
+        channels_mem=nodes.Mem_space([(0,1),(1,1)])  #node address and node type ("N" or "X")
         offset = 2
-        #loop over 16 channels (basic IO)
-        for i in range(self.cp_node.total_IO*2): #2 events per IO line
+        #loop over all I/O channels
+        for i in range(len(self.susic.inputs)+len(self.susic.outputs)*2): #2 events per IO line
             channels_mem.create_mem(offset,8)
             channels_mem.set_mem(offset,b"\0"*8)    #default event
             offset+=8
-        #now IOX associated memory
-        for i in range(cmri.CPNode.IOX_max):
-            channels_mem.create_mem(offset,1)   #Input or output for the IOX card
-            offset+=1
-            for j in range(16):   #2 events per IO line
-                channels_mem.create_mem(offset,8)
-                channels_mem.set_mem(offset,b"\0"*8)    #default event
-                offset+=8
         self.memory = {251:nodes.Mem_space([(0,1),(1,63),(64,64)]),
                        253:channels_mem}
         #self.memory[251].dump()
@@ -215,31 +207,30 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             
     def __init__(self,ID):
         super().__init__(ID)
-        self.cp_node=None        #real node
-        self.ev_list=[(b"\0"*8,b"\0"*8)]*16   #basic event list: inputs events always first!
-        self.ev_list_IOX = [(b"\0"*8,b"\0"*8)]*128    #IOX events list for 8 IO lines for 16 cards max
+        self.susic=None        #real node
+        self.ev_list=[]        #events list
 
-    def get_IOX_CDI(self):
+    def get_IO_CDI(self):
         
-        res = Node_cpnode.CDI_IOX_repetition_beg.replace("%nbiox","16")
-        res+= Node_cpnode.CDI_IOX
-        res+= Node_cpnode.CDI_IOX_repetition_end
+        res = Node_SUSIC.CDI_IO_repetition_beg.replace("%nbio",str(len(self.susic.inputs)))
+        res+= Node_SUSIC.CDI_IO
+        res+= Node_SUSIC.CDI_IO_repetition_end
         return res
         
     def get_CDI(self):
-        return Node_cpnode.CDI_header+self.get_IOX_CDI()+Node_cpnode.CDI_footer
+        return Node_SUSIC.CDI_header+self.get_IO_CDI()+Node_SUSIC.CDI_footer
 
     def set_mem(self,mem_sp,offset,buf):
         super().set_mem(mem_sp,offset,buf)
         if mem_sp == 253:
             if offset == 0:
                 #address change
-                debug("changing address",self.cp_node.address,buf[0])
-                self.cp_node.address = buf[0]
+                debug("changing address",self.susic.address,buf[0])
+                self.susic.address = buf[0]
             elif offset == 1:
                 pass
                 #FIXME: I dont handle the I/O type change for now
-            elif offset >=2 and offset-2<self.cp_node.total_IO*2*8: #check if we change a basic IO event
+            elif offset >=2 and offset-2<(len(self.susic.inputs)len(self.susic.outputs))*2*8: #check if we change a IO event
                 #rebuild the events if they have changed
                 entry = (offset-2)//16
                 
@@ -249,48 +240,20 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     offset_0 = offset - 8
                 debug("entry=",entry,"off=",offset,"off0=",offset_0)
                 self.ev_list[entry]=(self.read_mem(mem_sp,offset_0),self.read_mem(mem_sp,offset_0+8))
-            else: #memory changed is about IOX part
-                offset_0 =offset-2-self.cp_node.total_IO*2*8
-                card = offset_0//(1+8*2*8) #compute the card number, each description is 129 bytes long
-                                       #IO type + 8 bytes for 8 pairs of events (1 pair per I/O line)
-                offset_in_card = offset_0 % (1+8*2*8)
-                debug(offset,offset_0,card,offset_in_card,(offset_in_card-1)//16)
-                if offset_in_card == 0:  #IO Type
-                    self.cp_node.IOX[card]=self.read_mem(mem_sp,offset)[0]
-                    self.cp_node.build_IOX()
-                else:   #event
-                    ev_pair_index=(offset_in_card-1)//16
-                    if (offset_in_card-1)%16 == 0: #first event
-                        offset_0 = offset
-                    else:
-                        offset_0 = offset - 8
-                    self.ev_list_IOX[card*8+ev_pair_index]=(self.read_mem(mem_sp,offset_0),self.read_mem(mem_sp,offset_0+8))
-
+            else:
+                debug("set_mem out of IO")
+                
     def poll(self):
-        self.cp_node.read_inputs()
+        self.susic.read_inputs()
         
     def generate_events(self):
         ev_lst = []
-        cpn = self.cp_node
-        for i in range(cpn.nb_I):
-            if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
-                if self.ev_list[i][cpn.inputs[i][0]]!=b"\0"*8: #do not generate event if 0.0.0.0.0.0.0.0
-                    ev_lst.append(Event(self.ev_list[i][cpn.inputs[i][0]],self.aliasID))
-        current_bit = 0
-        ev_index = 0
-        for i in cpn.IOX:
-            if i==2: #its an input port
-                for j in range(8): #check all bits
-                    if cpn.inputs_IOX[current_bit][0]!=cpn.inputs_IOX[current_bit][1]:
-                        if self.ev_list[ev_index][cpn.inputs_IOX[current_bit][0]]!=b"\0"*8:
-                            ev_lst.append(Event(self.ev_list[ev_index][cpn.inputs_IOX[current_bit][0]],
-                                                self.aliasID))
-                    ev_index+=1 #next ev index
-                    current_bit+=1 #next bit
-            else:
-                current_bit+=8   #first bit of next card
-                ev_index+=8
-                
+        susic = self.susic
+        #for i in range(susic.inputs):
+        #    if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
+        #        if self.ev_list[i][cpn.inputs[i][0]]!=b"\0"*8: #do not generate event if 0.0.0.0.0.0.0.0
+        #            ev_lst.append(Event(self.ev_list[i][cpn.inputs[i][0]],self.aliasID))
+
         return ev_lst
 
     def check_id_producer_event(self,ev):
