@@ -77,34 +77,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     CDI_footer = """</segment>
 </cdi>
 \0"""
-    CDI_IO = """<group>
-<name>IOX expansions</name>
-<int size="1">
-<default>1</default>
-<map>
-<relation><property>0</property><value>No card</value></relation>
-<relation><property>1</property><value>8 Outputs</value></relation>
-<relation><property>2</property><value>8 Inputs</value></relation>
-</map>
-</int>
-<group replication="8">
-<name> IOX channels</name>
-<description> Each channel is an I/O line on a IOX expander</description>
-<repname>Channel</repname>
-<group>
-<name>Input/Output</name>
-<eventid>
-<name>Input/Output LOW</name>
-<description>When this event arrives, the output will be switched to LOW or if it is an Input this event is generated when it is LOW</description>
-</eventid>
-<eventid>
-<name>Input/Output HIGH</name>
-<description>When this event arrives, the output will be switched to HIGH or if it is an Input this event is generated when it is HIGH.</description>
-</eventid>
-</group>
-</group>
-</group>
-"""
+
     CDI_IO_card_group="""<group replication="%nbio">
 <name> I/O channels</name>
 <description> Each group describes and IOX card I/O group</description>
@@ -211,10 +184,12 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         return encoded_cards
     
     def get_IO_CDI(self):
-        
-        res = Node_SUSIC.CDI_IO_repetition_beg.replace("%nbcards",str(len(self.cards_sets)))
-        res+= Node_SUSIC.CDI_IO
-        res+= Node_SUSIC.CDI_IO_repetition_end
+        res = ""
+        nb_bits_per_slot = self.susic.nb_bits_per_slot()
+        for index in range(len(self.cards_sets)):
+            res += Node_SUSIC.CDI_cards_begin.replace("%cardindex",str(index)))
+            res += Node_SUSIC.CDI_slots.replace("%nbslots",str(len(self.cards_sets[index]))).replace("%nbbits",str(nb_bits_per_slot))
+            res+= Node_SUSIC.CDI_cards_end
         return res
         
     def get_CDI(self):
