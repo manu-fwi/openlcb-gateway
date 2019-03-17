@@ -37,26 +37,29 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 <min>0</min><max>127</max>
 </int>
 <group>
-<name>Base I/O configuration</name>
+<name>Node type</name>
 <int size="1">
-<default>2</default>
+<default>1</default>
 <map>
-<relation><property>1</property><value>6 Inputs / 10 Outputs</value></relation>
-<relation><property>2</property><value>8 Inputs / 8 Outputs</value></relation>
-<relation><property>3</property><value>8 Outputs / 8 Inputs</value></relation>
-<relation><property>4</property><value>12 Outputs / 4 Inputs</value></relation>
-<relation><property>5</property><value>16 Inputs</value></relation>
-<relation><property>6</property><value>16 Outputs</value></relation>
-<relation><property>7</property><value>RSMC 5 Inputs / 11 Outputs</value></relation>
-<relation><property>7</property><value>RSMC LOCK 4 Inputs / 12 Outputs</value></relation>
+<relation><property>N</property><value>USIC or 24 bits cards SUSIC</value></relation>
+<relation><property>X</property><value>SUSIC with 32 bits cards</value></relation>
 </map>
 </int>
 </group>
-<group replication="16">
+"""
+    CDI_cards_begin = """<group>
+<name>Card %cardindex</name>
+<description>Slots</description>
+"""
+    CDI_cards_end ="""</group>"""
+    CDI_slots ="""<group replication="%nbslots">
+<name>Slots</name>
+<description>Slots</description>
+<repname>Slot</repname>
+<group replication="%nbbits">
 <name>Channels</name>
 <description>Each channel is an I/O line.</description>
 <repname>Channel</repname>
-
 <group>
 <name>Input/Output</name>
 <eventid>
@@ -67,6 +70,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 <name>Input/Output HIGH</name>
 <description>When this event arrives, the output will be switched to HIGH or if it is an Input this event is generated when it is HIGH.</description>
 </eventid>
+</group>
 </group>
 </group>
 """
@@ -101,8 +105,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </group>
 </group>
 """
-    CDI_IO_repetition_beg="""<group replication="%nbio">
-<name> IOX expansions</name>
+    CDI_IO_card_group="""<group replication="%nbio">
+<name> I/O channels</name>
 <description> Each group describes and IOX card I/O group</description>
 <repname>Card </repname>
 """
@@ -208,7 +212,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     
     def get_IO_CDI(self):
         
-        res = Node_SUSIC.CDI_IO_repetition_beg.replace("%nbio",str(len(self.susic.inputs)))
+        res = Node_SUSIC.CDI_IO_repetition_beg.replace("%nbcards",str(len(self.cards_sets)))
         res+= Node_SUSIC.CDI_IO
         res+= Node_SUSIC.CDI_IO_repetition_end
         return res
