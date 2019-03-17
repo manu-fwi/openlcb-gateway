@@ -513,12 +513,15 @@ class SUSIC(CMRI_node):
         self.cards_sets = cards_sets
         self.node_type = node_type
         self.build_bits_states()
+
+    def nb_bits_per_slot(self):
+        if self.node_type=="N":
+            return 24
+        elif self.node_type=="X":
+            return 32
         
     def build_bits_states(self):
-        if self.node_type=="N":
-            nb_bits_per_card=24
-        elif self.node_type=="X":
-            nb_bits_per_card=32
+        nb_bits_per_card=self.nb_bits_per_slot()
         nb_inputs=0
         nb_outputs=0
         for c in self.cards_sets:

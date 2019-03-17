@@ -120,13 +120,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         n.susic = cmri.SUSIC(js["cmri_node_add"], js["type"],js["cards_sets"])
         n.create_memory()
         n.set_mem(253,0,bytes((js["cmri_node_add"],)))
-        n.set_mem(253,1,bytes((js["IO_config"],)))
-        if "IOX_config" in js:
-            IOX= js["IOX_config"]
-        else:
-            IOX=[0]*16
-        index=0
-        debug(IOX)
+        n.set_mem(253,1,bytes((js["type"],)))
         for i in IOX:
             debug("IOX",i,2+cmri.CPNode.total_IO*2*8+index*(1+2*8*8))
             n.set_mem(253,2+cmri.CPNode.total_IO*2*8+index*(1+2*8*8),bytes((i,)))
@@ -206,10 +200,33 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         
             
     def __init__(self,ID):
-        super().__init__(ID)
-        self.susic=None        #real node
+        super().__init__(ID,address,node_type,cards_sets)
+        self.cards_sets = cards_sets   #list of cards config strings ("IOII", or "O" for example)
+        self.susic=cmri.SUSIC(address,node_type,self.cards_sets_encode())        #real node
         self.ev_list=[]        #events list
 
+    def cards_sets_encode(self):
+        """
+        Encode the cards sets from list of strings (ex: ["IOO",...]) to list of bytes as per CMRI documentation
+        """
+        encoded_cards = []
+        for card in self.cards_sets:
+            encoded_byte = 0
+            shift = 0
+            for slot in card:
+                if slot == "O":
+                    encoded_byte |= 1 << shift
+                elif slot =="I":
+                    encoded_byte |= 2 << shift
+                else:
+                    debug("Cards sets decode error!")
+                shift += 2
+                if shift>6:
+                    debug("card description too long!")
+                    continue
+            encoded_cards.append(encoded_byte)
+
+        return encoded_cards
     def get_IO_CDI(self):
         
         res = Node_SUSIC.CDI_IO_repetition_beg.replace("%nbio",str(len(self.susic.inputs)))
