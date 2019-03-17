@@ -121,10 +121,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         n.create_memory()
         n.set_mem(253,0,bytes((js["cmri_node_add"],)))
         n.set_mem(253,1,bytes((js["type"],)))
-        for i in IOX:
-            debug("IOX",i,2+cmri.CPNode.total_IO*2*8+index*(1+2*8*8))
-            n.set_mem(253,2+cmri.CPNode.total_IO*2*8+index*(1+2*8*8),bytes((i,)))
-            index+=1
         if "version" in js:
             version = js["version"]
         else:
@@ -140,10 +136,10 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         else:
             description = ""
         n.set_mem(251,64,nodes.normalize(description,64))
-        if "basic_events" in js:
+        if "events" in js:
             index=0
-            for ev in js["basic_events"]:
-                debug("basic",index,ev)
+            for ev in js["events"]:
+                debug("event",index,ev)
                 n.set_mem(253,2+index*8,Event.from_str(ev).id)
                 index+=1
         if "IOX_events" in js:
@@ -167,20 +163,15 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         node_desc = {"fullID":self.ID,"cmri_node_add":self.cp_node.address,
                      "version":self.read_mem(251,0)[0],"name":name[:name.find(0)].decode('utf-8'),
                      "description":descr[:descr.find(0)].decode('utf-8'),
-                     "IO_config":self.read_mem(253,1)[0],
-                     "IOX_config":self.cp_node.IOX}
+                     "type":self.read_mem(253,1)[0],
+                     "cards_sets":self.cards_sets}
         str_events=[]
         debug("ev_list",len(self.ev_list))
         for ev in self.ev_list:
             debug(ev)
             str_events.extend((str(Event(ev[0])),str(Event(ev[1]))))
-        node_desc["basic_events"]=str_events
-        str_events_IOX=[]
-        debug("ev_list_IOX",len(self.ev_list_IOX))
-        for ev in self.ev_list_IOX:
-            debug(ev)
-            str_events_IOX.extend((str(Event(ev[0])),str(Event(ev[1]))))
-        node_desc["IOX_events"]=str_events_IOX
+        node_desc["events"]=str_events
+
         debug("node desc=",node_desc)
         return node_desc
         
