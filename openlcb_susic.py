@@ -142,18 +142,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 debug("event",index,ev)
                 n.set_mem(253,2+index*8,Event.from_str(ev).id)
                 index+=1
-        if "IOX_events" in js:
-            debug("IOX",index,ev)
-            offset = 2+cmri.CPNode.total_IO*2*8+1   #beginning of the first IOX event
-            index = 0
-            for ev in js["IOX_events"]:
-                #compute the offset where the event must go in memory (remember its 1 byte (I or O)
-                #and then 16 times two events
-                n.set_mem(253,offset,Event.from_str(ev).id)
-                index+=1
-                offset+=8    #next event
-                if index%16==0:  #16 events per card, add 1 to skip the I/O byte of the next card
-                    offset+=1
         return n
 
     def to_json(self):
