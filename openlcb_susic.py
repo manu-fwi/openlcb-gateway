@@ -189,7 +189,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         channels_mem=nodes.Mem_space([(0,1),(1,1)])  #node address and node type ("N" or "X")
         offset = 2
         #loop over all I/O channels
-        for i in range(len(self.susic.inputs)+len(self.susic.outputs)*2): #2 events per IO line
+        for i in range((len(self.susic.inputs)+len(self.susic.outputs))*2): #2 events per IO line
             channels_mem.create_mem(offset,8)
             channels_mem.set_mem(offset,b"\0"*8)    #default event
             offset+=8
@@ -225,8 +225,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     debug("card description too long!")
                     continue
             encoded_cards.append(encoded_byte)
-
         return encoded_cards
+    
     def get_IO_CDI(self):
         
         res = Node_SUSIC.CDI_IO_repetition_beg.replace("%nbio",str(len(self.susic.inputs)))
