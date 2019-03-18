@@ -373,48 +373,25 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         
         return result
 
-    def consume_event(self,ev,filename):
+    def consume_event(self,rcvd_ev,filename):
         #the node might consume the same event for several outputs (one event controlling several outputs)
-        debug("node consume, ev=",ev.id)
+        debug("node consume, ev=",rcvd_ev.id)
         modified = False
-        index = 0
-        for ev_pair in self.ev_list:
+        for ev in self.ev_list:
             val = -1
-            if ev.id == ev_pair[0]:
+            if rcvd_ev.id == ev[0]:
                 val = 0
-            elif ev.id == ev_pair[1]:
+            elif rcvd_ev.id == ev[1]:
                 val = 1
-            debug("consume event:",index,">=?",self.cp_node.nb_I," val=",val)
-            if val>=0 and index>=self.cp_node.nb_I:  #we only consume event for outputs
-                self.cp_node.set_output(index-self.cp_node.nb_I,val)
+            debug("SUSIC consume event:",rcvd_ev.id," val=",val)
+            if val>=0 and ev[2]=="O":  #we only consume event for outputs
+                self.susic.outputs.set_bit(ev[3],val)
                 modified = True
-            elif val>=0 and index<self.cp_node.nb_I:
-                debug("Event received for an input! (event id=",ev.id,")")
-            index+=1
-        card_index = 0
-        output_index=0
-        counter = 0  #count each event so card index is counter//8
-        #fixme check if correct
-        for ev_pair in self.ev_list_IOX:
-            val = -1
-            if ev.id == ev_pair[0]:
-                val = 0
-            elif ev.id == ev_pair[1]:
-                val = 1
-            debug("consume event:",index," val=",val)
-            if self.cp_node.IOX[counter//8]==1:
-                if val>=0:  #we only consume event for outputs
-                    self.cp_node.set_output_IOX(output_index,val)
-                    modified = True
-                output_index+=1 #next output
-            elif val>=0 and self.cp_node.IOX[counter//8]==2:
-                debug("Event received for an IOX input! (event id=",ev.id,")")
-            elif val>=0 and self.cp_node.IOX[counter//8]==0:
-                debug("Event received for an empty IOX slot! (event id=",ev.id,")")
-            
-            counter+=1
+            elif val>=0:
+                debug("[SUSIC] Event received for an input! (event id=",ev.id,")")
+        
         if modified:
-            self.cp_node.write_outputs(filename)
+            self.susic.write_outputs(filename)
         
 def find_node_from_cmri_add(add,nodes):
     for n in nodes:
