@@ -49,7 +49,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 """
     CDI_cards_begin = """<group>
 <name>Card %cardindex</name>
-<description>Slots</description>
+<description>Expansion card</description>
 """
     CDI_cards_end ="""</group>"""
     CDI_slots ="""<group replication="%nbslots">
@@ -78,11 +78,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 </cdi>
 \0"""
 
-    CDI_IO_card_group="""<group replication="%nbio">
-<name> I/O channels</name>
-<description> Each group describes and IOX card I/O group</description>
-<repname>Card </repname>
-"""
     CDI_IO_repetition_end="""</group>
 """
     #default dict to add new nodes to the DB when they have no description (used by cmri_net_bus)
@@ -159,8 +154,23 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         super().__init__(ID,address,node_type,cards_sets)
         self.cards_sets = cards_sets   #list of cards config strings ("IOII", or "O" for example)
         self.susic=cmri.SUSIC(address,node_type,self.cards_sets_encode())        #real node
-        self.ev_list=[]        #events list
+        self.ev_list=[]  #events list:list of 4 elements:
+                         #event pair,type of I/O ("I" or "O") and index of the corresponding I/O line
+        self.create_ev_list()
 
+    def create_ev_list(self):
+        input_index = 0
+        output_index = 0
+        for card in self.cards_sets:  #for each card
+            for io in card:           #for each I/O
+                for i in range(self.susic.nb_bits_per_slot()): #one event pair for each I/O line
+                    if io=="I":  #input
+                        self.ev_list.append([b"\0"*8,b"\0"*8,io,input_index])
+                        input_index+=1
+                    else:  #output
+                        self.ev_list.append([b"\0"*8,b"\0"*8,io,output_index])
+                        output_index+=1
+                        
     def cards_sets_encode(self):
         """
         Encode the cards sets from list of strings (ex: ["IOO",...]) to list of bytes as per CMRI documentation
@@ -209,12 +219,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 #rebuild the events if they have changed
                 entry = (offset-2)//16
                 
-                if (offset-2)%16==0:
-                    offset_0 = offset
-                else:
-                    offset_0 = offset - 8
-                debug("entry=",entry,"off=",offset,"off0=",offset_0)
-                self.ev_list[entry]=(self.read_mem(mem_sp,offset_0),self.read_mem(mem_sp,offset_0+8))
+                self.ev_list[entry][(offset-2)%16]=self.read_mem(mem_sp,offset)
             else:
                 debug("set_mem out of IO")
                 
@@ -223,11 +228,18 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         
     def generate_events(self):
         ev_lst = []
-        susic = self.susic
-        #for i in range(susic.inputs):
-        #    if cpn.inputs[i][0]!=cpn.inputs[i][1]: #input change send corresponding event
-        #        if self.ev_list[i][cpn.inputs[i][0]]!=b"\0"*8: #do not generate event if 0.0.0.0.0.0.0.0
-        #            ev_lst.append(Event(self.ev_list[i][cpn.inputs[i][0]],self.aliasID))
+        changes = self.susic.inputs.indices_of_changes()  #sorted list of indices of changed input lines
+        ev_index = 0
+        for index in changes:
+            #look for an input line with corresponding to the current index
+            while ev_index<len(self.ev_list) and (self.ev_list[ev_index][2]!="I"
+                                                  or self.ev_list[ev_index][3]!=index):
+                ev_index+=1
+            if ev_index >= len(self.ev_list):
+                debug("Index error in SUSIC generate events!")
+                return
+            if self.ev_list[ev_index][self.susic.inputs[index][0]]!=b"\0"*8: #do not generate event if 0.0.0.0.0.0.0.0
+                    ev_lst.append(Event(self.ev_list[ev_index][self.susic.inputs[index][0]],self.aliasID))
 
         return ev_lst
 
