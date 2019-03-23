@@ -53,9 +53,11 @@ class Nodes_db_node:
 
 
 """
-Format: a (json) list each element of which is a node description
-Format for a node description: json format with the following fields
+Base class for all CMRI nodes types:CPNodes and SUSICs for now
+
+Format for a CP node: a (json) list each element of which is a node description
 "fullID" (integer)
+"type" (character) "C"
 "cmri_node_add" (integr)
 "version" (integer)
 "name" (string)
@@ -64,24 +66,11 @@ Format for a node description: json format with the following fields
 "IOX_config" (list of pairs of integers (-1,0 or 1), only the needed number <=8)
 "basic_events" 16 pairs of events (8 bytes, hex noted, separated by '.')
 "IOX_events" pairs of events (only the needed number <=128)
-"""
 
-class Nodes_db_cpnode(Nodes_db_node):  
-    def __init__(self,filename):
-        super().__init__(filename)
-        
-    def load_node(self,js):
-        
-        if "fullID" not in js or "cmri_node_add" not in js or "IO_config" not in js:
-            debug("missing fields in the node description",js)
-            return None
-        
-        return openlcb_cpnodes.Node_cpnode.from_json(js)
-
-"""
-Format: a (json) list each element of which is a node description
+Format for a SUSIC node: a (json) list each element of which is a node description
 Format for a node description: json format with the following fields
 "fullID" (integer)
+"type" (character) "X" or "N"
 "cmri_node_add" (integer)
 "version" (integer)
 "name" (string)
@@ -90,19 +79,20 @@ Format for a node description: json format with the following fields
 "cards_sets" (list of integers)
 "events" pairs of events (8 bytes, hex noted, separated by '.')
 """
-
-class Nodes_db_SUSIC(Nodes_db_node):  
+class Nodes_db_CMRI(Nodes_db_node):  
     def __init__(self,filename):
         super().__init__(filename)
         
     def load_node(self,js):
         
-        if "fullID" not in js or "cmri_node_add" not in js or "type" not in js or "cards_sets" not in js:
+        if "fullID" not in js or "cmri_node_add" not in js or "IO_config" not in js:
             debug("missing fields in the node description",js)
             return None
-        
-        return openlcb_susic.Node_SUSIC.from_json(js)
-    
+        if js["type"]=="C":
+            return openlcb_cpnodes.Node_cpnode.from_json(js)
+        elif js["type"]=="N" or js["type"]=="X":            
+            return openlcb_susic.Node_SUSIC.from_json(js)
+
 class Nodes_db_RR_duino_node(Nodes_db_node):  
     def __init__(self,filename):
         super().__init__(filename)

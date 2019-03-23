@@ -74,7 +74,7 @@ class Cmri_net_bus(Bus):
     POLL_TIMEOUT = 0.3  #poll every 300ms
     def __init__(self,path_to_nodes_files):
         super().__init__(Bus_manager.cmri_net_bus_name,path_to_nodes_files)
-        self.nodes_db = nodes_db.Nodes_db_cpnode(self.path_to_nodes_files+Cmri_net_bus.nodes_db_file)
+        self.nodes_db = nodes_db.Nodes_db_CMRI(self.path_to_nodes_files+Cmri_net_bus.nodes_db_file)
         self.nodes_db.load_all_nodes()
         self.last_poll = time.time()
 
