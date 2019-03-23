@@ -158,6 +158,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                          #event pair,type of I/O ("I" or "O") and index of the corresponding I/O line
         self.create_ev_list()
 
+    def get_low_level_node(self):  #return the underlying susic node object
+        return self.susic
+    
     def create_ev_list(self):
         input_index = 0
         output_index = 0

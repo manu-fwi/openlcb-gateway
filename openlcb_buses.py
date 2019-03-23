@@ -100,7 +100,7 @@ class Cmri_net_bus(Bus):
                         if node is None:
                             debug("Unknown node!! add=",cmri.CMRI_message.UA_to_add(int(words_list[3],16)) )
                         else:
-                            node.cp_node.process_receive(cmri.CMRI_message.from_wire_message(msg))
+                            node.get_low_level_node().process_receive(cmri.CMRI_message.from_wire_message(msg))
                             ev_list.extend(node.generate_events())
                     else:
                         #it is a bus message (new node...)
@@ -114,7 +114,7 @@ class Cmri_net_bus(Bus):
                                 js["fullID"]=fullID
                                 node = openlcb_nodes.Node_cpnode.from_json(js)
                                 self.nodes_db.db[fullID]=node
-                            node.cp_node.client = c
+                            node.get_low_level_node().client = c
                             #create and register alias negotiation
                             alias_neg = node.create_alias_negotiation()
                             #loop while we find an unused alias
@@ -129,8 +129,8 @@ class Cmri_net_bus(Bus):
                             if self.path_to_nodes_files:
                                 filename+="/"
                             filename+=str(node.ID)+".outputs"
-                            node.cp_node.load_outputs(filename)
-                            node.cp_node.write_outputs(filename,False)
+                            node.get_low_level_node().load_outputs(filename)
+                            node.get_low_level_node().write_outputs(filename,False)
                         else:
                             debug("unknown cmri_net_bus command")
                         

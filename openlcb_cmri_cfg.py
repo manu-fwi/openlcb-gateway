@@ -561,7 +561,6 @@ class SUSIC(CMRI_node):
             if index<len(self.outputs):
                 debug("Not enough outputs values in the file",filename)
             debug(self.outputs)
-            debug(self.outputs_IOX)
             file.close()
 
     def process_receive(self,msg):
@@ -586,4 +585,3 @@ def hex_int(i):   #same as hex but withouth the leading "0x"
 
 def bit_value(c,bit_n):
     return (c & (1 << bit_n)) >> bit_n
-

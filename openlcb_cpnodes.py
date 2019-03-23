@@ -220,6 +220,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.ev_list=[(b"\0"*8,b"\0"*8)]*16   #basic event list: inputs events always first!
         self.ev_list_IOX = [(b"\0"*8,b"\0"*8)]*128    #IOX events list for 8 IO lines for 16 cards max
 
+    def get_low_level_node(self): #returns the underlying cpnode
+        return self.cpnode
+    
     def get_IOX_CDI(self):
         
         res = Node_cpnode.CDI_IOX_repetition_beg.replace("%nbiox","16")
