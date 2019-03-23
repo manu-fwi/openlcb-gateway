@@ -342,7 +342,7 @@ class CPNode (CMRI_node):
         debug("bytes_value",bytes_value)
         if self.client is not None:
             cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
-           self.client.queue(cmd.to_wire_message().encode('utf-8'))
+            self.client.queue(cmd.to_wire_message().encode('utf-8'))
         #fixme do we need this?
         for io in self.outputs:
             io[1]=io[0]  #value has been sent so sync last known value to that
