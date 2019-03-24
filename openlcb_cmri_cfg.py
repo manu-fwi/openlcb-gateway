@@ -534,6 +534,7 @@ class SUSIC(CMRI_node):
         self.inputs.build(nb_bits_per_card*nb_inputs)
         self.outputs = outputs_list()
         self.outputs.build(nb_bits_per_card*nb_outputs)
+        debug("build_bits_states=",self.outputs.bits_states,self.inputs.bits_states)
 
     def write_outputs(self,filename,save=True):
         if self.client is not None:
@@ -560,7 +561,7 @@ class SUSIC(CMRI_node):
                 if index==len(self.outputs):
                     debug("Too many outputs values in the file",filename)
                     break
-                self.outputs[index][0]=int(i)
+                self.outputs.bits_states[index][0]=int(i)
                 index+=1
             if index<len(self.outputs):
                 debug("Not enough outputs values in the file",filename)

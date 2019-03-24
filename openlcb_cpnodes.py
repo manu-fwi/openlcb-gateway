@@ -168,13 +168,13 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         return n
 
     def to_json(self):
-        name = self.read_mem(251,1)
-        descr = self.read_mem(251,64)
+        name = self.read_mem(251,1,63)
+        descr = self.read_mem(251,64,64)
         #dict describing the node, first part
         node_desc = {"fullID":self.ID,"cmri_node_add":self.cp_node.address,
-                     "version":self.read_mem(251,0)[0],"name":name[:name.find(0)].decode('utf-8'),
+                     "version":self.read_mem(251,0,1)[0],"name":name[:name.find(0)].decode('utf-8'),
                      "description":descr[:descr.find(0)].decode('utf-8'),
-                     "IO_config":self.read_mem(253,1)[0],
+                     "IO_config":self.read_mem(253,1,1)[0],
                      "IOX_config":self.cp_node.IOX}
         str_events=[]
         debug("ev_list",len(self.ev_list))
@@ -252,7 +252,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 else:
                     offset_0 = offset - 8
                 debug("entry=",entry,"off=",offset,"off0=",offset_0)
-                self.ev_list[entry]=(self.read_mem(mem_sp,offset_0),self.read_mem(mem_sp,offset_0+8))
+                self.ev_list[entry]=(self.read_mem(mem_sp,offset_0,8),self.read_mem(mem_sp,offset_0+8,8))
             else: #memory changed is about IOX part
                 offset_0 =offset-2-self.cp_node.total_IO*2*8
                 card = offset_0//(1+8*2*8) #compute the card number, each description is 129 bytes long

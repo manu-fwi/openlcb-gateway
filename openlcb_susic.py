@@ -90,7 +90,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         if "cards_sets" not in js:
             js["cards_sets"]=[]
         n = Node_SUSIC(js["fullID"],js["cmri_node_add"],js["type"],js["cards_sets"])
-        n.susic = cmri.SUSIC(js["cmri_node_add"], js["type"],js["cards_sets"])
         n.create_memory()
         n.set_mem(253,0,bytes((js["cmri_node_add"],)))
         n.set_mem(253,1,js["type"].encode("ascii"))
@@ -121,13 +120,13 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         return n
 
     def to_json(self):
-        name = self.read_mem(251,1)
-        descr = self.read_mem(251,64)
+        name = self.read_mem(251,1,63)
+        descr = self.read_mem(251,64,64)
         #dict describing the node, first part
         node_desc = {"fullID":self.ID,"cmri_node_add":self.cp_node.address,
-                     "version":self.read_mem(251,0)[0],"name":name[:name.find(0)].decode('utf-8'),
+                     "version":self.read_mem(251,0,1)[0],"name":name[:name.find(0)].decode('utf-8'),
                      "description":descr[:descr.find(0)].decode('utf-8'),
-                     "type":self.read_mem(253,1)[0],
+                     "type":self.read_mem(253,1,1)[0],
                      "cards_sets":self.cards_sets}
         str_events=[]
         debug("ev_list",len(self.ev_list))
@@ -193,14 +192,14 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     continue
                 debug("slot=",slot," shift=",shift," encoded_byte=",encoded_byte)
                 if slot == "O":
-                    encoded_byte |= 1 << shift
-                elif slot =="I":
                     encoded_byte |= 2 << shift
+                elif slot =="I":
+                    encoded_byte |= 1 << shift
                 else:
                     debug("Cards sets decode error!")
                 shift += 2
             encoded_cards.append(encoded_byte)
-        return encoded_cards.reverse()
+        return encoded_cards
     
     def get_IO_CDI(self):
         res = ""
@@ -228,7 +227,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 #rebuild the events if they have changed
                 entry = (offset-2)//16
                 
-                self.ev_list[entry][(offset-2)%16]=self.read_mem(mem_sp,offset)
+                self.ev_list[entry][(offset-2)%16]=self.read_mem(mem_sp,offset,8)
             else:
                 debug("set_mem out of IO")
                 
