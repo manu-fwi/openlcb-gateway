@@ -512,25 +512,10 @@ class SUSIC(CMRI_node):
     
     def __init__(self,address,node_type,cards_sets,client=None):
         super().__init__(address,SUSIC.read_period,client)
-        self.encode_cards_sets(cards_sets)
+        self.cards_sets=cards_sets
         self.node_type = node_type
         self.build_bits_states()
 
-    def encode_cards_sets(self,cards_sets):  #convert cards sets (["IOI","OO",...]) to a list of bytes
-        print("cards_sets=",cards_sets)
-        shift = 0
-        self.cards_sets = b""
-        for card in cards_sets:
-            b=0
-            for IO in card:
-                if IO=="I":
-                    val = 1
-                else:
-                    val = 2
-                b+=val << shift
-                shift+=2
-            self.cards_sets = bytes(b,)+self.cards_sets
-        print(self.cards_sets)
     def nb_bits_per_slot(self):
         if self.node_type=="N":
             return 24
@@ -541,6 +526,7 @@ class SUSIC(CMRI_node):
         nb_bits_per_card=self.nb_bits_per_slot()
         nb_inputs=0
         nb_outputs=0
+        debug("build_bits",self.cards_sets)
         for c in self.cards_sets:
             nb_inputs+=bit_value(c,0) + bit_value(c,2) + bit_value(c,4)+bit_value(c,6)
             nb_outputs+=bit_value(c,1) + bit_value(c,3) + bit_value(c,5)+bit_value(c,7)

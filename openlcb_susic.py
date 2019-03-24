@@ -184,9 +184,14 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         """
         encoded_cards = []
         for card in self.cards_sets:
+            debug("card=",card)
             encoded_byte = 0
             shift = 0
             for slot in card:
+                if shift>6:
+                    debug("card description too long!")
+                    continue
+                debug("slot=",slot," shift=",shift," encoded_byte=",encoded_byte)
                 if slot == "O":
                     encoded_byte |= 1 << shift
                 elif slot =="I":
@@ -194,11 +199,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 else:
                     debug("Cards sets decode error!")
                 shift += 2
-                if shift>6:
-                    debug("card description too long!")
-                    continue
             encoded_cards.append(encoded_byte)
-        return encoded_cards
+        return encoded_cards.reverse()
     
     def get_IO_CDI(self):
         res = ""
