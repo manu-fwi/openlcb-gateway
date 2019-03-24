@@ -81,18 +81,19 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     CDI_IO_repetition_end="""</group>
 """
     #default dict to add new nodes to the DB when they have no description (used by cmri_net_bus)
-    DEFAULT_JSON = { "fullID":None,"cmri_node_add":0 }
+    DEFAULT_JSON = { "fullID":None,"cmri_node_add":0,"type":"N" }
     @staticmethod
-    def from_json(js):            
-        n = Node_SUSIC(js["fullID"])
+    def from_json(js):
+        debug("from JSON")
         if "type" not in js:
-            node_type="N"
+            js["type"]="N"
         if "cards_sets" not in js:
             js["cards_sets"]=[]
+        n = Node_SUSIC(js["fullID"],js["cmri_node_add"],js["type"],js["cards_sets"])
         n.susic = cmri.SUSIC(js["cmri_node_add"], js["type"],js["cards_sets"])
         n.create_memory()
         n.set_mem(253,0,bytes((js["cmri_node_add"],)))
-        n.set_mem(253,1,bytes((js["type"],)))
+        n.set_mem(253,1,js["type"].encode("ascii"))
         if "version" in js:
             version = js["version"]
         else:
@@ -103,17 +104,20 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         else:
             name = ""
         n.set_mem(251,1,nodes.normalize(name,63))
+        debug("avant2")
         if "description" in js:
             description= js["description"]
         else:
             description = ""
         n.set_mem(251,64,nodes.normalize(description,64))
+        debug("apres2")
         if "events" in js:
             index=0
             for ev in js["events"]:
                 debug("event",index,ev)
                 n.set_mem(253,2+index*8,Event.from_str(ev).id)
                 index+=1
+        debug("SUSIC from JSON")
         return n
 
     def to_json(self):
@@ -150,8 +154,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         #self.memory[253].dump()
         
             
-    def __init__(self,ID):
-        super().__init__(ID,address,node_type,cards_sets)
+    def __init__(self,ID,address,node_type,cards_sets):
+        super().__init__(ID)
         self.cards_sets = cards_sets   #list of cards config strings ("IOII", or "O" for example)
         self.susic=cmri.SUSIC(address,node_type,self.cards_sets_encode())        #real node
         self.ev_list=[]  #events list:list of 4 elements:
@@ -200,7 +204,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         res = ""
         nb_bits_per_slot = self.susic.nb_bits_per_slot()
         for index in range(len(self.cards_sets)):
-            res += Node_SUSIC.CDI_cards_begin.replace("%cardindex",str(index)))
+            res += Node_SUSIC.CDI_cards_begin.replace("%cardindex",str(index))
             res += Node_SUSIC.CDI_slots.replace("%nbslots",str(len(self.cards_sets[index]))).replace("%nbbits",str(nb_bits_per_slot))
             res+= Node_SUSIC.CDI_cards_end
         return res
@@ -218,7 +222,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             elif offset == 1:
                 pass
                 #FIXME: I dont handle the I/O type change for now
-            elif offset >=2 and offset-2<(len(self.susic.inputs)len(self.susic.outputs))*2*8: #check if we change a IO event
+            elif offset >=2 and offset-2<(len(self.susic.inputs)+len(self.susic.outputs))*2*8: #check if we change a IO event
                 #rebuild the events if they have changed
                 entry = (offset-2)//16
                 

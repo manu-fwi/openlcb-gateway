@@ -1,4 +1,4 @@
-import json,openlcb_cpnodes,openlcb_RR_duino_nodes
+import json,openlcb_cpnodes,openlcb_RR_duino_nodes,openlcb_susic
 from openlcb_debug import *
 import time
 
@@ -27,25 +27,27 @@ class Nodes_db_node:
         self.synced = True
         self.last_sync = time.time()
 
-    def load_node(self):  # virtual function to be overloaded by subclasses
-        return None
+#    def load_node(self,desc):  # virtual function to be overloaded by subclasses
+#        return None
     
     def load_all_nodes(self):
-        try:
+        #try:
             with open(self.file_name,'r') as file:
                 #fixme: error handling
                 db_list = json.load(file)
+                debug("db loading:",str(db_list))
                 for desc in db_list:
                     n = self.load_node(desc)
                     if n is not None:
                         if n.ID in self.db:
                             debug("2 nodes with same full ID in the DB!")
                         else:
+                            debug("adding node ",str(n))
                             self.db[n.ID]=n
             self.synced = True
             self.last_sync = time.time()
-        except:
-            debug("Error loading nodes DB, missing or malformed file")
+        #except:
+            debug("Error loading nodes DB, missing or malformed file:",self.file_name)
         
     def sync(self):
         if not self.synced and self.last_sync+self.sync_period<time.time():
@@ -84,13 +86,15 @@ class Nodes_db_CMRI(Nodes_db_node):
         super().__init__(filename)
         
     def load_node(self,js):
-        
-        if "fullID" not in js or "cmri_node_add" not in js or "IO_config" not in js:
+        debug("cmri db node",js)
+        if "fullID" not in js or "cmri_node_add" not in js or "type" not in js:
             debug("missing fields in the node description",js)
             return None
+        debug("all info OK")
         if js["type"]=="C":
             return openlcb_cpnodes.Node_cpnode.from_json(js)
-        elif js["type"]=="N" or js["type"]=="X":            
+        elif js["type"]=="N" or js["type"]=="X":
+            debug("SUSIC!!")
             return openlcb_susic.Node_SUSIC.from_json(js)
 
 class Nodes_db_RR_duino_node(Nodes_db_node):  

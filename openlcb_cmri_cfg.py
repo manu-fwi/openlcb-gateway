@@ -154,6 +154,8 @@ class bits_list:
         self.bits_states[index][1] = self.bits_states[index][0]
         self.bits_states[index][0]=value
 
+    def __len__(self):
+        return len(self.bits_states)
     def __str__(self):
         res=""
         for bit in self.bits_states:
@@ -510,10 +512,25 @@ class SUSIC(CMRI_node):
     
     def __init__(self,address,node_type,cards_sets,client=None):
         super().__init__(address,SUSIC.read_period,client)
-        self.cards_sets = cards_sets
+        self.encode_cards_sets(cards_sets)
         self.node_type = node_type
         self.build_bits_states()
 
+    def encode_cards_sets(self,cards_sets):  #convert cards sets (["IOI","OO",...]) to a list of bytes
+        print("cards_sets=",cards_sets)
+        shift = 0
+        self.cards_sets = b""
+        for card in cards_sets:
+            b=0
+            for IO in card:
+                if IO=="I":
+                    val = 1
+                else:
+                    val = 2
+                b+=val << shift
+                shift+=2
+            self.cards_sets = bytes(b,)+self.cards_sets
+        print(self.cards_sets)
     def nb_bits_per_slot(self):
         if self.node_type=="N":
             return 24
@@ -534,6 +551,7 @@ class SUSIC(CMRI_node):
 
     def write_outputs(self,filename,save=True):
         if self.client is not None:
+            bytes_value = self.outputs.to_bytes()
             cmd = CMRI_message(CMRI_message.TRANSMIT_M,self.address,bytes_value)
             self.client.queue(cmd.to_wire_message().encode('utf-8'))
         
