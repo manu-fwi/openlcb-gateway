@@ -31,7 +31,7 @@ class Nodes_db_node:
 #        return None
     
     def load_all_nodes(self):
-        #try:
+        try:
             with open(self.file_name,'r') as file:
                 #fixme: error handling
                 db_list = json.load(file)
@@ -46,7 +46,7 @@ class Nodes_db_node:
                             self.db[n.ID]=n
             self.synced = True
             self.last_sync = time.time()
-        #except:
+        except:
             debug("Error loading nodes DB, missing or malformed file:",self.file_name)
         
     def sync(self):

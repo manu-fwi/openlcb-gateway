@@ -123,7 +123,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         name = self.read_mem(251,1,63)
         descr = self.read_mem(251,64,64)
         #dict describing the node, first part
-        node_desc = {"fullID":self.ID,"cmri_node_add":self.cp_node.address,
+        node_desc = {"fullID":self.ID,"cmri_node_add":self.susic.address,
                      "version":self.read_mem(251,0,1)[0],"name":name[:name.find(0)].decode('utf-8'),
                      "description":descr[:descr.find(0)].decode('utf-8'),
                      "type":self.read_mem(253,1,1)[0],
