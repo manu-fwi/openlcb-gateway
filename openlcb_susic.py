@@ -226,8 +226,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             elif offset >=2 and offset-2<(len(self.susic.inputs)+len(self.susic.outputs))*2*8: #check if we change a IO event
                 #rebuild the events if they have changed
                 entry = (offset-2)//16
-                
-                self.ev_list[entry][(offset-2)%16]=self.read_mem(mem_sp,offset,8)
+                debug("susic-set_mem entry=",entry," offset=",offset,"offset-2%16=",(offset-2)%16)
+                self.ev_list[entry][((offset-2)%16)//8]=self.read_mem(mem_sp,offset,8)
             else:
                 debug("set_mem out of IO")
                 
