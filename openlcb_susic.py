@@ -126,7 +126,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         node_desc = {"fullID":self.ID,"cmri_node_add":self.susic.address,
                      "version":self.read_mem(251,0,1)[0],"name":name[:name.find(0)].decode('utf-8'),
                      "description":descr[:descr.find(0)].decode('utf-8'),
-                     "type":self.read_mem(253,1,1)[0],
+                     "type":self.read_mem(253,1,1)[0].decode('utf-8'),
                      "cards_sets":self.cards_sets}
         str_events=[]
         debug("ev_list",len(self.ev_list))
@@ -258,7 +258,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         Return valid/invalid/unknown if the event corresponds to an input
         None otherwise
         """
-        #First for board outputs
+        #First for board outputs FIXME
         for i in range(self.cp_node.nb_I):
             val = -1
             if ev.id == self.ev_list[i][0]:
@@ -275,7 +275,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     return Node.ID_PRO_CON_INVAL
                 else:
                     return Node.ID_PRO_CON_UNKNOWN
-        #Second for IOX:fixme
         
         return None
 
@@ -290,30 +289,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 res.append( (i-self.cp_node.nb_I,0) )
             elif ev.id == self.ev_list[i][1]:
                 res.append( (i-self.cp_node.nb_I,1) )
-        #fixme add IOX
         return res
 
-    def find_consumer_event_IOX(self,ev):
-        """
-        Find the IOX Output events (we are then a consumer here)
-        Return a list of tuples (index,value), index indicates the IOX outputs index
-        """
-        res = []
-        ev_index=0
-        output_index=0
-        for i in self.IOX:
-            if i==1: #output card
-                for j in range(8):
-                    if ev.id == self.ev_list_IOX[ev_index][0]:
-                        res.append( (output_index,0) )
-                    elif ev.id == self.ev_list_IOX[ev_index][1]:
-                        res.append( (output_index,1) )
-                    ev_index+=1
-                    output_index+=1
-            else:
-                ev_index+=8  #input card so skip 8 events pairs
-        return res
-    
     def producer_identified(self,ev,filename,valid):
         """
         Will set the output according to the validity returned by the producer node
@@ -330,19 +307,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     val = 0
             if val!=self.cp_node.outputs[index]:
                 self.cp_node.set_output(index,val)
-                modified = True
-                
-        #IOX outputs
-        res = self.find_consumer_event_IOX(ev)
-        for index,val in res:
-            if not valid:
-                #invalid so we set value to the one not corresponding to the event
-                if val==0:
-                    val = 1
-                else:
-                    val = 0
-            if val!=self.cp_node.outputs_IOX[index]:
-                self.cp_node.set_output_IOX(index,val)
                 modified = True
 
         if modified:
@@ -368,17 +332,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             if result is not None and new!=result:
                 return Node.ID_PRO_CON_UNKNOWN
             result = new
-        #IOX
-        consumers = self.find_consumer_events_IOX(ev)
-        for index,val in consumers:
-            if self.cp_node.outputs_IOX[index][0] == val:
-                new = Node.ID_PRO_CON_VALID
-            elif self.cp_node.outputs_IOX[index][0] != -1:
-                new = Node.ID_PRO_CON_INVAL
-            if result is not None and new!=result:
-                return Node.ID_PRO_CON_UNKNOWN
-            result = new
-        
+       
         return result
 
     def consume_event(self,rcvd_ev,filename):

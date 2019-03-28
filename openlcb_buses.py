@@ -106,31 +106,39 @@ class Cmri_net_bus(Bus):
                         #it is a bus message (new node...)
                         if msg.startswith("start_node"):
                             fullID= int(msg.split(' ')[1])
+                            debug("full ID=",fullID)
+                            node = None
+                            debug(self.nodes_db.db)
                             if fullID in self.nodes_db.db:
                                 node = self.nodes_db.db[fullID]   #get node from db
                             else:
                                 debug("Unknown node of full ID",fullID,", adding it to the DB")
-#                                js = openlcb_nodes.Node_cpnode.DEFAULT_JSON
-#                                js["fullID"]=fullID
-#                                node = openlcb_nodes.Node_cpnode.from_json(js)
-#                                self.nodes_db.db[fullID]=node
-                            node.get_low_level_node().client = c
-                            #create and register alias negotiation
-                            alias_neg = node.create_alias_negotiation()
-                            #loop while we find an unused alias
-                            while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
+                                #js = openlcb_nodes.Node_cpnode.DEFAULT_JSON
+                                #js["fullID"]=fullID
+                                #node = openlcb_nodes.Node_cpnode.from_json(js)
+                                #self.nodes_db.db[fullID]=node
+                            if node is not None:
+                                node.get_low_level_node().client = c
+                                #send INIT message to node
+                                cmd = node.get_low_level_node().init_msg()
+                                if cmd is not None:
+                                    c.queue(cmd.to_wire_message().encode('utf-8'))
+                                #create and register alias negotiation
                                 alias_neg = node.create_alias_negotiation()
-                            self.nodes_in_alias_negotiation.append((node,alias_neg))
-                            #also add it to the list of aliases negotiation
-                            list_alias_neg.append(alias_neg)
-                            c.managed_nodes.append(node)
-                            #now load the recorded outputs states for this node
-                            filename = self.path_to_nodes_files
-                            if self.path_to_nodes_files:
-                                filename+="/"
-                            filename+=str(node.ID)+".outputs"
-                            node.get_low_level_node().load_outputs(filename)
-                            node.get_low_level_node().write_outputs(filename,False)
+                                #loop while we find an unused alias
+                                while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
+                                    alias_neg = node.create_alias_negotiation()
+                                    self.nodes_in_alias_negotiation.append((node,alias_neg))
+                                    #also add it to the list of aliases negotiation
+                                    list_alias_neg.append(alias_neg)
+                                    c.managed_nodes.append(node)
+                                    #now load the recorded outputs states for this node
+                                    filename = self.path_to_nodes_files
+                                    if self.path_to_nodes_files:
+                                        filename+="/"
+                                        filename+=str(node.ID)+".outputs"
+                                        node.get_low_level_node().load_outputs(filename)
+                                        node.get_low_level_node().write_outputs(filename,False)
                         else:
                             debug("unknown cmri_net_bus command")
                         

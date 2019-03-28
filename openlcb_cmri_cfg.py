@@ -282,6 +282,9 @@ class CPNode (CMRI_node):
                 res += "<>IOX["+str(i)+"]="+str(self.IOX[i])+" I/"+str(8-self.IOX[i])+" O"
         return res
 
+    def init_msg(self):
+        return None #nothing for a CPNode, it does not care FIXME
+    
     def nb_IOX_inputs(self):
         res = 0
         for i in self.IOX:
@@ -521,6 +524,10 @@ class SUSIC(CMRI_node):
             return 24
         elif self.node_type=="X":
             return 32
+
+    def init_msg(self):
+        msg=self.node_type.encode("ascii")+b"\0\0"+bytes((len(self.cards_sets),))+bytes(self.cards_sets)
+        return CMRI_message(CMRI_message.INIT_M,self.address,msg)
         
     def build_bits_states(self):
         nb_bits_per_card=self.nb_bits_per_slot()
