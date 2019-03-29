@@ -128,17 +128,17 @@ class Cmri_net_bus(Bus):
                                 #loop while we find an unused alias
                                 while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
                                     alias_neg = node.create_alias_negotiation()
-                                    self.nodes_in_alias_negotiation.append((node,alias_neg))
-                                    #also add it to the list of aliases negotiation
-                                    list_alias_neg.append(alias_neg)
-                                    c.managed_nodes.append(node)
-                                    #now load the recorded outputs states for this node
-                                    filename = self.path_to_nodes_files
-                                    if self.path_to_nodes_files:
-                                        filename+="/"
-                                        filename+=str(node.ID)+".outputs"
-                                        node.get_low_level_node().load_outputs(filename)
-                                        node.get_low_level_node().write_outputs(filename,False)
+                                self.nodes_in_alias_negotiation.append((node,alias_neg))
+                                #also add it to the list of aliases negotiation
+                                list_alias_neg.append(alias_neg)
+                                c.managed_nodes.append(node)
+                                #now load the recorded outputs states for this node
+                                filename = self.path_to_nodes_files
+                                if self.path_to_nodes_files:
+                                    filename+="/"
+                                    filename+=str(node.ID)+".outputs"
+                                    node.get_low_level_node().load_outputs(filename)
+                                    node.get_low_level_node().write_outputs(filename,False)
                         else:
                             debug("unknown cmri_net_bus command")
                         
