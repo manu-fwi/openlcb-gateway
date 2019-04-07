@@ -199,11 +199,12 @@ class outputs_list(bits_list): #list of inputs states (current and last state)
         res = bytearray()
         while index < len(self.bits_states):
             #new byte
-            res.append(0)
+            value = 0
             for i in range(8):
                 #set bit in last byte
-                res[-1] |= (self.bits_states[index][0] << i)
+                value |= (self.bits_states[index][0] << i)
                 index+=1
+            res.append(value)
         return res
     
 class CMRI_node:
@@ -580,16 +581,8 @@ class SUSIC(CMRI_node):
         message=msg.message
         index = 0
         n = 0
-        while n < len(self.inputs.bits_states) and index < len(message):
-            new_value = (message[index] >> (n%8))&0x01
-            #only register the new value if its different from the current one
-            if new_value != self.inputs[n][0]:
-                self.inputs.set_bit(n,new_value)
-            n+=1
-            if n % 8==0:
-                index +=1 #next byte
-
-        if n<len(self.intputs.bits_states):
+        self.inputs.from_bytes(message)
+        if len(message)*8!=len(self.intputs.bits_states):
             debug("Error: number of inputs in Receive message not corresponding to setup")
 
 def hex_int(i):   #same as hex but withouth the leading "0x"
