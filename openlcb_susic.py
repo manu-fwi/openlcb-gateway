@@ -246,8 +246,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             if ev_index >= len(self.ev_list):
                 debug("Index error in SUSIC generate events!")
                 return
-            if self.ev_list[ev_index][self.susic.inputs[index][0]]!=b"\0"*8: #do not generate event if 0.0.0.0.0.0.0.0
-                    ev_lst.append(Event(self.ev_list[ev_index][self.susic.inputs[index][0]],self.aliasID))
+            if self.ev_list[ev_index][self.susic.inputs.bits_states[index][0]]!=b"\0"*8: #do not generate event if 0.0.0.0.0.0.0.0
+                    ev_lst.append(Event(self.ev_list[ev_index][self.susic.inputs.bits_states[index][0]],self.aliasID))
 
         return ev_lst
 

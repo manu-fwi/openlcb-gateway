@@ -469,9 +469,3 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             counter+=1
         if modified:
             self.cp_node.write_outputs(filename)
-        
-def find_node_from_cmri_add(add,nodes):
-    for n in nodes:
-        if n.cp_node.address == add:
-            return n
-    return None

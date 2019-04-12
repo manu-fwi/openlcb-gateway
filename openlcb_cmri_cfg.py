@@ -171,7 +171,7 @@ class bits_list:
     def indices_of_changes(self):
         #returns a list of all indices of bits that have different current and previous states
         res = []
-        for index in len(self.bits_states):
+        for index in range(len(self.bits_states)):
             if self.bits_states[index][0]!=self.bits_states[index][1]:
                 res.append(index)
         return res
@@ -582,7 +582,7 @@ class SUSIC(CMRI_node):
         index = 0
         n = 0
         self.inputs.from_bytes(message)
-        if len(message)*8!=len(self.intputs.bits_states):
+        if len(message)*8!=len(self.inputs.bits_states):
             debug("Error: number of inputs in Receive message not corresponding to setup")
 
 def hex_int(i):   #same as hex but withouth the leading "0x"

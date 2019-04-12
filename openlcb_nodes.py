@@ -209,6 +209,12 @@ def find_node(aliasID):
             return n
     return None
 
+def find_node_from_cmri_add(add,nodes):
+    for n in nodes:
+        if n.get_low_level_node().address == add:
+            return n
+    return None
+
 def normalize(s,length):
     res = bytearray(s.encode('utf-8'))
     if len(res)>length:
