@@ -234,6 +234,9 @@ class Event:
         for i in self.id:
             s+=hexp(i,2)+"."
         return s[:len(s)-1]
+
+    def to_gridconnect(self):
+        return str(self).encode("utf-8")
     
 class Alias_negotiation:
     """
