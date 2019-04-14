@@ -201,8 +201,9 @@ class outputs_list(bits_list): #list of inputs states (current and last state)
             #new byte
             value = 0
             for i in range(8):
-                #set bit in last byte
-                value |= (self.bits_states[index][0] << i)
+                #set bit in last byte if different from -1
+                if self.bits_states[index][0]>=0:
+                    value |= (self.bits_states[index][0] << i)
                 index+=1
             res.append(value)
         return res

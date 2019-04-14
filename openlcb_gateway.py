@@ -323,13 +323,15 @@ def global_frame(cli,msg):
         debug("received event:",ev_id)
         for b in buses.Bus_manager.buses:
             path=b.path_to_nodes_files
-            if path is not None:
-                if path!="":
-                    path+="/"
-                path+=str(n.ID)+".outputs"
             for c in b.clients:
                 for n in c.managed_nodes:
                     if n.permitted:
+                        if path is not None:
+                            if path!="":
+                                path+="/"
+                        else:
+                            path = ""    
+                        path+=str(n.ID)+".outputs"
                         n.consume_event(Event(ev_id),path)
     elif var_field == 0x914 or var_field == 0x8F4: #identify producer/consumer
         #transfer to all other openlcb clients
