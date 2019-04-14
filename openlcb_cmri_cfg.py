@@ -79,7 +79,8 @@ class CMRI_message:
         wire_msg = (hex_int(CMRI_message.SYN)+" ")*2+hex_int(CMRI_message.STX)+" "+hex_int(CMRI_message.add_to_UA(self.address))
         wire_msg+=" "+hex_int(ord(CMRI_message.type_char[self.type_m]))+" "
         for b in self.message:
-            wire_msg += hex_int(b)+" "
+            for c in CMRI_message.encode_byte(b):
+                wire_msg += hex_int(c)+" "
         wire_msg += hex_int(CMRI_message.ETX)
         return wire_msg
 

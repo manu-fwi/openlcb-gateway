@@ -123,6 +123,7 @@ class Cmri_net_bus(Bus):
                                 cmd = node.get_low_level_node().init_msg()
                                 if cmd is not None:
                                     c.queue(cmd.to_wire_message().encode('utf-8'))
+                                    debug("init msg", cmd.to_wire_message())
                                 #create and register alias negotiation
                                 alias_neg = node.create_alias_negotiation()
                                 #loop while we find an unused alias
