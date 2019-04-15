@@ -1,7 +1,7 @@
 # openlcb-gateway
 Gateway from openlcb to cmri and RR_duino (see my other github repo about it)
 
-The goal (briefly): make the link between nodes which are not openlcb aware (for now the only supported type is CMRI CPNodes) and JMRI and other openlcb aware hardware/software.
+The goal (briefly): make the link between nodes which are not openlcb aware (for now the only supported type is CMRI CPNodes and SUSIC) and JMRI and other openlcb aware hardware/software.
 
 The gateway handles all the openlcb protocol from alias negotiations up to CDI and sending/receiving events.
 
