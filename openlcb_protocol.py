@@ -220,9 +220,9 @@ class Event:
             ev+=bytes((int(i,16),))
         return Event(ev)
     
-    def __init__(self,id,src_id=None):  #id is a 8 bytes array
+    def __init__(self,id,src=None):  #id is a 8 bytes array
         self.id = id
-        self.src_id = src_id
+        self.src = src
 
     def automatically_routed(self):
         return self.id[0]==0 and self.id[1]==0
@@ -236,7 +236,7 @@ class Event:
         return s[:len(s)-1]
 
     def to_gridconnect(self):
-        return str(self).encode("utf-8")
+        return Frame.build_from_event(self.src,self.id,0x5B4).to_gridconnect()
     
 class Alias_negotiation:
     """

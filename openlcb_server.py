@@ -147,7 +147,7 @@ class Openlcb_server:
                 #ready to read and empty msg means deconnection
                 self.deconnect_client(c)
             else:
-                #debug("new msg=",m)
+                debug("new msg=",m)
                 c.new_msg(m)
 
     #send a frame (CID or event for ex) to all clients of the server but the emitter (if not None)

@@ -247,7 +247,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 debug("Index error in SUSIC generate events!")
                 return
             if self.ev_list[ev_index][self.susic.inputs.bits_states[index][0]]!=b"\0"*8: #do not generate event if 0.0.0.0.0.0.0.0
-                    ev_lst.append(Event(self.ev_list[ev_index][self.susic.inputs.bits_states[index][0]],self.aliasID))
+                    ev_lst.append(Event(self.ev_list[ev_index][self.susic.inputs.bits_states[index][0]],self))
 
         return ev_lst
 
@@ -350,7 +350,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 self.susic.outputs.set_bit(ev[3],val)
                 modified = True
             elif val>=0:
-                debug("[SUSIC] Event received for an input! (event id=",ev.id,")")
+                debug("[SUSIC] Event received for an input! (event id=",ev[val],")")
         
         if modified:
             self.susic.write_outputs(filename)
