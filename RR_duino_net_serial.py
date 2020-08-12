@@ -49,7 +49,7 @@ class RR_duino_node:
 
             command = RR_duino.RR_duino_message.build_show_cmd(self.address,True) #for turnouts now
             i+=1
-        if not pending_answer:  #reset ping time if no answer is pending, otherwise decrease by PING_TIMEOUT/5
+        if not pending_answers:  #reset ping time if no answer is pending, otherwise decrease by PING_TIMEOUT/5
             self.last_ping = time.time()
         else:
             self.last_ping -= RR_duino_node.PING_TIMEOUT/5
@@ -134,7 +134,10 @@ def process():
         #no node to ping, try to wake dead nodes up:
         elif time.time()>last_dead_nodes_ping+DEAD_NODES_TIME:
             #try to wake up a "dead" node
-            debug("trying to wake dead nodes up",dead_nodes.items())
+            debug("Checking for dead nodes")
+            if dead_nodes.items():
+              for dead_node in dead_nodes.items():
+                debug("  Trying to wake dead node up",dead_node)
             node_to_ping = None
             older_ping = time.time()
             for ID in dead_nodes:
@@ -283,7 +286,6 @@ last_dead_nodes_ping = time.time()
 online_nodes = {}
 #dict of fullID <-> managed nodes (online and declared to the gateway)
 managed_nodes = {}
-load_nodes()
 
 #connect to gateway
 connected = False
@@ -298,6 +300,8 @@ debug("connected to gateway!")
 s.settimeout(0)
 #create or connect to existing cmri_net_bus
 s.send(("RR_DUINO_NET_BUS RR_duino bus 1;").encode('utf-8'))
+
+load_nodes()
 
 while True:
     if online_nodes:

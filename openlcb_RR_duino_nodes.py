@@ -418,7 +418,7 @@ class RR_duino_message:
         if message.is_list():  #list commands must finish by 0x8x (all special cases have been dealt with before
             return message.raw_message[-1] & 0x80!=0
 
-        if special_config== CMD_TURNOUT_FINE_TUNE:
+        if special_config == RR_duino_message.CMD_TURNOUT_FINE_TUNE:
             return len(message.raw_message)==5
         #here only simple commands remain: r/w on one device, delete config of one device
         #so it must be complete (they are all 4 bytes commands)
