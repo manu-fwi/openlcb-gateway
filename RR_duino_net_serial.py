@@ -20,7 +20,7 @@ class RR_duino_node:
 
     def get_config(self):
         #get dict of sensors and turnouts
-        debug("Getting config from node at ",self.address)
+        debug("*** Getting config from node at ",self.address)
         command =RR_duino.RR_duino_message.build_show_cmd(self.address)
         self.sensors=[]
         self.turnouts=[]
@@ -33,7 +33,7 @@ class RR_duino_node:
             while not done:
                 answer.append(send_msg(command))
                 if answer[-1] is None or not answer[-1].is_answer_to_cmd(command.get_command()):
-                    debug("Bad answer when loading config from node at ",self.address)
+                    debug("    Bad answer when loading config from node at ",self.address)
                     done = True
                     error = True
                 else:
@@ -42,10 +42,10 @@ class RR_duino_node:
                 for m in answer:
                     if i==0:
                         self.sensors.extend(m.get_list_of_sensors_config())
-                        debug("Sensors list=",self.sensors)
+                        debug("    Sensors list=",self.sensors)
                     else:
                         self.turnouts.extend(m.get_list_of_turnouts_config())
-                        debug("Turnouts list=",self.turnouts)
+                        debug("    Turnouts list=",self.turnouts)
 
             command = RR_duino.RR_duino_message.build_show_cmd(self.address,True) #for turnouts now
             i+=1
@@ -57,7 +57,7 @@ class RR_duino_node:
     
     def show_config(self,fullID):
         res = json.dumps({"FULLID":fullID,"ADDRESS":self.address,"VERSION":self.version,"SENSORS":self.sensors,"TURNOUTS":self.turnouts})
-        debug("show_config=",res)
+        debug("    Sending message to gateway:",res)
         return res
             
 def decode_messages():
@@ -215,12 +215,13 @@ def send_msg(msg):
     
 def load_nodes():
     global fullID_add,online_nodes
-    debug("loading RR_duino nodes from",config["nodes_ID_filename"])
+    debug("Loading RR_duino nodes from",config["nodes_ID_filename"])
     with open(config["nodes_ID_filename"]) as cfg_file:
         fullID_add_json = json.load(cfg_file)
     #keys in dict are always str when decoded from json so back to ints
     for ID in fullID_add_json:
         fullID_add[int(ID)]=fullID_add_json[ID]
+        debug("    Found node:",fullID_add_json[ID])
         
     #try all addresses and ask each responding node to load its version
     for fullID in fullID_add:
@@ -296,7 +297,7 @@ while not connected:
     except ConnectionError:
         debug("connection error, retrying in 1 sec")
         time.sleep(1)
-debug("connected to gateway!")
+debug("Connected to gateway!")
 s.settimeout(0)
 #create or connect to existing cmri_net_bus
 s.send(("RR_DUINO_NET_BUS RR_duino bus 1;").encode('utf-8'))
