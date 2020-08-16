@@ -138,18 +138,19 @@ def process():
             if dead_nodes.items():
               for dead_node in dead_nodes.items():
                 debug("  Trying to wake dead node up",dead_node)
-            node_to_ping = None
+            ID_to_ping = None
             older_ping = time.time()
             for ID in dead_nodes:
                 if dead_nodes[ID].last_ping < older_ping:
                     older_ping = dead_nodes[ID].last_ping
-                    node_to_ping = dead_nodes[ID]
-            if node_to_ping is not None:
+                    ID_to_ping = ID
+            if ID_to_ping is not None:
+                node_to_ping = dead_nodes[ID_to_ping]
                 node_to_ping.last_ping = time.time()
                 msg = RR_duino.RR_duino_message.build_async_cmd(node_to_ping.address)
                 if send_msg(msg) is not None:
-                    online_nodes[ID]=node_to_ping
-                    del dead_nodes[ID]
+                    online_nodes[ID_to_ping]=node_to_ping
+                    del dead_nodes[ID_to_ping]
             last_dead_nodes_ping = time.time()
 
 def load_config(filename):
