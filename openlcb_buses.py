@@ -160,7 +160,7 @@ class RR_duino_net_bus(Bus):
     """
     message format (messages are separated by a ";", also number is presented as an hexdecimal string):
     - space separated (only ONE space) word and numbers/CMRI message (distinguished by the 0xFF byte at the beginning)
-    Message types (other than the CMRI message)
+    Message types (other than the RR_duino messages)
     - New node: "start_node" followed by: full_ID(8 bytes) and node config (version, sensors, turnouts)
     """
     separator = ";"
@@ -302,7 +302,7 @@ class Bus_manager:
             bus.clients.append(client)
             return bus
         elif  msg.startswith(Bus_manager.RR_duino_net_bus_name):
-            #create a cmri_can bus
+            #create a RR_duino_net bus
             bus = Bus_manager.find_bus_by_name(Bus_manager.RR_duino_net_bus_name)
             if bus == None:
                 bus = RR_duino_net_bus()

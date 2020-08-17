@@ -190,6 +190,7 @@ def send_msg(msg):
     global ser
 
     ser.send(msg.raw_message)
+    #debug("sending:",msg.to_wire_message())
     answer = bytearray()
     begin = time.time()
     complete = False
@@ -200,12 +201,13 @@ def send_msg(msg):
         if r is not None:
             begin = time.time()
             answer.extend(r)
+            #debug("answer=",answer)
             complete = RR_duino.RR_duino_message.is_complete_message(answer)
         #check net connection also
         poll_net()
         
     #check time out and answer begins by START and is the answer to the command we have sent
-    if time.time()<begin+ANSWER_TIMEOUT:
+    if time.time()-begin<ANSWER_TIMEOUT:
         answer_msg =  RR_duino.RR_duino_message(answer)
         if answer_msg.is_valid() and answer_msg.is_answer_to_cmd(msg.raw_message[1]):
             return answer_msg
@@ -223,7 +225,8 @@ def load_nodes():
     for ID in fullID_add_json:
         fullID_add[int(ID)]=fullID_add_json[ID]
         debug("    Found node:",fullID_add_json[ID])
-        
+
+    #debug(fullID_add)
     #try all addresses and ask each responding node to load its version
     for fullID in fullID_add:
         answer = send_msg(RR_duino.RR_duino_message.build_version_cmd(fullID_add[fullID]))
@@ -273,7 +276,7 @@ message_to_send=b""   #last incomplete message from the serial port
 waiting_answer_from = None #this is the node we are waiting an answer from
 answer_clock = 0
 
-time.sleep(1) #time for arduino serial port to settle down
+time.sleep(3) #time for arduino serial port to settle down
 gateway_ip = config["openlcb_gateway_ip"]
 gateway_port = config["openlcb_gateway_port"]
 s =socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -300,13 +303,14 @@ while not connected:
         time.sleep(1)
 debug("Connected to gateway!")
 s.settimeout(0)
-#create or connect to existing cmri_net_bus
+#create or connect to existing RR_duino_net_bus
 s.send(("RR_DUINO_NET_BUS RR_duino bus 1;").encode('utf-8'))
 
 load_nodes()
-
+#debug(online_nodes)
 while True:
     if online_nodes:
+        #debug("to managed")
         #try to put all online nodes with good config to "managed" state (declare to gateway)
         online_to_del = []
         for ID in online_nodes:
@@ -333,7 +337,10 @@ while True:
             s.send((msg.to_wire_message()+";").encode('utf-8'))
             if msg.async_events_pending():
                 #pending answers so decrease last ping time to boost its priority
-                waiting_answer_from.last_ping -= RR_duino_node.PING_TIMEOUT / 5
+                address=msg.get_address()
+                node = node_from_address(address)
+                if node is not None:
+                    node.last_ping -= RR_duino_node.PING_TIMEOUT / 5
             #discard the part we just sent
             message_to_send=b""
             waiting_answer_from = None

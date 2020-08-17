@@ -190,7 +190,7 @@ def create_addressed_frame_list(src,dest,MTI,data,pad_last=False):  #data is the
         else:
             frame_pos = Addressed_frame.LAST
         d = Addressed_frame(src,dest,frame_pos,MTI)
-        if frame_pos==3 and pos+6>len(data) and pad_last:
+        if frame_pos==Addressed_frame.LAST and pos+6>len(data) and pad_last:
             d.add_data(data[pos:len(data)]+bytearray([0]*(pos+6-len(data))))
         else:
             d.add_data(data[pos:pos+6])

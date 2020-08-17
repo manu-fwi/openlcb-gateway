@@ -60,7 +60,7 @@ Base class for all CMRI nodes types:CPNodes and SUSICs for now
 Format for a CP node: a (json) list each element of which is a node description
 "fullID" (integer)
 "type" (character) "C"
-"cmri_node_add" (integr)
+"cmri_node_add" (integer)
 "version" (integer)
 "name" (string)
 "description" (string)
