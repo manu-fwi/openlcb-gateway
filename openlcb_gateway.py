@@ -9,7 +9,7 @@ import openlcb_nodes_db
 import openlcb_config
 
 def send_fields(sock,src_node,MTI,fields,dest_node):
-    frames = create_addressed_frame_list(src_node,dest_node,MTI,("\0".join(fields)).encode('utf-8'),True)
+    frames = create_addressed_frame_list(src_node,dest_node,MTI,("\0".join(fields)+"\0").encode('utf-8'),True)
     for f in frames:
         sock.send(f.to_gridconnect())
         debug("--->",f.to_gridconnect())
