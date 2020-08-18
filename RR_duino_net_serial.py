@@ -83,7 +83,7 @@ def fullID_from_address(add):
     return None
 
 def process():
-    global rcv_RR_messages,ser,waiting_answer_from,answer_clock,last_dead_nodes_ping
+    global rcv_RR_messages,ser,waiting_answer_from,answer_clock,last_dead_nodes_ping,message_to_send
 
     if ser.sending():
         #if we are already sending
@@ -155,9 +155,6 @@ def process():
         elif time.time()>last_dead_nodes_ping+DEAD_NODES_TIME:
             #try to wake up a "dead" node
             debug("Checking for dead nodes")
-            if dead_nodes.items():
-              for dead_node in dead_nodes.items():
-                debug("  Trying to wake dead node up",dead_node)
             ID_to_ping = None
             older_ping = time.time()
             for ID in dead_nodes:
@@ -165,6 +162,7 @@ def process():
                     older_ping = dead_nodes[ID].last_ping
                     ID_to_ping = ID
             if ID_to_ping is not None:
+                debug("  Trying to wake dead node(",dead_nodes[ID_to_ping].address,") up",ID_to_ping,":",dead_nodes[ID_to_ping])
                 node_to_ping = dead_nodes[ID_to_ping]
                 node_to_ping.last_ping = time.time()
                 #FIXME: maybe send a version msg?
