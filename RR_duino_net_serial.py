@@ -6,7 +6,7 @@ import openlcb_RR_duino_nodes as RR_duino
 
 #constants
 ANSWER_TIMEOUT=0.3  #time out for an answer (300ms)
-DEAD_NODES_TIME=5  #time between trials to wake up dead nodes
+DEAD_NODES_TIME=2  #time between trials to wake up dead nodes
 
 class RR_duino_node:
     PING_TIMEOUT = 0.2   # 50ms between pings
