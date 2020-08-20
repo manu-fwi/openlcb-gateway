@@ -324,6 +324,9 @@ while not connected:
     except ConnectionError:
         debug("connection error, retrying in 1 sec")
         time.sleep(1)
+    except TimeoutError:
+        debug("Connection timeout, retrying in 1 sec")
+        time.sleep(1)
 debug("Connected to gateway!")
 s.settimeout(0)
 #create or connect to existing RR_duino_net_bus
