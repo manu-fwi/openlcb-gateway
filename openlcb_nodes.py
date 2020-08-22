@@ -27,7 +27,6 @@ class Mem_space:
         or None if the write is incomplete: some writes are still expected for this memory space
         """
         debug("set_mem_partial",add,buf)
-        debug(self.dump())
         for (offset,size) in self.mem.keys():
             if add>=offset and add <offset+size:
                 if offset in self.mem_chunks:
@@ -38,9 +37,10 @@ class Mem_space:
                 if len(self.mem_chunks[offset])==size:
                     buf=self.mem_chunks[offset]
                     del self.mem_chunks[offset]
-                    return (offset,size,buf)
+                    return (offset,buf)
                 elif len(self.mem_chunks[offset])>size:
                     del self.mem_chunks[offset]
+                    debug("Write to",offset,"of",buf,"was over the limit",size)
             elif add<offset:
                 break    
 
@@ -49,6 +49,7 @@ class Mem_space:
     def set_mem(self,offset,buf):
         if (offset,len(buf)) in self.mem:
             self.mem[(offset,len(buf))]=buf
+            debug(self.dump())
             return True
         
         debug("set_mem failed, off=",offset,"buf=",buf," of length=",len(buf))

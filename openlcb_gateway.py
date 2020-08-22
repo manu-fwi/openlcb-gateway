@@ -53,7 +53,7 @@ def memory_read(s,src,dest,add,msg):   #msg is mem read msg as string
             s.send(d.to_gridconnect())
             debug("sending",d.data,"=",d.to_gridconnect())
             
-def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
+def memory_write(s,src_node,dest_node,buf):  #buf: write msg as string
     #return True when write has completed (a full write is generally split in several chunks)
 
     debug("memory write")
@@ -64,7 +64,8 @@ def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
         else:
             mem_sp = 0xFC+int(buf[14])
             data_beg=23
-        src_node.current_write=(mem_sp,add)
+        address = int(msg[15:23],16)
+        src_node.current_write=[mem_sp,address]
         s.send((":X19A28"+hexp(src_node.aliasID,3)+"N0"+hexp(dest_node.aliasID,3)+";").encode("utf-8"))
         debug("datagram received ok sent --->",":X19A28"+hexp(src_node.aliasID,3)+"N0"+hexp(dest_node.aliasID,3)+";")
     else:
@@ -81,10 +82,15 @@ def memory_write(s,src_node,dest_node,add,buf):  #buf: write msg as string
         if src_node.current_write[0] not in src_node.memory:
             debug("memory unknown!")
             return False
-        src_node.set_mem_partial(src_node.current_write[0],src_node.current_write[1],res)
+        write_info = src_node.set_mem_partial(src_node.current_write[0],src_node.current_write[1],res)
+        if write_info is not None:
+            #Write is complete so commit it to memory
+            src_node.set_mem(write_info[0],write_info[1])
     if buf[3]=="A" or buf[3]=="D":
         src_node.current_write = None
         return True
+    #Make sure current_write address points to next write access
+    src_node.current_write[1]+=len(res)
     return False
 
 def reserve_aliasID(src_id):
@@ -366,9 +372,8 @@ def process_datagram(cli,msg):
     src_node = find_node(src_id)
     
     if dest_node.current_write is not None:
-        address = int(msg[15:23],16)
         #if there is a write in progress then this datagram is part of it
-        if memory_write(s,dest_node,src_node,address,msg):
+        if memory_write(s,dest_node,src_node,msg):
             cli_dest.bus.nodes_db.synced = False
             
     elif msg[11:15]=="2043": #read command for CDI
@@ -385,8 +390,7 @@ def process_datagram(cli,msg):
             address = int(msg[15:23],16)
             memory_read(s,dest_node,src_node,address,msg)
         elif msg[13]=="0":
-            address = int(msg[15:23],16)
-            if memory_write(s,dest_node,src_node,address,msg):
+            if memory_write(s,dest_node,src_node,msg):
                 cli_dest.bus.nodes_db.synced = False
         elif msg[11:13]=="20":
             #other commands than read/write
