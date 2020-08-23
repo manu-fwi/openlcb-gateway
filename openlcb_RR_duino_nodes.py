@@ -622,7 +622,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         return res
 
     def get_CDI(self):
-        CDI = RR_duino_node.CDI_header.replace("%address",str(self.address)).replace("%hwversion",str(self.hwversion))
+        CDI = RR_duino_node.CDI_header.replace("%address",str(self.address)).replace("%hwversion",str(self.hwversion)).replace("%nsensors",str(len(self.sensors_cfg))).replace("%nturnouts",str(len(self.turnouts_cfg)))
         if len(self.sensors_cfg)>0:
             CDI += RR_duino_node.CDI_sensors.replace("%nsensors",str(len(self.sensors_cfg)))
 
