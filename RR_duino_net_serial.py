@@ -287,7 +287,7 @@ while not connected:
     try:
         ser.start()
         connected=True
-    except serial.serialutil.SerialException:
+    except serial_bus.serial.serialutil.SerialException:
         time.sleep(1)
         debug("Waiting to connect to serial port",config["serial_port"])
         pass
