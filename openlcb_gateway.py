@@ -65,7 +65,7 @@ def memory_write(s,src_node,dest_node,buf):  #buf: write msg as string
             mem_sp = 0xFC+int(buf[14])
             data_beg=23
         address = int(msg[15:23],16)
-        src_node.current_write=[mem_sp,address]
+        src_node.current_write=[mem_sp,address,b""]
         s.send((":X19A28"+hexp(src_node.aliasID,3)+"N0"+hexp(dest_node.aliasID,3)+";").encode("utf-8"))
         debug("datagram received ok sent --->",":X19A28"+hexp(src_node.aliasID,3)+"N0"+hexp(dest_node.aliasID,3)+";")
     else:
@@ -82,15 +82,13 @@ def memory_write(s,src_node,dest_node,buf):  #buf: write msg as string
         if src_node.current_write[0] not in src_node.memory:
             debug("memory unknown!")
             return False
-        write_info = src_node.set_mem_partial(src_node.current_write[0],src_node.current_write[1],res)
-        if write_info is not None:
-            #Write is complete so commit it to memory
-            src_node.set_mem(write_info[0],write_info[1])
+        #add the data content to the buffer in the current_write
+        src_node.current_write[2]+=res
+
     if buf[3]=="A" or buf[3]=="D":
+        src_node.write_mem(src_node.current_write[0],src_node.current_write[1],src_node.current_write[2])
         src_node.current_write = None
         return True
-    #Make sure current_write address points to next write access
-    src_node.current_write[1]+=len(res)
     return False
 
 def reserve_aliasID(src_id):

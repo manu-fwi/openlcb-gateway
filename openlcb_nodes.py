@@ -46,6 +46,34 @@ class Mem_space:
 
         return None
 
+    def write(self,add,buf):
+        """
+        Write to mem cells (maybe several if the buf is big enough)
+        returns True if everything went fine, False otherwise
+        """
+        if len(buf)==0:
+            return True
+        intersect = self.mem_intersect(add,len(buf))
+        if intersect is None:
+            return False
+        pos = 0
+        for (offset,size,off_beg,size_to_write) in intersect:
+            if off_beg==0 and size_to_write==size:
+                #the buffer spans the whole cell
+                self.set_mem(offset,buf[pos:pos+size_to_write])
+            else:
+                #rebuild the memory by rebuilding the memory content from the old memory content
+                #and the buffer parts
+                new_mem=b""
+                if off_beg>0:
+                    new_mem = self.mem[(offset,size)][0:off_beg]
+                new_mem += buf[pos:pos+size_to_write]
+                if off_beg+size_to_write<size:
+                    new_mem+=self.mem[(offset,size)][off_beg+size_to_write:]
+                self.set_mem(offset,new_mem)
+            #pos is set to next part of the buffer
+            pos += size_to_write
+
     def set_mem(self,offset,buf):
         if (offset,len(buf)) in self.mem:
             self.mem[(offset,len(buf))]=buf
@@ -59,8 +87,8 @@ class Mem_space:
     def mem_intersect(self,add,size):
         """
         Compute the interection of the mem with the requested space beginning at "add" and of size "size"
-        returns the list of (offsets,size,intersect_beg,intersect_end)
-        where (offset,size) describe the memory cell and intersect_off,intersect_size tell what part
+        returns the list of (offsets,size,intersect_beg,intersect_size)
+        where (offset,size) describe the memory cell and intersect_beg,intersect_size tell what part
         of it is in the intersection.
         If there are gaps between cells, it will put a dummy cell to fill it in
         If intersection is empty, returns None
@@ -104,7 +132,7 @@ class Mem_space:
         debug("intersect=",res)
         return res
                 
-    def read_mem(self,add,size):
+    def read(self,add,size):
         res = bytearray()
         intersect = self.mem_intersect(add,size)
         if intersect is None:
@@ -184,9 +212,12 @@ class Node:
         res = self.memory[mem_sp].set_mem_partial(add,buf)
         if res is not None:
             self.set_mem(mem_sp,res[0],res[2])
-        
+    
     def read_mem(self,mem_sp,add,size):
-        return self.memory[mem_sp].read_mem(add,size)
+        return self.memory[mem_sp].read(add,size)
+    
+    def write_mem(self,mem_sp,add,buf):
+        return self.memory[mem_sp].write(add,buf)
 
     def get_mem_size(self,mem_sp,offset):
         return self.memory[mem_sp].get_size()
