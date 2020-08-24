@@ -637,17 +637,17 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             version = self.desc.desc_dict["version"]
         else:
             version = 0
-        super().set_mem(251,0,bytes((version,)))  #bypass overloaded method for all parameters
+        self.memory[251].set_mem(0,bytes((version,)))
         if "name" in self.desc.desc_dict:
             name = self.desc.desc_dict["name"]
         else:
             name = ""
-        super().set_mem(251,1,openlcb_nodes.normalize(name,63))
+        self.memory[251].set_mem(1,openlcb_nodes.normalize(name,63))
         if "description" in self.desc.desc_dict:
             description= self.desc.desc_dict["description"]
         else:
             description = ""
-        super().set_mem(251,64,openlcb_nodes.normalize(description,64))
+        self.memory[251].set_mem(64,openlcb_nodes.normalize(description,64))
         #load sensors events
         #delete desc which are not related to existing subaddresses (they have been deleted for example)
         debug("before pruning desc",self.desc.desc_dict["sensors_ev_dict"])
@@ -669,13 +669,18 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         index = 0
         for subadd in self.desc.desc_dict["sensors_ev_dict"]:
             ev_pair = self.desc.desc_dict["sensors_ev_dict"][subadd]
+            #set subaddress (use memory object directly)
+            #17 is the size of a record:subadd + 2*8 bytes (an event is 8 bytes)
+            self.memory[RR_duino_node.SENSORS_SEGMENT].set_mem(index * 17,bytes((int(subadd),)))
+            #set events in memory
+            for i in range(2):
+                self.memory[RR_duino_node.SENSORS_SEGMENT].set_mem(1+index*(1+8*2)+i*8,
+                                                                   Event.from_str(ev_pair[i]).id)
+            #and in event dictionnary
             self.sensors_ev_dict[int(subadd)]=[Event.from_str(ev_pair[0]).id,
                                                Event.from_str(ev_pair[1]).id]
-            for i in range(2):
-                super().set_mem(RR_duino_node.SENSORS_SEGMENT,
-                                1+index*(1+8*2)+i*8,
-                                Event.from_str(ev_pair[i]).id) #set memory accordingly
             index+=1
+            
         debug("before using desc",self.desc.desc_dict["sensors_ev_dict"])
         debug("before using desc",self.sensors_ev_dict)
             
@@ -698,14 +703,19 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         debug("before using desc",self.desc.desc_dict["turnouts_ev_dict"])
         for subadd in self.desc.desc_dict["turnouts_ev_dict"]:
             ev_tuple = self.desc.desc_dict["turnouts_ev_dict"][subadd]
+            #set subaddress (use memory object directly)
+            #33 is the size of a record:subadd + 4*8 bytes (an event is 8 bytes)
+            self.memory[RR_duino_node.TURNOUTS_SEGMENT].set_mem(index * 33,bytes((int(subadd),)))
+            #set events
+            for i in range(4):
+                #set memory, this will set the event structures accordingly
+                self.memory[RR_duino_node.TURNOUTS_SEGMENT].set_mem(1+index*(1+8*4)+i*8,
+                                                                    Event.from_str(ev_tuple[i]).id)
+            #set turnout events dictionnary accordingly
             self.turnouts_ev_dict[int(subadd)]=[Event.from_str(ev_tuple[0]).id,
                                                 Event.from_str(ev_tuple[1]).id,
                                                 Event.from_str(ev_tuple[2]).id,
                                                 Event.from_str(ev_tuple[3]).id]
-            for i in range(4):
-                super().set_mem(RR_duino_node.TURNOUTS_SEGMENT,
-                                1+index*(1+8*4)+i*8,
-                                Event.from_str(ev_tuple[i]).id) #set memory accordingly
             index+=1
         
         #self.memory[1].dump()
@@ -748,34 +758,46 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 super().set_mem(mem_sp,offset,buf) #will error out
                 
         elif mem_sp == RR_duino_node.SENSORS_SEGMENT: #sensors segment
-            pos_in_entry = offset % 17
-            if pos_in_entry==0:
-                debug("Trying to change subaddress")
+            #compute what is written: 0=> subadd 1=> first event 9=>second event
+            pos_entry = offset %17
+            if pos_entry==0:
+                #fixme: I think we should not do that...
+                debug("setting subaddress!")
             else:
-                if pos_in_entry == 1:
-                    index=0
-                else:
-                    index = 1
+                #set memory
                 super().set_mem(mem_sp,offset,buf)
-                subadd = self.memory[mem_sp].read_mem(offset-pos_in_entry,1)[0]
-                debug("subadd=",subadd,"off=",offset,"index=",index)
+                #update node structures accordingly
+                #get subaddress
+                subadd = self.read_mem(RR_duino_node.SENSORS_SEGMENT,offset-pos_entry,1)[0]
+                if pos_entry==1:
+                    index=0 #first event
+                else:
+                    index=1 #second event
+                #sync sensor events dictionnary
+                debug(subadd,index,buf,self.sensors_ev_dict,self.desc.desc_dict["sensors_ev_dict"])
                 self.sensors_ev_dict[subadd][index]=buf
                 #sync the description
-                self.desc.desc_dict["sensors_ev_dict"][subadd][index]=str(Event(buf))
-                
+                self.desc.desc_dict["sensors_ev_dict"][str(subadd)][index]=str(Event(buf))
+
         elif mem_sp == RR_duino_node.TURNOUTS_SEGMENT:  #turnouts segment
             debug("Set_mem on turnouts")
-            pos_in_entry = offset % 33
-            if pos_in_entry==0:
-                debug("Trying to change subaddress")
-            else:
-                subadd = self.memory[mem_sp].read_mem(offset-pos_in_entry,1)[0]
-                index = (pos_in_entry - 1)//8
+            #compute what is written: 0=> subadd 1=> first event 9=>second event
+            pos_entry = offset % 33
+            if pos_entry==0:
+                #fixme: I think we should not do that...
+                debug("setting subaddress!")
+            else:    
+                #set memory
                 super().set_mem(mem_sp,offset,buf)
+                #update node structures accordingly
+                #get subaddress
+                subadd = self.read_mem(RR_duino_node.TURNOUTS_SEGMENT,offset-pos_entry,1)[0]
+                #compute which event we are modifying
+                index = (pos_entry - 1)//8
                 debug("subadd=",subadd,"off=",offset,"index=",index)
-                self.turnouts_ev_dict[subadd][index]=buf
+                self.turnouts_ev_dict[subadd][index]=buf #sync event dict
                 #sync the description
-                self.desc.desc_dict["turnouts_ev_dict"][subadd][index]=str(Event(buf))
+                self.desc.desc_dict["turnouts_ev_dict"][str(subadd)][index]=str(Event(buf))
  
         elif mem_sp==251:  #identification segment
             super().set_mem(mem_sp,offset,buf)
@@ -798,7 +820,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         #debug("generate events",subadd_values,turnouts)
         ev_lst=[]
         #first check for the waiting producer identified
-        index_to_delete=collections.deque()
+        debug("list of values=",subadd_values,turnouts)
+        subadd_val_to_delete=[]
         for (subadd,value) in subadd_values:
             for (ev_turnout,ev_subadd,ev_val) in self.waiting_prod_identified:
                 if (ev_turnout,subadd)==(turnouts,subadd):
@@ -811,11 +834,12 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                         ev_lst.append(Frame.build_from_event(self,self.turnouts_ev_dict[subadd][ev_val],MTI))
                     else:
                         ev_lst.append(Frame.build_from_event(self,self.sensors_ev_dict[subadd][ev_val],MTI))
-                    index_to_delete.appendleft(index)
+                    subadd_val_to_delete.append((subadd,value))
         #delete all read results already used
-        for i in index_to_delete:
-            subadd_values.pop(i)
+        for subadd_val in subadd_val_to_delete:
+            subadd_values.remove(subadd_val)
 
+        debug("list of values after =",subadd_values,turnouts)
         for (subadd,value) in subadd_values:
             if turnouts:
                 if subadd in self.turnouts_cfg:
@@ -823,29 +847,27 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                         #do not send 0.0.0.0.0.0.0.0 events
                         continue
                     debug("Event for:",subadd,value,turnouts)
-                    if self.turnouts_ev_dict[subadd][value+2]==b"\0"*8:
-                        #do not send 0.0.0.0.0.0.0.0 events
-                        continue
                     #we use value+2 to send the event "turnout has reached position value"
                     ev_lst.append(Frame.build_from_event(self,
                                                          self.turnouts_ev_dict[subadd][value+2],
                                                          0x5B4))
             else:
+                debug("sensor",subadd,value,self.sensors_cfg)
                 if subadd in self.sensors_cfg:
+                    debug("IN!")
                     if self.sensors_ev_dict[subadd][value]==b"\0"*8:
                         #do not send 0.0.0.0.0.0.0.0 events
+                        debug("all 0!",self.sensors_ev_dict)
                         continue
                     debug("Event for:",subadd,value,turnouts)
-                    if self.sensors_ev_dict[subadd][value]==b"\0"*8:
-                        #do not send 0.0.0.0.0.0.0.0 events
-                        continue
                     ev_lst.append(Frame.build_from_event(self,
                                                          self.sensors_ev_dict[subadd][value],
                                                          0x5B4))
+        debug("ev list=",ev_lst)
         return ev_lst
     
     def process_receive(self,msg):
-        #debug("process receive=",msg.to_wire_message())
+        debug("process receive=",msg.to_wire_message())
 
         if not msg.is_answer():
             debug("Broken protocol, the bus is receiving a command msg from the slaves!")
@@ -855,8 +877,10 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             return []
         if msg.is_read_cmd():
             if not msg.is_list():
+                debug("unique value")
                 return self.generate_events((msg.get_value()),msg.on_turnout())
             elif not msg.is_all():
+                debug("list of values")
                 return self.generate_events(msg.get_list_of_values(),msg.on_turnout())
             else:
                 debug("Read all not implemented yet")

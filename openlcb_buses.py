@@ -186,6 +186,7 @@ class RR_duino_net_bus(Bus):
                     #debug("RR_duino_net_bus processing",msg)
                     if msg.startswith(hex_int(RR_duino.RR_duino_message.START)):
                         #it is a RR_duino message, process it
+                        debug("RR duino message processed!")
                         RR_msg = RR_duino.RR_duino_message.from_wire_message(msg)
                         node = RR_duino.find_node_from_add(RR_msg.get_address(),c.managed_nodes)
                         if node is None:

@@ -14,7 +14,6 @@ Important: to speed things up the memory cells creation must be made in ascendin
 class Mem_space:
     def __init__(self,list=None):
         self.mem = {}
-        self.mem_chunks={}
         if list is not None:
             for (offset,size) in list:
                 self.create_mem(offset,size)
@@ -22,58 +21,6 @@ class Mem_space:
     def create_mem(self,offset,size):
         self.mem[(offset,size)]=None
         
-    def set_mem_partial(self,add,buf):
-        """returns the memory space (offset,size,buf) if memory must be updated
-        or None if the write is incomplete: some writes are still expected for this memory space
-        """
-        debug("set_mem_partial",add,buf)
-        for (offset,size) in self.mem.keys():
-            if add>=offset and add <offset+size:
-                if offset in self.mem_chunks:
-                    self.mem_chunks[offset]+=buf
-                else:
-                    self.mem_chunks[offset]=buf
-                debug("found",offset,size,self.mem_chunks[offset],len(self.mem_chunks[offset]))
-                if len(self.mem_chunks[offset])==size:
-                    buf=self.mem_chunks[offset]
-                    del self.mem_chunks[offset]
-                    return (offset,buf)
-                elif len(self.mem_chunks[offset])>size:
-                    del self.mem_chunks[offset]
-                    debug("Write to",offset,"of",buf,"was over the limit",size)
-            elif add<offset:
-                break    
-
-        return None
-
-    def write(self,add,buf):
-        """
-        Write to mem cells (maybe several if the buf is big enough)
-        returns True if everything went fine, False otherwise
-        """
-        if len(buf)==0:
-            return True
-        intersect = self.mem_intersect(add,len(buf))
-        if intersect is None:
-            return False
-        pos = 0
-        for (offset,size,off_beg,size_to_write) in intersect:
-            if off_beg==0 and size_to_write==size:
-                #the buffer spans the whole cell
-                self.set_mem(offset,buf[pos:pos+size_to_write])
-            else:
-                #rebuild the memory by rebuilding the memory content from the old memory content
-                #and the buffer parts
-                new_mem=b""
-                if off_beg>0:
-                    new_mem = self.mem[(offset,size)][0:off_beg]
-                new_mem += buf[pos:pos+size_to_write]
-                if off_beg+size_to_write<size:
-                    new_mem+=self.mem[(offset,size)][off_beg+size_to_write:]
-                self.set_mem(offset,new_mem)
-            #pos is set to next part of the buffer
-            pos += size_to_write
-
     def set_mem(self,offset,buf):
         if (offset,len(buf)) in self.mem:
             self.mem[(offset,len(buf))]=buf
@@ -149,9 +96,6 @@ class Mem_space:
                 res.extend(b"\0"*size)
         return res
 
-    def mem_valid(self,offset):
-        return offset not in self.mem_chunks
-    
     def __str__(self):
         return str(self.mem)
     
@@ -190,10 +134,6 @@ class Node:
                                    #the current writing process
         self.PRNG = None
 
-    def set_mem(self,mem_sp,offset,buf): #extend this to sync the "real" node (cpNode or whatever)
-                                         #with the openlcb memory
-        return self.memory[mem_sp].set_mem(offset,buf)
-
     def create_alias_negotiation(self):
         """
         Set up a new alias negotiation (creates an alias also)
@@ -207,18 +147,46 @@ class Node:
         self.aliasID = alias
         debug("new alias for ",self.ID," : ",self.aliasID)
         return Alias_negotiation(alias,self.ID)
-        
-    def set_mem_partial(self,mem_sp,add,buf):
-        res = self.memory[mem_sp].set_mem_partial(add,buf)
-        if res is not None:
-            self.set_mem(mem_sp,res[0],res[2])
     
     def read_mem(self,mem_sp,add,size):
         return self.memory[mem_sp].read(add,size)
+
+    def set_mem(self,mem_sp,offset,buf):
+        """ this is called by write_mem for each memory cell spanned
+        by a write command. This must be overidden by "real" subclasses
+        if they have their own structures that need to be kept coherent
+        with the memory content
+        """
+        return self.memory[mem_sp].set_mem(offset,buf)
     
     def write_mem(self,mem_sp,add,buf):
-        return self.memory[mem_sp].write(add,buf)
-
+        """
+        Write to mem cells (maybe several if the buf is big enough)
+        returns True if everything went fine, False otherwise
+        """
+        if len(buf)==0:
+            return True
+        intersect = self.memory[mem_sp].mem_intersect(add,len(buf))
+        if intersect is None:
+            return False
+        pos = 0
+        for (offset,size,off_beg,size_to_write) in intersect:
+            if off_beg==0 and size_to_write==size:
+                #the buffer spans the whole cell
+                self.set_mem(mem_sp,offset,buf[pos:pos+size_to_write])
+            else:
+                #rebuild the memory by rebuilding the memory content from the old memory content
+                #and the buffer parts
+                new_mem=b""
+                if off_beg>0:
+                    new_mem = self.read_mem(mem_sp,offset,size)[0:off_beg]
+                new_mem += buf[pos:pos+size_to_write]
+                if off_beg+size_to_write<size:
+                    new_mem+=self.read_mem(mem_sp,offset,size)[off_beg+size_to_write:]
+                self.set_mem(mem_sp,offset,new_mem)
+            #pos is set to next part of the buffer
+            pos += size_to_write
+        
     def get_mem_size(self,mem_sp,offset):
         return self.memory[mem_sp].get_size()
         
