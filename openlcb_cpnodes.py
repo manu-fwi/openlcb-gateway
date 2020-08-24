@@ -122,7 +122,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         n.cp_node = cmri.CPNode(js["cmri_node_add"], nb_I)
         n.create_memory()
         n.set_mem(,0,bytes((js["cmri_node_add"],)))
-        n.set_mem(253,1,bytes((js["IO_config"],)))
+        n.set_mem(Node_cpnode.CHANNELS_SEGMENT,1,bytes((js["IO_config"],)))
         if "IOX_config" in js:
             IOX= js["IOX_config"]
         else:
