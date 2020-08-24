@@ -110,6 +110,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 """
     #default dict to add new nodes to the DB when they have no description (used by cmri_net_bus)
     DEFAULT_JSON = { "fullID":None,"cmri_node_add":0 }
+    CHANNELS_SEGMENT = 253
     @staticmethod
     def from_json(js):            
         n = Node_cpnode(js["fullID"])
@@ -120,7 +121,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             js["IO_config"]=5
         n.cp_node = cmri.CPNode(js["cmri_node_add"], nb_I)
         n.create_memory()
-        n.set_mem(253,0,bytes((js["cmri_node_add"],)))
+        n.set_mem(,0,bytes((js["cmri_node_add"],)))
         n.set_mem(253,1,bytes((js["IO_config"],)))
         if "IOX_config" in js:
             IOX= js["IOX_config"]
@@ -130,7 +131,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         debug(IOX)
         for i in IOX:
             debug("IOX",i,2+cmri.CPNode.total_IO*2*8+index*(1+2*8*8))
-            n.set_mem(253,2+cmri.CPNode.total_IO*2*8+index*(1+2*8*8),bytes((i,)))
+            n.set_mem(Node_cpnode.CHANNELS_SEGMENT,
+                      2+cmri.CPNode.total_IO*2*8+index*(1+2*8*8),bytes((i,)))
             index+=1
         if "version" in js:
             version = js["version"]
@@ -151,7 +153,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             index=0
             for ev in js["basic_events"]:
                 debug("basic",index,ev)
-                n.set_mem(253,2+index*8,Event.from_str(ev).id)
+                n.set_mem(Node_cpnode.CHANNELS_SEGMENT,2+index*8,Event.from_str(ev).id)
                 index+=1
         if "IOX_events" in js:
             debug("IOX",index,ev)
@@ -160,7 +162,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             for ev in js["IOX_events"]:
                 #compute the offset where the event must go in memory (remember its 1 byte (I or O)
                 #and then 16 times two events
-                n.set_mem(253,offset,Event.from_str(ev).id)
+                n.set_mem(Node_cpnode.CHANNELS_SEGMENT,offset,Event.from_str(ev).id)
                 index+=1
                 offset+=8    #next event
                 if index%16==0:  #16 events per card, add 1 to skip the I/O byte of the next card
@@ -174,7 +176,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         node_desc = {"fullID":self.ID,"cmri_node_add":self.cp_node.address,
                      "version":self.read_mem(251,0,1)[0],"name":name[:name.find(0)].decode('utf-8'),
                      "description":descr[:descr.find(0)].decode('utf-8'),
-                     "IO_config":self.read_mem(253,1,1)[0],
+                     "IO_config":self.read_mem(Node_cpnode.CHANNELS_SEGMENT,1,1)[0],
                      "IOX_config":self.cp_node.IOX}
         str_events=[]
         debug("ev_list",len(self.ev_list))
@@ -209,9 +211,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 channels_mem.set_mem(offset,b"\0"*8)    #default event
                 offset+=8
         self.memory = {251:nodes.Mem_space([(0,1),(1,63),(64,64)]),
-                       253:channels_mem}
+                       Node_cpnode.CHANNELS_SEGMENT:channels_mem}
         #self.memory[251].dump()
-        #self.memory[253].dump()
+        #self.memory[Node_cpnode.CHANNELS_SEGMENT].dump()
         
             
     def __init__(self,ID):
@@ -235,7 +237,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
 
     def set_mem(self,mem_sp,offset,buf):
         super().set_mem(mem_sp,offset,buf)
-        if mem_sp == 253:
+        if mem_sp == Node_cpnode.CHANNELS_SEGMENT:
             if offset == 0:
                 #address change
                 debug("changing address",self.cp_node.address,buf[0])
