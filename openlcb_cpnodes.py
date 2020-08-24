@@ -121,8 +121,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             js["IO_config"]=5
         n.cp_node = cmri.CPNode(js["cmri_node_add"], nb_I)
         n.create_memory()
-        n.set_mem(,0,bytes((js["cmri_node_add"],)))
-        n.set_mem(Node_cpnode.CHANNELS_SEGMENT,1,bytes((js["IO_config"],)))
+        n.memory[Node_cpnode.CHANNELS_SEGMENT].set_mem(0,bytes((js["cmri_node_add"],)))
+        n.memory[Node_cpnode.CHANNELS_SEGMENT].set_mem(1,bytes((js["IO_config"],)))
         if "IOX_config" in js:
             IOX= js["IOX_config"]
         else:
@@ -219,15 +219,15 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     def __init__(self,ID):
         super().__init__(ID)
         self.cp_node=None        #real node
-        self.ev_list=[(b"\0"*8,b"\0"*8)]*16   #basic event list: inputs events always first!
-        self.ev_list_IOX = [(b"\0"*8,b"\0"*8)]*128    #IOX events list for 8 IO lines for 16 cards max
+        self.ev_list=[[b"\0"*8,b"\0"*8]]*16   #basic event list: inputs events always first!
+        self.ev_list_IOX = [[b"\0"*8,b"\0"*8]]*128    #IOX events list for 8 IO lines for 16 cards max
 
     def get_low_level_node(self): #returns the underlying cpnode
         return self.cpnode
     
     def get_IOX_CDI(self):
         
-        res = Node_cpnode.CDI_IOX_repetition_beg.replace("%nbiox","16")
+        res = Node_cpnode.CDI_IOX_repetition_beg.replace("%nbiox","16") #fixme
         res+= Node_cpnode.CDI_IOX
         res+= Node_cpnode.CDI_IOX_repetition_end
         return res
@@ -243,18 +243,18 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 debug("changing address",self.cp_node.address,buf[0])
                 self.cp_node.address = buf[0]
             elif offset == 1:
+                debug("Changing IO type, not supported!")
                 pass
                 #FIXME: I dont handle the I/O type change for now
             elif offset >=2 and offset-2<self.cp_node.total_IO*2*8: #check if we change a basic IO event
                 #rebuild the events if they have changed
                 entry = (offset-2)//16
-                
                 if (offset-2)%16==0:
-                    offset_0 = offset
+                    index_ev=0
                 else:
-                    offset_0 = offset - 8
-                debug("entry=",entry,"off=",offset,"off0=",offset_0)
-                self.ev_list[entry]=(self.read_mem(mem_sp,offset_0,8),self.read_mem(mem_sp,offset_0+8,8))
+                    index_ev=1
+                debug("entry=",entry,"off=",offset)
+                self.ev_list[entry][index_ev]=self.read_mem(mem_sp,offset,8)
             else: #memory changed is about IOX part
                 offset_0 =offset-2-self.cp_node.total_IO*2*8
                 card = offset_0//(1+8*2*8) #compute the card number, each description is 129 bytes long
@@ -267,10 +267,10 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 else:   #event
                     ev_pair_index=(offset_in_card-1)//16
                     if (offset_in_card-1)%16 == 0: #first event
-                        offset_0 = offset
+                        index_ev = 0
                     else:
-                        offset_0 = offset - 8
-                    self.ev_list_IOX[card*8+ev_pair_index]=(self.read_mem(mem_sp,offset_0),self.read_mem(mem_sp,offset_0+8))
+                        index_ev = 1
+                    self.ev_list_IOX[card*8+ev_pair_index][index_ev]=self.read_mem(mem_sp,offset)
 
     def poll(self):
         self.cp_node.read_inputs()

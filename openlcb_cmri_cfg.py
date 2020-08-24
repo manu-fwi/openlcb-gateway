@@ -191,11 +191,11 @@ class inputs_list(bits_list):   #list of inputs states (current and last state)
                 self.bits_states[index][0] = (byte >> i)&1
                 index+=1
 
-class outputs_list(bits_list): #list of inputs states (current and last state)
+class outputs_list(bits_list): #list of outputs states (current and last state)
     def __init__(self):
         super().__init__()
 
-    def to_bytes(self): #pack the outputs last state to a list of bytes (unpacks LSB first) (returns a bytearray)
+    def to_bytes(self): #pack the outputs last state to a list of bytes (packs LSB first) (returns a bytearray)
         index = 0
         res = bytearray()
         while index < len(self.bits_states):
