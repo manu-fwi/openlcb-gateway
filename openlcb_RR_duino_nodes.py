@@ -343,7 +343,7 @@ class RR_duino_message:
             #it is not an answer
             if msg.is_special_config_cmd():
                 #it is a special config, check the codes
-                return msg.get_special_config()!=CMD_TURNOUT_FINE_TUNE
+                return msg.get_special_config()!=RR_duino_message.CMD_TURNOUT_FINE_TUNE
             elif msg.is_read_cmd() and msg.is_all(): #read all command
                 return True
             return False

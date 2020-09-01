@@ -154,7 +154,8 @@ def process():
         #no node to ping, try to wake dead nodes up:
         elif time.time()>last_dead_nodes_ping+DEAD_NODES_TIME:
             #try to wake up a "dead" node
-            debug("Checking for dead nodes")
+            if dead_nodes:
+              debug("Checking dead nodes")
             ID_to_ping = None
             older_ping = time.time()
             for ID in dead_nodes:
