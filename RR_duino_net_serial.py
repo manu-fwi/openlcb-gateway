@@ -112,7 +112,7 @@ def process():
                 msg = RR_duino.RR_duino_message(message_to_send)
                 #debug("received from serial and sending it to the server:",(msg.to_wire_message()+";").encode('utf-8'))
                 s.send((msg.to_wire_message()+";").encode('utf-8'))
-                if msg.async_events_pending():
+                if msg.async_events_pending() or not msg.is_last_answer():
                     #pending answers so decrease last ping time to boost its priority
                     address=msg.get_address()
                     node = node_from_address(address)
