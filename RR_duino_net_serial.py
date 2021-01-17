@@ -13,9 +13,9 @@ class RR_duino_node:
     def __init__(self,address,version):
         self.address=address
         self.version=version
-        self.sensors = {}  #dict of sensors config subaddress <-> (pin,type)
-        self.turnouts = {} #dict of turnouts
-        #config subaddress <->(servo_pin,straight pos,thrown pos [,relay pin 1, relay pin 2,pulse pin 1, pulse pin 2])
+        self.sensors = []  #list of sensors config (subadd,pin,type)
+        self.turnouts = [] #list of turnouts config
+        #(subaddress,servo_pin,straight pos,thrown pos [,relay pin 1, relay pin 2,pulse pin 1, pulse pin 2])
         self.last_ping = 0
 
     def get_config(self):

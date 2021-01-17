@@ -229,6 +229,25 @@ class RR_duino_message:
         return wire_msg[:-1]
 
     @staticmethod
+    def get_subadds_list(bits_string):
+        """
+        Decode the bits string packed as 9 bytes where MSB is always 0 and other bits
+        are set if there is a sensor/turnout with the corresponding subadd:
+        byte 0 bit 0 <--> subadd=1
+        byte 0 bit 1 <--> subadd=2
+        ...
+        byte 8 bit 5 <--> subadd=62 (last possible)
+        """
+        index=1
+        subadds = []
+        for b in bits_string:
+            for bit_n in range(7):
+                if b & (1 << bit_n):
+                    subadds.append(index)
+                index+=1
+        return subadds
+        
+    @staticmethod
     def wire_to_raw_message(msg):
         """
         decode the message gotten from the wire (same format as cmri raw message except 
@@ -315,10 +334,14 @@ class RR_duino_message:
         return RR_duino_message(bytes((0xFF,0b10001001,add)))
 
     @staticmethod
-    def build_show_cmd(add, on_turnout=False):
+    def build_show_cmd(add, on_turnout=False, only_addresses = False):
         c = 0b11001001
         if on_turnout:
             c |= (1 << RR_duino_message.CMD_SENSOR_TURNOUT_BIT)
+        if only_addresses:
+            #if we only want to get a bits string indicating the subaddresses of each sensor/turnout
+            #set MSB of address
+            add |= 0x80
         return RR_duino_message(bytes((0xFF,c,add)))
 
     @staticmethod
