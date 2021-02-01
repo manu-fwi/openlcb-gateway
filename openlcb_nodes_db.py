@@ -97,14 +97,30 @@ class Nodes_db_CMRI(Nodes_db_node):
             debug("SUSIC!!")
             return openlcb_susic.Node_SUSIC.from_json(js)
 
+"""
+Format for RR_duino nodes: a (json) list, each element of which is a node description
+"fullID" (integer) : full node ID as an openlcb node
+"address" (integer) : address on the bus (1-62)
+"sensors_ev_dict" (dict) : dictionnary, subaddress is the key value is a list of events (on for on one for off)
+"turnouts_ev_dict" (dict) : dictionnary, subaddress is the key value is a list of events (on to close, one to throw, one when closed one when thrown)
+"version" (integer)
+"name" (string)
+"description" (string)
+"""
 class Nodes_db_RR_duino_node(Nodes_db_node):  
     def __init__(self,filename):
         super().__init__(filename)
         
     def load_node(self,js):
         
-        if "fullID" not in js:
+        if "fullID" not in js or "address" not in js:
             debug("missing fields in the node description",js)
             return None
         debug("load node from db",js)
         return openlcb_RR_duino_nodes.RR_duino_node_desc(js)
+
+    def get_db_node_from_add(self,add):
+        for fullID in self.db:
+            if self.db[fullID].address==address:
+                return self.db[fullID]
+        

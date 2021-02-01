@@ -86,62 +86,60 @@ class Cmri_net_bus(Bus):
         for c in self.clients:
             msg = c.next_msg()
             if msg:
-                msg=msg[:len(msg)-1]  #remove the trailing ";"
-                if msg:
-                    msg.lstrip() #get rid of leading spaces
-                    words_list = msg.split(' ')
-                    try:
-                        first_byte = int(words_list[0],16)
-                    except:
-                        first_byte=None
-                    if first_byte==cmri.CMRI_message.SYN:
-                        #it is a CMRI message, process it
-                        node = openlcb_nodes.find_node_from_cmri_add(cmri.CMRI_message.UA_to_add(int(words_list[3],16)),c.managed_nodes)
-                        if node is None:
-                            debug("Unknown node!! add=",cmri.CMRI_message.UA_to_add(int(words_list[3],16)) )
-                        else:
-                            node.get_low_level_node().process_receive(cmri.CMRI_message.from_wire_message(msg))
-                            ev_list.extend(node.generate_events())
+                msg.lstrip() #get rid of leading spaces
+                words_list = msg.split(' ')
+                try:
+                    first_byte = int(words_list[0],16)
+                except:
+                    first_byte=None
+                if first_byte==cmri.CMRI_message.SYN:
+                    #it is a CMRI message, process it
+                    node = openlcb_nodes.find_node_from_cmri_add(cmri.CMRI_message.UA_to_add(int(words_list[3],16)),c.managed_nodes)
+                    if node is None:
+                        debug("Unknown node!! add=",cmri.CMRI_message.UA_to_add(int(words_list[3],16)) )
                     else:
-                        #it is a bus message (new node...)
-                        if msg.startswith("start_node"):
-                            fullID= int(msg.split(' ')[1])
-                            debug("full ID=",fullID)
-                            node = None
-                            debug(self.nodes_db.db)
-                            if fullID in self.nodes_db.db:
-                                node = self.nodes_db.db[fullID]   #get node from db
-                            else:
-                                debug("Unknown node of full ID",fullID,", adding it to the DB")
-                                #js = openlcb_nodes.Node_cpnode.DEFAULT_JSON
-                                #js["fullID"]=fullID
-                                #node = openlcb_nodes.Node_cpnode.from_json(js)
-                                #self.nodes_db.db[fullID]=node
-                            if node is not None:
-                                node.get_low_level_node().client = c
-                                #send INIT message to node
-                                cmd = node.get_low_level_node().init_msg()
-                                if cmd is not None:
-                                    c.queue(cmd.to_wire_message().encode('utf-8'))
-                                    debug("init msg", cmd.to_wire_message())
-                                #create and register alias negotiation
-                                alias_neg = node.create_alias_negotiation()
-                                #loop while we find an unused alias
-                                while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
-                                    alias_neg = node.create_alias_negotiation()
-                                self.nodes_in_alias_negotiation.append((node,alias_neg))
-                                #also add it to the list of aliases negotiation
-                                list_alias_neg.append(alias_neg)
-                                c.managed_nodes.append(node)
-                                #now load the recorded outputs states for this node
-                                filename = self.path_to_nodes_files
-                                if self.path_to_nodes_files:
-                                    filename+="/"
-                                    filename+=str(node.ID)+".outputs"
-                                    node.get_low_level_node().load_outputs(filename)
-                                    node.get_low_level_node().write_outputs(filename,False)
+                        node.get_low_level_node().process_receive(cmri.CMRI_message.from_wire_message(msg))
+                        ev_list.extend(node.generate_events())
+                else:
+                    #it is a bus message (new node...)
+                    if msg.startswith("start_node"):
+                        fullID= int(msg.split(' ')[1])
+                        debug("full ID=",fullID)
+                        node = None
+                        debug(self.nodes_db.db)
+                        if fullID in self.nodes_db.db:
+                            node = self.nodes_db.db[fullID]   #get node from db
                         else:
-                            debug("unknown cmri_net_bus command")
+                            debug("Unknown node of full ID",fullID,", adding it to the DB")
+                            #js = openlcb_nodes.Node_cpnode.DEFAULT_JSON
+                            #js["fullID"]=fullID
+                            #node = openlcb_nodes.Node_cpnode.from_json(js)
+                            #self.nodes_db.db[fullID]=node
+                        if node is not None:
+                            node.get_low_level_node().client = c
+                            #send INIT message to node
+                            cmd = node.get_low_level_node().init_msg()
+                            if cmd is not None:
+                                c.queue(cmd.to_wire_message().encode('utf-8'))
+                                debug("init msg", cmd.to_wire_message())
+                            #create and register alias negotiation
+                            alias_neg = node.create_alias_negotiation()
+                            #loop while we find an unused alias
+                            while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
+                                alias_neg = node.create_alias_negotiation()
+                            self.nodes_in_alias_negotiation.append((node,alias_neg))
+                            #also add it to the list of aliases negotiation
+                            list_alias_neg.append(alias_neg)
+                            c.managed_nodes.append(node)
+                            #now load the recorded outputs states for this node
+                            filename = self.path_to_nodes_files
+                            if self.path_to_nodes_files:
+                                filename+="/"
+                                filename+=str(node.ID)+".outputs"
+                                node.get_low_level_node().load_outputs(filename)
+                                node.get_low_level_node().write_outputs(filename,False)
+                    else:
+                        debug("unknown cmri_net_bus command")
                         
             #now poll all nodes if needed
             if time.time() > self.last_poll+Cmri_net_bus.POLL_TIMEOUT:
@@ -158,12 +156,11 @@ class Can_bus(Bus):
 
 class RR_duino_net_bus(Bus):
     """
-    message format (messages are separated by a ";", also number is presented as an hexdecimal string):
-    - space separated (only ONE space) word and numbers/CMRI message (distinguished by the 0xFF byte at the beginning)
-    Message types (other than the RR_duino messages)
+    message format (messages are separated by a newline "\r\n):
+    - 
     - New node: "start_node" followed by: full_ID(8 bytes) and node config (version, sensors, turnouts)
     """
-    separator = ";"
+    separator = "\r\n"
     nodes_db_file = "RR_duino_net_bus_db.cfg"
 
     def __init__(self):
@@ -172,6 +169,67 @@ class RR_duino_net_bus(Bus):
         self.nodes_db = nodes_db.Nodes_db_RR_duino_node(RR_duino_net_bus.nodes_db_file)
         self.nodes_db.load_all_nodes()
         
+    def get_subadd_lst_from_bits(self,bits_str):
+        """
+        This translates a string of bytes into a list of subadd (MSB unused)
+        bits_str is a string of space separated numbers (in decimal format)
+        """
+
+        numbers = bits_str.split()
+        #first subadd is 1
+        subadds_lst = []
+        subadd = 1
+        for n in numbers:
+            nb = int(n)
+            #check first 7 bits (MSB is always 0)
+            for bit_n in range(0,7):
+                if nb & (1<<bit_n):
+                    subadds_lst.append(subadd)
+                subadd+=1
+        return subadds_lst
+
+    def get_states_lst_from_bits(self,net_str):
+        """
+        This translates a string of bytes into a list of states (MSB unused)
+        bits_str is a string of space separated numbers (in decimal format)
+        """
+        numbers = bits_str.split()
+        #first subadd is 1
+        states_lst = []
+
+        for n in numbers:
+            nb = int(n)
+            #check first 7 bits (MSB is always 0)
+            for bit_n in range(0,7):
+                if nb & (1<<bit_n):
+                    states_lst.append(1)
+                else:
+                    states_lst.append(0)
+        return states_lst        
+            
+    def get_desc_from_RR_duino_init(self,net_desc):
+        """
+        This translates the string received from the RR_duino_net (after the address) into a list of config parameters:
+        [0] (number) => version
+        [1] (list) => inputs sensors subaddresses
+        [2] (list) => outputs sensors subaddresses
+        [3] (list) => turnouts subaddresses
+        [4] (dict) => states of each sensor (input/output mixed) (key is subaddress)
+        [5] (dict) => states of each turnout (key is subaddress)
+
+        Format of net_desc: see arduino helper sketch
+        """
+        params = net_desc.split(",")
+        #get version
+        result = int(params[0])
+        #get subaddresses of input sensors, output sensors and turnouts
+        for i in range(1,4):
+            result.append(self.get_subadd_lst_from_bits(params[i]))
+        #get states of sensors
+        result.append(self.get_states_lst_from_bits(params[4]))
+        #get states of turnouts
+        result.append(self.get_states_lst_from_bits(params[5]))
+    
     def process(self):
         #check all messages and return a list of events that has been generated in response
         #also checks all alias negotiation and return the corresponding can frames (CID,AMD,...)
@@ -180,81 +238,82 @@ class RR_duino_net_bus(Bus):
             msg = c.next_msg()
             if msg:
                 #debug("rr_duino new msg=",msg)
-                msg=msg[:len(msg)-1]  #remove the trailing ";"
-                if msg:
-                    msg.lstrip() #get rid of leading spaces
-                    #debug("RR_duino_net_bus processing",msg)
-                    if msg.startswith(hex_int(RR_duino.RR_duino_message.START)):
-                        #it is a RR_duino message, process it
-                        debug("RR duino message processed!")
-                        RR_msg = RR_duino.RR_duino_message.from_wire_message(msg)
-                        node = RR_duino.find_node_from_add(RR_msg.get_address(),c.managed_nodes)
-                        if node is None:
-                            debug("Unknown node!! add=", RR_msg.get_address())
-                        else:
-                            ev_list.extend(node.process_receive(RR_msg))
+                msg.lstrip() #get rid of leading spaces
+                #debug("RR_duino_net_bus processing",msg)
+                if msg.startswith(hex_int(RR_duino.RR_duino_message.START)):
+                    #it is a RR_duino message, process it
+                    debug("RR duino message processed!")
+                    RR_msg = RR_duino.RR_duino_message.from_wire_message(msg)
+                    node = RR_duino.find_node_from_add(RR_msg.get_address(),c.managed_nodes)
+                    if node is None:
+                        debug("Unknown node!! add=", RR_msg.get_address())
                     else:
-                        #it is a bus message (new node...)
-                        #format: start_node fullID address version sensors_list turnouts_list
-                        begin,sep,end = msg.partition(" ")
-                        debug("begin=",begin,"sep=",sep,"end=",end)
-                        if begin=="start_node" and end!="":
-                            #fixme: exception might happen here
-                            node_cfg = json.loads(end)
-                            if node_cfg["FULLID"] in c.managed_nodes:
-                                debug("Node already managed!",node_cfg["FULLID"])
-                            else:
-                                #check the nodes DB
-                                if node_cfg["FULLID"] in self.nodes_db.db:
-                                    desc = self.nodes_db.db[node_cfg["FULLID"]]   #get node from db
-                                else:
-                                    debug("Unknown node of full ID",node_cfg["FULLID"],", adding it to the DB")
-                                    js = RR_duino.RR_duino_node_desc.DEFAULT_JSON
-                                    js["fullID"]=node_cfg["FULLID"]
-                                    desc = RR_duino.RR_duino_node_desc(js)
-                                    self.nodes_db.db[node_cfg["FULLID"]]=desc
-                                #build node
-                                node = RR_duino.RR_duino_node(c,
-                                                              node_cfg["FULLID"],
-                                                              node_cfg["ADDRESS"],
-                                                              node_cfg["VERSION"],
-                                                              desc)
-                                #convert lists of configs to dictionnaries
-                                for (subadd,pin,IOtype) in node_cfg["SENSORS"]:
-                                    node.sensors_cfg[subadd]=(pin,IOtype)
-                                for turn in node_cfg["TURNOUTS"]:
-                                    node.turnouts_cfg[turn[0]]=turn[1:]
-                                #build node memory and populate it from the DB
-                                node.create_memory()
-                                node.load_from_desc()
-                                debug("description dict=",node.desc.desc_dict)
-                                self.nodes[node_cfg["FULLID"]]=node
-                                #create and register alias negotiation
-                                alias_neg = node.create_alias_negotiation()
-                                #loop while we find an unused alias
-                                while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
-                                    alias_neg = node.create_alias_negotiation()
-                                self.nodes_in_alias_negotiation.append((node,alias_neg))
-                                #also add it to the list of aliases negotiation
-                                list_alias_neg.append(alias_neg)
-                                c.managed_nodes.append(node)
-                        elif begin=="stop_node":
-                            #get the node out the managed list (device is offline or config has changed, in the latter case
-                            #there should be a start_node with the new config)
-                            #format stop_node fullID
-                            #FIXME: must stop the OpenLCB part of the node here
-                            found = False
-                            for n in c.managed_nodes:
-                                if n.ID==int(end):
-                                    found = True
-                                    break
-                            if not found:
-                                debug("Error:Node marked as dead not in managed nodes!!")
-                            else:
-                                debug("Remove node ",end," from the managed nodes")
-                                c.managed_nodes.remove(n)
+                        ev_list.extend(node.process_receive(RR_msg))
+                else:
+                    #it is a bus message (new node...)
+                    #format: See arduino sketch
+                    begin,sep,end = msg.partition(":")
+                    debug("begin=",begin,"sep=",sep,"end=",end)
+                    if begin=="NEW-NODE" and end!="":
+                        #get address (first field)
+                        begin,sep,end = end.partition(",")
+                        #fixme: exception might happen here
+                        address = int(begin)
+                        desc = self.nodes_db.get_db_node_from_add(address)
+                        if desc is None:
+                            debug("Node with address",address,"has no corresponding fullID!")
+                            return
+                        if desc["FULLID"] in c.managed_nodes:
+                            debug("Node already managed!",desc["FULLID"])
                         else:
-                            debug("unknown RR_duino_net_bus command")
+                            #build node FIXME
+                            nodecfg = self.get_cfg_from_RR_duino_init(end)
+                            node = RR_duino.RR_duino_node(c,
+                                                          desc["FULLID"],
+                                                          address,
+                                                          nodecfg[0],
+                                                          desc)
+                            #get input sensors subaddresses
+                            for subadd in nodecfg[1]:
+                                node.sensors_cfg[subadd]=RR_duino.RR_duino_message.INPUT_SENSOR
+                            #get output sensors subaddresses
+                            for subadd in nodecfg[2]:
+                                node.sensors_cfg[subadd]=RR_duino.RR_duino_message.OUTPUT_SENSOR
+                            #get turnouts subaddresses
+                            node.turnouts_cfg=nodecfg[3]
+
+                            #build node memory and populate it from the DB
+                            node.create_memory()
+                            node.load_from_desc()
+                            debug("description dict=",node.desc.desc_dict)
+                            self.nodes[node_cfg["FULLID"]]=node
+                            #create and register alias negotiation
+                            alias_neg = node.create_alias_negotiation()
+                            #loop while we find an unused alias
+                            while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
+                                alias_neg = node.create_alias_negotiation()
+                            self.nodes_in_alias_negotiation.append((node,alias_neg))
+                            #also add it to the list of aliases negotiation
+                            list_alias_neg.append(alias_neg)
+                            c.managed_nodes.append(node)
+                    elif begin=="STOP-NODE":
+                        #FIXME: not sure we need this
+                        #get the node out the managed list (device is offline or config has changed, in the latter case
+                        #there should be a start_node with the new config)
+                        #format stop_node fullID
+                        #FIXME: must stop the OpenLCB part of the node here
+                        found = False
+                        for n in c.managed_nodes:
+                            if n.ID==int(end):
+                                found = True
+                                break
+                        if not found:
+                            debug("Error:Node marked as dead not in managed nodes!!")
+                        else:
+                            debug("Remove node ",end," from the managed nodes")
+                            c.managed_nodes.remove(n)
+                    else:
+                        debug("unknown RR_duino_net_bus command")
             #check deferred reads/writes
             for n in c.managed_nodes:
                 n.check_defer()
@@ -279,7 +338,7 @@ class Bus_manager:
     can_bus_separator = ";"
 
     #RR_duino_bus
-    RR_duino_net_bus_name = "RR_DUINO_NET_BUS"
+    RR_duino_net_bus_name = "RR_DUINO"
     RR_duino_bus_separator = ";"
 
     #list of active buses
@@ -305,7 +364,7 @@ class Bus_manager:
         elif  msg.startswith(Bus_manager.RR_duino_net_bus_name):
             #create a RR_duino_net bus
             bus = Bus_manager.find_bus_by_name(Bus_manager.RR_duino_net_bus_name)
-            if bus == None:
+            if bus is None:
                 bus = RR_duino_net_bus()
                 Bus_manager.buses.append(bus)
                 debug("creating a RR_duino_net bus")

@@ -31,11 +31,11 @@ class Client:
         #debug("next message from ",self.address,msg+sep)
         self.msgs = end
         #debug("remaining messages",end)
-        return msg+sep
+        return msg
 
     def queue(self,cmd):
         #debug("client sending",cmd)
-        self.sock.send(cmd+";".encode('utf-8'))
+        self.sock.send(cmd+self.msg_separator.encode('utf-8'))
 
 class Client_bus(Client):
     """
@@ -55,7 +55,7 @@ class Client_bus(Client):
         msg = self.next_msg()
         if msg:
             bus_name,sep,end = msg.partition(" ")
-            name = end[:-1]      #get rid of the separator
+            name = end
             self.name = name
             #create a bus corresponding to the received bus name
             bus= openlcb_buses.Bus_manager.create_bus(self,bus_name,self.path_to_nodes_files)
@@ -137,12 +137,12 @@ class Openlcb_server:
     def process_reads(self,ready_to_read):
         for s in ready_to_read:
             m=""
-            c = get_client_from_socket(self.clients,s)
             try:
                 m = s.recv(200).decode('utf-8')
             except socket.error:
                 debug("recv error")
             #debug(len(m)," => ",m)
+            c = get_client_from_socket(self.clients,s)
             if not m:
                 #ready to read and empty msg means deconnection
                 self.deconnect_client(c)

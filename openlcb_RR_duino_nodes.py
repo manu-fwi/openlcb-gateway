@@ -450,7 +450,7 @@ class RR_duino_message:
 
 class RR_duino_node_desc:
     #default dict to add new nodes to the DB when they have no description
-    DEFAULT_JSON = { "fullID":None }
+    DEFAULT_JSON = { "address":None,"fullID":None }
 
     def __init__(self,desc_dict):
         self.desc_dict = dict(desc_dict)  #(shallow) copy the dict containing the node description
@@ -622,14 +622,15 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         super().__init__(ID)
         self.address = address
         self.hwversion = hwversion
-        #dict subaddresses <-> config
+        #dict subaddresses <-> sensor type (Input or Output)
         self.sensors_cfg={}
-        self.turnouts_cfg={}
+        #list of subaddresses of turnouts
+        self.turnouts_cfg=[]
         #dictionnaries: subaddress <-> corresponding events list
         self.sensors_ev_dict = {}
         self.turnouts_ev_dict= {}
         self.desc = desc
-        debug("rr_duino constrcutor, desc=",desc.desc_dict)
+        debug("rr_duino constructor, desc=",desc.desc_dict)
         self.client=client
         #deferred reads and writes to offload some messages off the RR_duino bus
         #only used for reads and writes caused by producer identify and consumer identified events
@@ -832,7 +833,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             elif offset == 64:
                 self.desc.desc_dict["description"]=buf[:buf.find(0)].decode('utf-8')
 
-
+    #FIXME change deferred read
     def check_defer(self):
         for defer in self.defer_rw:
             msg = defer.check_time()
@@ -924,7 +925,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             elif ev.id == ev_pair[1]:
                 val = 1
             if val>=0:
-                if self.sensors_cfg[subadd][1]==RR_duino_message.OUTPUT_SENSOR:
+                if self.sensors_cfg[subadd]==RR_duino_message.OUTPUT_SENSOR:
                     debug("RR_duino node",self.desc.desc_dict["fullID"],"sensors consuming event",str(ev))
                     self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
                                                                            subadd,
@@ -964,7 +965,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         """
         for subadd in self.sensors_ev_dict:
             ev_pair= sensors_ev_dict[subadd]
-            if self.sensors_cfg[subadd][1]!=OUTPUT_SENSOR: #must be an input
+            if self.sensors_cfg[subadd]!=OUTPUT_SENSOR: #must be an input
                 val = -1
                 if ev.id == ev_pair[0]:
                     val = 0
