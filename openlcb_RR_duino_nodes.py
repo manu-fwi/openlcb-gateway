@@ -928,7 +928,20 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             subadd-=100
 
         return self.generate_events((subadd,value),on_turnout)
-    
+
+    def subbadd_to_index_output(self,subadd,turnout=False):
+        #compute the index when setting an output sensor or a turnout
+        if turnout:
+            #no offset for turnouts
+            return subadd
+        else:
+            if self.sensors_cfg[subadd]==RR_duino_message.OUTPUT_SENSOR:
+                #offset by 100 for output sensors
+                return subadd + 100
+            else:
+                #you should not try to "output" on an input sensor
+                return None
+            
     def consume_event(self,ev,path=None):
         index = 0
         for subadd in self.sensors_ev_dict:
@@ -939,16 +952,14 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             elif ev.id == ev_pair[1]:
                 val = 1
             if val>=0:
-                if self.sensors_cfg[subadd]==RR_duino_message.OUTPUT_SENSOR:
-                    debug("RR_duino node",self.desc.desc_dict["fullID"],"sensors consuming event",str(ev))
-                    self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
-                                                                           subadd,
-                                                                           False,
-                                                                           True,
-                                                                           val).to_wire_message().encode('utf-8'))
-                else:
+                index = self.subadd_to_index_output(subadd)
+                if index is None:
                     debug("Error: received an event on an input sensors for RR_duino node",
                           self.desc.desc_dict["fullID"])
+                else:
+                    debug("RR_duino node",self.desc.desc_dict["fullID"],"sensors consuming event",str(ev))
+                    self.client.queue(("ITRT"+str(self.address)+":"+str(index)+","+str(val)).encode('utf-8'))
+                    
         for subadd in self.turnouts_ev_dict:
             ev_quad = self.turnouts_ev_dict[subadd]
             found = False
@@ -962,11 +973,8 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                 if val<2:
                     debug("RR_duino node",self.desc.desc_dict["fullID"],
                           "turnouts consuming event",str(ev))
-                    self.client.queue(RR_duino_message.build_simple_rw_cmd(self.address,
-                                                                           subadd,
-                                                                           False,
-                                                                           False,
-                                                                           val).to_wire_message().encode('utf-8'))
+                    index = self.subadd_to_index_output(subadd, True)
+                    self.client.queue(("ITRT"+str(self.address)+":"+str(index)+","+str(val)).encode('utf-8'))
                 else:
                     debug("Error: received an event on an turnouts inputs for RR_duino node",
                           self.desc.desc_dict["fullID"])
