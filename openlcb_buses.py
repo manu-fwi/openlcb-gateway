@@ -229,7 +229,46 @@ class RR_duino_net_bus(Bus):
         result.append(self.get_states_lst_from_bits(params[4]))
         #get states of turnouts
         result.append(self.get_states_lst_from_bits(params[5]))
-    
+        
+        return result
+
+    def check_msg_format(self,msg):
+        #check msg format and returns error message on error or tuple (address,subaddress,value) otherwise
+        if not msg.startswith("ISRS") and not msg.startswith("ITRT"):
+            return ("Unvalid prefix",)
+        begin,sep,end = msg[len("ISRS"):].partition(":")
+        if sep=="":
+            return ("Bad format",)
+        address = 0
+        try:
+            address = int(begin)
+        except:
+            pass
+        if address<=0 or address>62:
+            #bad integer format
+            return ("Incorrect integer value/format for address",)
+        begin,sep,end = end.partition(",")
+        if sep=="":
+            return ("Bad format",)
+        subadd = 0
+        try:
+            subadd = int(begin)
+        except:
+            pass
+        if subadd<=0 or subadd>62:
+            #bad integer format
+            return ("Incorrect integer value/format for subaddress",)
+        value = -1
+        try:
+            value = int(end)
+        except:
+            pass
+        if value!=0 and value!=1:
+            #bad integer format
+            return ("Incorrect integer value/format for value",)
+
+        return (address,subadd,value)
+        
     def process(self):
         #check all messages and return a list of events that has been generated in response
         #also checks all alias negotiation and return the corresponding can frames (CID,AMD,...)
@@ -237,17 +276,21 @@ class RR_duino_net_bus(Bus):
         for c in self.clients:
             msg = c.next_msg()
             if msg:
-                #debug("rr_duino new msg=",msg)
+                debug("rr_duino new msg=",msg)
                 msg.lstrip() #get rid of leading spaces
-                #debug("RR_duino_net_bus processing",msg)
-                if msg.startswith(hex_int(RR_duino.RR_duino_message.START)):
-                    #it is a RR_duino message, process it
+                debug("RR_duino_net_bus processing",msg)
+                if msg.startswith("ISRS"):
+                    #the RR_duino controller sends a sensor value, process it
                     debug("RR duino message processed!")
-                    RR_msg = RR_duino.RR_duino_message.from_wire_message(msg)
-                    node = RR_duino.find_node_from_add(RR_msg.get_address(),c.managed_nodes)
+                    #get address
+                    begin,sep,end = msg.partition(":")
+                    address=int(begin)
+                    #fixme: check format correctness
+                    node = RR_duino.find_node_from_add(address,c.managed_nodes)
                     if node is None:
-                        debug("Unknown node!! add=", RR_msg.get_address())
+                        debug("Unknown node!! add=", address)
                     else:
+                        #fixme!
                         ev_list.extend(node.process_receive(RR_msg))
                 else:
                     #it is a bus message (new node...)
@@ -286,7 +329,7 @@ class RR_duino_net_bus(Bus):
                             node.create_memory()
                             node.load_from_desc()
                             debug("description dict=",node.desc.desc_dict)
-                            self.nodes[node_cfg["FULLID"]]=node
+                            self.nodes[desc["FULLID"]]=node
                             #create and register alias negotiation
                             alias_neg = node.create_alias_negotiation()
                             #loop while we find an unused alias
@@ -328,18 +371,18 @@ class Bus_manager:
     #buses constants
     #cmri_net_bus
     cmri_net_bus_name = "CMRI_NET_BUS"
-    cmri_net_bus_separator = ";"
+    #cmri_net_bus_separator = ";"
     #this is the name of the file where all nodes are described (full ID, description,name,version,events)
     #see openlcb_nodes_db.py for more info
     cmri_net_bus_db_file="cmri_net_bus_nodes_db.cfg"
 
     #can_bus FIXME
     can_bus_name = "CAN_BUS"
-    can_bus_separator = ";"
+    #can_bus_separator = ";"
 
     #RR_duino_bus
     RR_duino_net_bus_name = "RR_DUINO"
-    RR_duino_bus_separator = ";"
+    #RR_duino_bus_separator = "\r\n"
 
     #list of active buses
     buses=[]
