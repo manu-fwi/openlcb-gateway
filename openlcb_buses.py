@@ -282,16 +282,17 @@ class RR_duino_net_bus(Bus):
                 if msg.startswith("ISRS"):
                     #the RR_duino controller sends a sensor value, process it
                     debug("RR duino message processed!")
-                    #get address
-                    begin,sep,end = msg.partition(":")
-                    address=int(begin)
-                    #fixme: check format correctness
-                    node = RR_duino.find_node_from_add(address,c.managed_nodes)
+                    msg_value = self.check_msg_format(msg)
+                    if len(msg_value)==1:
+                        #There was an error, the tuple is only made of the error message
+                        debug(msg_value[0])
+                        return
+                    node = RR_duino.find_node_from_add(msg_value[0],c.managed_nodes)
                     if node is None:
                         debug("Unknown node!! add=", address)
                     else:
                         #fixme!
-                        ev_list.extend(node.process_receive(RR_msg))
+                        ev_list.extend(node.process_receive(msg_value[1],msg_values[2]))
                 else:
                     #it is a bus message (new node...)
                     #format: See arduino sketch

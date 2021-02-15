@@ -890,31 +890,45 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                                                          0x5B4))
         debug("ev list=",ev_lst)
         return ev_lst
-    
-    def process_receive(self,msg):
-        debug("process receive=",msg.to_wire_message())
 
-        if not msg.is_answer():
-            debug("Broken protocol, the bus is receiving a command msg from the slaves!")
-            return []
-        if msg.get_error_code()!=0:
-            debug("Command error!")
-            return []
-        if msg.is_read_cmd():
-            if not msg.is_list():
-                debug("unique value")
-                return self.generate_events((msg.get_value()),msg.on_turnout())
-            elif not msg.is_all():
-                debug("list of values")
-                return self.generate_events(msg.get_list_of_values(),msg.on_turnout())
-            else:
-                debug("Read all not implemented yet")
-        elif msg.is_write_cmd():
-            #just check the error status
-            if msg.get_error_code()!=0:
-                debug("Last write on node",self.ID,"has failed, error code",msg.get_error_code())
-        return []
+    def process_receive(self,subadd,value):
+        # debug("process receive=",msg.to_wire_message())
+
+        # if not msg.is_answer():
+        #     debug("Broken protocol, the bus is receiving a command msg from the slaves!")
+        #     return []
+        # if msg.get_error_code()!=0:
+        #     debug("Command error!")
+        #     return []
+        # if msg.is_read_cmd():
+        #     if not msg.is_list():
+        #         debug("unique value")
+        #         return self.generate_events((msg.get_value()),msg.on_turnout())
+        #     elif not msg.is_all():
+        #         debug("list of values")
+        #         return self.generate_events(msg.get_list_of_values(),msg.on_turnout())
+        #     else:
+        #         debug("Read all not implemented yet")
+        # elif msg.is_write_cmd():
+        #     #just check the error status
+        #     if msg.get_error_code()!=0:
+        #         debug("Last write on node",self.ID,"has failed, error code",msg.get_error_code())
+        # return []
+
+        #In order to generate the correct event, make sure we separate sensors events (input or outputs readings)
+        #from turnouts events (just closed or thrown)
         
+        on_turnout = False
+        if subadd>=200:
+            #this is an output sensor reading
+            subadd -= 200  #set subaddress to real subaddress of the sensor
+        elif subadd>=100:
+            #this is a turnout reading (it just reached its final position
+            on_turnout = True
+            subadd-=100
+
+        return self.generate_events((subadd,value),on_turnout)
+    
     def consume_event(self,ev,path=None):
         index = 0
         for subadd in self.sensors_ev_dict:
