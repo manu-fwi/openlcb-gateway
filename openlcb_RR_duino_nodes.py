@@ -927,6 +927,12 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             on_turnout = True
             subadd-=100
 
+        #record state of turnout or sensor
+        if on_turnout:
+            self.turnouts_cfg[subadd]=value
+        else:
+            self.sensors_cfg[subadd][1]=value
+            
         return self.generate_events((subadd,value),on_turnout)
 
     def subbadd_to_index_output(self,subadd,turnout=False):
