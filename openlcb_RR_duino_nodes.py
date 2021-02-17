@@ -463,58 +463,6 @@ class RR_duino_node_desc:
     def to_json(self):
         return self.desc_dict
 
-class Deferred_read:
-    DEFER_TIME = 0.5 #seconds
-    def __init__(self,add,turnouts = False):
-        self.turnouts = turnouts  #type of peripherals
-        self.subadds = []  #list of subaddresses
-        self.clock = None
-        self.address = add
-        
-    def add(self,subadd):
-        if subadd in self.subadds:
-            #do not add it twice
-            return
-        self.subadds.append(subadd)
-        if self.clock is None:
-            self.clock = time.time()
-
-    def build_msg(self):
-        if self.subadds.is_empty():
-            return None
-        if len(self.subadds)==1:
-            #special case, only one reading
-            return RR_duino_message.build_simple_rw_cmd(add,subadds[0],True,not turnouts)
-        else:
-            msg = RR_duino_message.build_rw_cmd_header(add,True,not turnouts,True)  #get the header ready
-            msg.raw_message.extend(self.subadds)
-            msg.raw_message.append(0x80) #list termination
-            return msg
-        
-    def check_time(self):
-        if self.clock is None:
-            return None
-        if time.time()>self.clock+Deferred_read.DEFER_TIME:
-            return self.build_msg()
-        return None
-    
-    def reset(self):
-        self.clock = None
-        self.subadds = []
-
-class Deferred_write(Deferred_read):
-    def __init__(self,add,turnouts=False):
-        super().__init__(add,turnouts)
-
-    def add(self,subadd,value):
-        super().add(RR_duino_message.encode_subbad_value((subadd,value)))
-
-    def build_msg(self):
-        msg = super().build_msg()
-        if msg is None:
-            return None
-        msg.raw_message[1] |= 1 << RR_duino_message.CMD_RW_BIT   #set write bit
-        return msg
     
 class RR_duino_node(openlcb_nodes.Node):
     """
@@ -611,12 +559,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
     ADDRESS_SEGMENT = 0
     SENSORS_SEGMENT = 1
     TURNOUTS_SEGMENT = 2
-    #deferred rw
-    DEFER_READ_SENSORS = 0
-    DEFER_READ_TURNOUTS = 1
-    DEFER_WRITE_SENSORS = 2
-    DEFER_WRITE_TURNOUTS = 3
-    
+  
         
     def __init__(self,client,ID,address,hwversion,desc):
         super().__init__(ID)
@@ -632,15 +575,6 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.desc = desc
         debug("rr_duino constructor, desc=",desc.desc_dict)
         self.client=client
-        #deferred reads and writes to offload some messages off the RR_duino bus
-        #only used for reads and writes caused by producer identify and consumer identified events
-        self.defer_rw = [Deferred_read(address),Deferred_read(address,True),
-                         Deferred_write(address),Deferred_write(address,True)]
-        #producer identify are answered when the corresponding deferred reads are treated
-        #this is a list of (turnout,subadd,value) where turnout is True for a turnout and False for a sensor
-        #and value is the value of the sensor correspondig to the event in the identify producer received
-        #each read received will be checked to see if a corresponding producer identifier message can be answered
-        self.waiting_prod_identified = []
 
     def __str__(self):
         res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.hwversion)
@@ -833,36 +767,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             elif offset == 64:
                 self.desc.desc_dict["description"]=buf[:buf.find(0)].decode('utf-8')
 
-    #FIXME change deferred read
-    def check_defer(self):
-        for defer in self.defer_rw:
-            msg = defer.check_time()
-            if msg is not None:
-                defer.reset()
-                self.client.queue(msg.to_wire_message().encode('utf-8'))            
-
     def generate_events(self,subadd_values,turnouts = False):
         #debug("generate events",subadd_values,turnouts)
         ev_lst=[]
-        #first check for the waiting producer identified
-        debug("list of values=",subadd_values,turnouts)
-        subadd_val_to_delete=[]
-        for (subadd,value) in subadd_values:
-            for (ev_turnout,ev_subadd,ev_val) in self.waiting_prod_identified:
-                if (ev_turnout,subadd)==(turnouts,subadd):
-                    if ev_val-2 == value:  #we only use the position reached events part
-                        MTI = Frame.MTI_PROD_ID_VAL
-                    else:
-                        MTI = Frame.MTI_PROD_ID_INVAL
-                    debug("producer identified:",subadd,value,turnouts)
-                    if ev_turnout:
-                        ev_lst.append(Frame.build_from_event(self,self.turnouts_ev_dict[subadd][ev_val],MTI))
-                    else:
-                        ev_lst.append(Frame.build_from_event(self,self.sensors_ev_dict[subadd][ev_val],MTI))
-                    subadd_val_to_delete.append((subadd,value))
-        #delete all read results already used
-        for subadd_val in subadd_val_to_delete:
-            subadd_values.remove(subadd_val)
 
         debug("list of values after =",subadd_values,turnouts)
         for (subadd,value) in subadd_values:
@@ -1001,9 +908,12 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     val = 1
                 if val!=-1:
                     #found the input corresponding to the event
-                    #place a deferred read and register the event to be answered later
-                    self.defer_rw[RR_duino_node.DEFER_READ_SENSORS].add(subadd)
-                    self.waiting_prod_identified.append((False,subadd,val))
+                    #check current value to send the result
+                    if val == self.sensors_cfg[subadd][1]:
+                        return openlcb_nodes.Node.ID_PRO_CON_VALID
+                    else:
+                        return openlcb_nodes.Node.ID_PRO_CON_INVAL
+
         for subadd in self.turnouts_ev_dict:
             found = False
             ev_quad = self.turnouts_ev_dict[subadd]
@@ -1013,10 +923,13 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
                     break
             if found:
                 #only for the event indicating that the turnout has reached its position
-                #place a deferred read and register the event to be answered later
-                self.defer_rw[RR_duino_node.DEFER_READ_TURNOUTS].add(subadd)
-                self.waiting_prod_identified.append((True,subadd,val))
-        return None
+                #check current value to send the result
+                if val == self.sensors_cfg[subadd][1]:
+                    return openlcb_nodes.Node.ID_PRO_CON_VALID
+                else:
+                    return openlcb_nodes.Node.ID_PRO_CON_INVAL
+
+        return openlcb_nodes.Node.ID_PRO_CON_UNKNOWN
 
     def check_id_consumer_event(self,ev):
         #FIXME

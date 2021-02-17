@@ -225,7 +225,7 @@ def process_id_prod_consumer(cli,msg):
                         res = n.check_id_consumer_event(Event(ev_id))
                     #check id producer_event might return None
                     # some nodes will answer later because they need to poll the hardware to do so
-                    #they have the responability to send the answer themselves
+                    #they have the responsibility to send the answer themselves
                     if res != None:
                         if res == Node.ID_PRO_CON_VALID:
                             if var_field == 0x914: #identify producer
