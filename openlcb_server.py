@@ -52,6 +52,7 @@ class Client_bus(Client):
         check if the client has sent the bus name to connect it to the correct bus object
         returns True if client has been connected to a bus, False otherwise
         """
+        bus = None
         msg = self.next_msg()
         if msg:
             bus_name,sep,end = msg.partition(" ")
@@ -60,8 +61,9 @@ class Client_bus(Client):
             #create a bus corresponding to the received bus name
             bus= openlcb_buses.Bus_manager.create_bus(self,bus_name,self.path_to_nodes_files)
             self.bus=bus
-            return bus is not None
-        
+        return bus is not None
+        return False
+
 def get_client_from_socket(clients,sock):
     for c in clients:
         if c.sock == sock:
