@@ -622,10 +622,10 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         super().__init__(ID)
         self.address = address
         self.hwversion = hwversion
-        #dict subaddresses <-> sensor type (Input or Output)
+        #dict subaddresses <-> sensor type (Input or Output) and current value
         self.sensors_cfg={}
-        #list of subaddresses of turnouts
-        self.turnouts_cfg=[]
+        #dict subaddresses <-> turnouts current value
+        self.turnouts_cfg={}
         #dictionnaries: subaddress <-> corresponding events list
         self.sensors_ev_dict = {}
         self.turnouts_ev_dict= {}
@@ -935,7 +935,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
             #no offset for turnouts
             return subadd
         else:
-            if self.sensors_cfg[subadd]==RR_duino_message.OUTPUT_SENSOR:
+            if self.sensors_cfg[subadd][0]==RR_duino_message.OUTPUT_SENSOR:
                 #offset by 100 for output sensors
                 return subadd + 100
             else:
@@ -987,7 +987,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         """
         for subadd in self.sensors_ev_dict:
             ev_pair= sensors_ev_dict[subadd]
-            if self.sensors_cfg[subadd]!=OUTPUT_SENSOR: #must be an input
+            if self.sensors_cfg[subadd][0]==INPUT_SENSOR: #must be an input
                 val = -1
                 if ev.id == ev_pair[0]:
                     val = 0

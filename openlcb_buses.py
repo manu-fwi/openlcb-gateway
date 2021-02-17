@@ -317,14 +317,17 @@ class RR_duino_net_bus(Bus):
                                                           address,
                                                           nodecfg[0],
                                                           desc)
-                            #get input sensors subaddresses
+                            sensors_val = nodecfg[4]
+                            #get input sensors subaddresses and values
                             for subadd in nodecfg[1]:
-                                node.sensors_cfg[subadd]=RR_duino.RR_duino_message.INPUT_SENSOR
-                            #get output sensors subaddresses
+                                node.sensors_cfg[subadd]=[RR_duino.RR_duino_message.INPUT_SENSOR,
+                                                          sensors_val[subadd]]
+                            #get output sensors subaddresses and values
                             for subadd in nodecfg[2]:
-                                node.sensors_cfg[subadd]=RR_duino.RR_duino_message.OUTPUT_SENSOR
-                            #get turnouts subaddresses
-                            node.turnouts_cfg=nodecfg[3]
+                                node.sensors_cfg[subadd]=[RR_duino.RR_duino_message.OUTPUT_SENSOR,
+                                                          sensors_val[subadd]]
+                            #get turnouts subaddresses and values
+                            node.turnouts_cfg=nodecfg[5]
 
                             #build node memory and populate it from the DB
                             node.create_memory()
