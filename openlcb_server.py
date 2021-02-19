@@ -42,7 +42,7 @@ class Client_bus(Client):
     Same as Client plus the fact that the first line must be a "bus" descriptor plus the client name(cf openlcb_buses.py)
     """
     def __init__(self,sock,add,path_to_nodes_files = None):
-        super().__init__(sock,add,openlcb_buses.Bus.BUS_MSG_SEPARATOR)
+        super().__init__(sock,add,openlcb_buses.Bus.separator)
         self.bus = None
         self.managed_nodes=[]
         self.path_to_nodes_files=path_to_nodes_files
@@ -55,9 +55,9 @@ class Client_bus(Client):
         bus = None
         msg = self.next_msg()
         if msg:
+            debug("check bus name : ",msg)
             bus_name,sep,end = msg.partition(" ")
-            name = end
-            self.name = name
+            self.name = end.lstrip().rstrip()
             #create a bus corresponding to the received bus name
             bus= openlcb_buses.Bus_manager.create_bus(self,bus_name,self.path_to_nodes_files)
             self.bus=bus
@@ -89,7 +89,7 @@ class Openlcb_server:
         # queue up to 5 requests
         self.serversocket.listen(5)
 
-        #this socket enables us to send openlcb packets to everyone (buses or exterior openlcb network
+        #this socket enables us to send openlcb packets to everyone (buses or exterior openlcb network)
         self.internal_sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.internal_sock.connect((self.address,self.port))
         
@@ -141,7 +141,7 @@ class Openlcb_server:
             m=""
             try:
                 m = s.recv(200).decode('utf-8')
-            except socket.error:
+            except:
                 debug("recv error")
             #debug(len(m)," => ",m)
             c = get_client_from_socket(self.clients,s)

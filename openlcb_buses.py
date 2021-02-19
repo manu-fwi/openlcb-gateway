@@ -11,7 +11,7 @@ from collections import deque
 from openlcb_cmri_cfg import hex_int
 
 class Bus:
-    BUS_MSG_SEPARATOR=";"
+    separator ="\n"
     def __init__(self,name,path_to_nodes_files=None):
         self.name = name
         self.clients=[]       #client programs connected to the bus
@@ -296,53 +296,53 @@ class RR_duino_net_bus(Bus):
                 else:
                     #it is a bus message (new node...)
                     #format: See arduino sketch
-                    begin,sep,end = msg.partition(":")
+                    begin,sep,end = msg.partition(" ")
                     debug("begin=",begin,"sep=",sep,"end=",end)
                     if begin=="NEW-NODE" and end!="":
                         #get address (first field)
                         begin,sep,end = end.partition(",")
                         #fixme: exception might happen here
                         address = int(begin)
-                        desc = self.nodes_db.get_db_node_from_add(address)
+                        desc = self.nodes_db.get_db_node_from_add(c.name,address)
                         if desc is None:
                             debug("Node with address",address,"has no corresponding fullID!")
-                            return
-                        if desc["FULLID"] in c.managed_nodes:
-                            debug("Node already managed!",desc["FULLID"])
                         else:
-                            #build node FIXME
-                            nodecfg = self.get_cfg_from_RR_duino_init(end)
-                            node = RR_duino.RR_duino_node(c,
-                                                          desc["FULLID"],
-                                                          address,
-                                                          nodecfg[0],
-                                                          desc)
-                            sensors_val = nodecfg[4]
-                            #get input sensors subaddresses and values
-                            for subadd in nodecfg[1]:
-                                node.sensors_cfg[subadd]=[RR_duino.RR_duino_message.INPUT_SENSOR,
-                                                          sensors_val[subadd]]
-                            #get output sensors subaddresses and values
-                            for subadd in nodecfg[2]:
-                                node.sensors_cfg[subadd]=[RR_duino.RR_duino_message.OUTPUT_SENSOR,
-                                                          sensors_val[subadd]]
-                            #get turnouts subaddresses and values
-                            node.turnouts_cfg=nodecfg[5]
+                            if desc.desc_dict["FULLID"] in c.managed_nodes:
+                                debug("Node already managed!",desc["fullID"])
+                            else:
+                                #build node FIXME
+                                nodecfg = self.get_cfg_from_RR_duino_init(end)
+                                node = RR_duino.RR_duino_node(c,
+                                                              desc.desc_dict["fullID"],
+                                                              address,
+                                                              nodecfg[0],
+                                                              desc)
+                                sensors_val = nodecfg[4]
+                                #get input sensors subaddresses and values
+                                for subadd in nodecfg[1]:
+                                    node.sensors_cfg[subadd]=[RR_duino.RR_duino_message.INPUT_SENSOR,
+                                                              sensors_val[subadd]]
+                                #get output sensors subaddresses and values
+                                for subadd in nodecfg[2]:
+                                    node.sensors_cfg[subadd]=[RR_duino.RR_duino_message.OUTPUT_SENSOR,
+                                                              sensors_val[subadd]]
+                                #get turnouts subaddresses and values
+                                node.turnouts_cfg=nodecfg[5]
 
-                            #build node memory and populate it from the DB
-                            node.create_memory()
-                            node.load_from_desc()
-                            debug("description dict=",node.desc.desc_dict)
-                            self.nodes[desc["FULLID"]]=node
-                            #create and register alias negotiation
-                            alias_neg = node.create_alias_negotiation()
-                            #loop while we find an unused alias
-                            while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
+                                #build node memory and populate it from the DB
+                                node.create_memory()
+                                node.load_from_desc()
+                                debug("description dict=",node.desc.desc_dict)
+                                self.nodes[desc.desc_dict["fullID"]]=node
+                                #create and register alias negotiation
                                 alias_neg = node.create_alias_negotiation()
-                            self.nodes_in_alias_negotiation.append((node,alias_neg))
-                            #also add it to the list of aliases negotiation
-                            list_alias_neg.append(alias_neg)
-                            c.managed_nodes.append(node)
+                                #loop while we find an unused alias
+                                while (alias_neg.aliasID in reserved_aliases) or (get_alias_neg_from_alias(alias_neg.aliasID) is not None):
+                                    alias_neg = node.create_alias_negotiation()
+                                self.nodes_in_alias_negotiation.append((node,alias_neg))
+                                #also add it to the list of aliases negotiation
+                                list_alias_neg.append(alias_neg)
+                                c.managed_nodes.append(node)
                     elif begin=="STOP-NODE":
                         #FIXME: not sure we need this
                         #get the node out the managed list (device is offline or config has changed, in the latter case
@@ -361,9 +361,6 @@ class RR_duino_net_bus(Bus):
                             c.managed_nodes.remove(n)
                     else:
                         debug("unknown RR_duino_net_bus command")
-            #check deferred reads/writes
-            for n in c.managed_nodes:
-                n.check_defer()
 
         #move forward for alias negotiation
         frames_list=self.generate_frames_from_alias_neg()

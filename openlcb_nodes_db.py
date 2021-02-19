@@ -122,6 +122,7 @@ class Nodes_db_RR_duino_node(Nodes_db_node):
 
     def get_db_node_from_add(self,bus_name,add):
         for fullID in self.db:
-            if self.db[fullID]["bus"]==bus_name and self.db[fullID]["address"]==address:
+            if self.db[fullID].desc_dict["bus"]==bus_name and self.db[fullID].desc_dict["address"]==add:
                 return self.db[fullID]
+        return None
         
