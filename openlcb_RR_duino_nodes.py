@@ -450,7 +450,7 @@ class RR_duino_message:
 
 class RR_duino_node_desc:
     #default dict to add new nodes to the DB when they have no description
-    DEFAULT_JSON = { "address":None,"fullID":None }
+    DEFAULT_JSON = { "bus":None,"address":None,"fullID":None }
 
     def __init__(self,desc_dict):
         self.desc_dict = dict(desc_dict)  #(shallow) copy the dict containing the node description
@@ -577,7 +577,7 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         self.client=client
 
     def __str__(self):
-        res = "RR-duino Node, fullID="+str(self.client.name)+",add="+str(self.address)+",version="+str(self.hwversion)
+        res = "RR-duino Node, fullID="+str(ID)+", on bus "+self.client.name+",add="+str(self.address)+",version="+str(self.hwversion)
         return res
 
     def get_CDI(self):

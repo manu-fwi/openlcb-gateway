@@ -100,6 +100,7 @@ class Nodes_db_CMRI(Nodes_db_node):
 """
 Format for RR_duino nodes: a (json) list, each element of which is a node description
 "fullID" (integer) : full node ID as an openlcb node
+"bus" (string) : name of the bus it is on
 "address" (integer) : address on the bus (1-62)
 "sensors_ev_dict" (dict) : dictionnary, subaddress is the key value is a list of events (on for on one for off)
 "turnouts_ev_dict" (dict) : dictionnary, subaddress is the key value is a list of events (on to close, one to throw, one when closed one when thrown)
@@ -113,14 +114,14 @@ class Nodes_db_RR_duino_node(Nodes_db_node):
         
     def load_node(self,js):
         
-        if "fullID" not in js or "address" not in js:
+        if "fullID" not in js or "address" not in js or "bus" not in js:
             debug("missing fields in the node description",js)
             return None
         debug("load node from db",js)
         return openlcb_RR_duino_nodes.RR_duino_node_desc(js)
 
-    def get_db_node_from_add(self,add):
+    def get_db_node_from_add(self,bus_name,add):
         for fullID in self.db:
-            if self.db[fullID].address==address:
+            if self.db[fullID]["bus"]==bus_name and self.db[fullID]["address"]==address:
                 return self.db[fullID]
         
