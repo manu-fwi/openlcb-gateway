@@ -307,7 +307,7 @@ class RR_duino_net_bus(Bus):
                         if desc is None:
                             debug("Node with address",address,"has no corresponding fullID!")
                         else:
-                            if desc.desc_dict["FULLID"] in c.managed_nodes:
+                            if desc.desc_dict["fullID"] in c.managed_nodes:
                                 debug("Node already managed!",desc["fullID"])
                             else:
                                 #build node FIXME
