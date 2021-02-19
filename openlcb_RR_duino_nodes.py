@@ -840,9 +840,9 @@ xsi:noNamespaceSchemaLocation="http://openlcb.org/schema/cdi/1/1/cdi.xsd">
         else:
             self.sensors_cfg[subadd][1]=value
             
-        return self.generate_events((subadd,value),on_turnout)
+        return self.generate_events([(subadd,value)],on_turnout)
 
-    def subbadd_to_index_output(self,subadd,turnout=False):
+    def subadd_to_index_output(self,subadd,turnout=False):
         #compute the index when setting an output sensor or a turnout
         if turnout:
             #no offset for turnouts

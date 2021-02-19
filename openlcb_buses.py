@@ -193,7 +193,7 @@ class RR_duino_net_bus(Bus):
         This translates a string of bytes into a list of states (MSB unused)
         bits_str is a string of space separated numbers (in decimal format)
         """
-        numbers = bits_str.split()
+        numbers = net_str.split()
         #first subadd is 1
         states_lst = []
 
@@ -207,7 +207,7 @@ class RR_duino_net_bus(Bus):
                     states_lst.append(0)
         return states_lst        
             
-    def get_desc_from_RR_duino_init(self,net_desc):
+    def get_cfg_from_RR_duino_init(self,net_desc):
         """
         This translates the string received from the RR_duino_net (after the address) into a list of config parameters:
         [0] (number) => version
@@ -219,16 +219,28 @@ class RR_duino_net_bus(Bus):
 
         Format of net_desc: see arduino helper sketch
         """
+        def build_states_dict(subadds,states):
+            result = {}
+            for i in range(len(subadds)):
+                result[subadds[i]]=states
+            return result
+        
         params = net_desc.split(",")
         #get version
-        result = int(params[0])
+        result = [int(params[0])]
         #get subaddresses of input sensors, output sensors and turnouts
         for i in range(1,4):
             result.append(self.get_subadd_lst_from_bits(params[i]))
         #get states of sensors
-        result.append(self.get_states_lst_from_bits(params[4]))
+        states = self.get_states_lst_from_bits(params[4])
+        #build list of all sensors subbaddresses (sorted)
+        all_sensors=result[1][:]
+        all_sensors.extend(result[2])
+        all_sensors.sort()
+        result.append(build_states_dict(all_sensors,states))
         #get states of turnouts
-        result.append(self.get_states_lst_from_bits(params[5]))
+        states = self.get_states_lst_from_bits(params[5])
+        result.append(build_states_dict(result[3],states))
         
         return result
 
@@ -286,13 +298,13 @@ class RR_duino_net_bus(Bus):
                     if len(msg_value)==1:
                         #There was an error, the tuple is only made of the error message
                         debug(msg_value[0])
-                        return
-                    node = RR_duino.find_node_from_add(msg_value[0],c.managed_nodes)
-                    if node is None:
-                        debug("Unknown node!! add=", address)
                     else:
-                        #fixme!
-                        ev_list.extend(node.process_receive(msg_value[1],msg_values[2]))
+                        node = RR_duino.find_node_from_add(msg_value[0],c.managed_nodes)
+                        if node is None:
+                            debug("Unknown node!! add=", address)
+                        else:
+                            #fixme!
+                            ev_list.extend(node.process_receive(msg_value[1],msg_value[2]))
                 else:
                     #it is a bus message (new node...)
                     #format: See arduino sketch
